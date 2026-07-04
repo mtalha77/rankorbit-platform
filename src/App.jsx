@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
+import { useState, useEffect, useCallback } from "react";
+import { createClient } from "@supabase/supabase-js";
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
-// ─── DESIGN TOKENS (light, warm SaaS) ────────────────────────────────────────
+// ─── TOKENS ──────────────────────────────────────────────────────────────────
 const T = {
   bg:"#F6F7FB", surface:"#FFFFFF", surface2:"#F0F1F8",
   ink:"#171732", sub:"#5F6480", faint:"#9CA0B8", line:"#E7E9F2",
@@ -12,10 +13,10 @@ const T = {
   blue:"#2E7CD6", blueSoft:"#E8F1FC",
   violet:"#8A4FD8", violetSoft:"#F2EAFC",
 };
-const FONT_D = "'Sora','Inter',sans-serif";
-const FONT_B = "'Inter',system-ui,sans-serif";
-const SHADOW = "0 1px 2px rgba(23,23,50,.04), 0 8px 24px rgba(23,23,50,.06)";
-const SHADOW_LG = "0 4px 12px rgba(23,23,50,.06), 0 20px 48px rgba(23,23,50,.10)";
+const FONT_D="'Sora','Inter',sans-serif";
+const FONT_B="'Inter',system-ui,sans-serif";
+const SHADOW="0 1px 2px rgba(23,23,50,.04), 0 8px 24px rgba(23,23,50,.06)";
+const SHADOW_LG="0 4px 12px rgba(23,23,50,.06), 0 20px 48px rgba(23,23,50,.10)";
 
 function GlobalStyle(){
   return(<style>{`
@@ -45,76 +46,61 @@ function GlobalStyle(){
     @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
   `}</style>);
 }
-
-// ─── ORBIT MOTION GRAPHIC (brand signature) ──────────────────────────────────
 function Orbit({size=120,speed=14}){
   const s=size;
   return(<div style={{width:s,height:s,position:"relative",flexShrink:0}}>
     <div style={{position:"absolute",inset:0,borderRadius:"50%",border:`1.5px solid ${T.line}`}}/>
     <div style={{position:"absolute",inset:s*0.18,borderRadius:"50%",border:`1.5px dashed ${T.line}`}}/>
     <div style={{position:"absolute",inset:s*0.36,borderRadius:"50%",background:`linear-gradient(135deg,${T.brand},${T.violet})`,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontFamily:FONT_D,fontWeight:800,fontSize:s*0.16,boxShadow:`0 6px 18px ${T.brandGlow}`}}>RO</div>
-    <div style={{position:"absolute",inset:0,animation:`orbitSpin ${speed}s linear infinite`}}>
-      <div style={{position:"absolute",top:-4,left:"50%",width:9,height:9,marginLeft:-4.5,borderRadius:"50%",background:T.green,boxShadow:"0 0 0 3px "+T.greenSoft}}/>
-    </div>
-    <div style={{position:"absolute",inset:s*0.18,animation:`orbitSpinR ${speed*0.7}s linear infinite`}}>
-      <div style={{position:"absolute",bottom:-4,left:"50%",width:8,height:8,marginLeft:-4,borderRadius:"50%",background:T.brand,boxShadow:"0 0 0 3px "+T.brandSoft}}/>
-    </div>
+    <div style={{position:"absolute",inset:0,animation:`orbitSpin ${speed}s linear infinite`}}><div style={{position:"absolute",top:-4,left:"50%",width:9,height:9,marginLeft:-4.5,borderRadius:"50%",background:T.green,boxShadow:"0 0 0 3px "+T.greenSoft}}/></div>
+    <div style={{position:"absolute",inset:s*0.18,animation:`orbitSpinR ${speed*0.7}s linear infinite`}}><div style={{position:"absolute",bottom:-4,left:"50%",width:8,height:8,marginLeft:-4,borderRadius:"50%",background:T.brand,boxShadow:"0 0 0 3px "+T.brandSoft}}/></div>
   </div>);
 }
 function MiniOrbit({size=30}){
   return(<div style={{width:size,height:size,position:"relative",flexShrink:0}}>
     <div style={{position:"absolute",inset:size*0.22,borderRadius:"50%",background:`linear-gradient(135deg,${T.brand},${T.violet})`}}/>
     <div style={{position:"absolute",inset:0,borderRadius:"50%",border:`1.5px solid ${T.line}`}}/>
-    <div style={{position:"absolute",inset:0,animation:"orbitSpin 8s linear infinite"}}>
-      <div style={{position:"absolute",top:-2.5,left:"50%",width:6,height:6,marginLeft:-3,borderRadius:"50%",background:T.green}}/>
-    </div>
+    <div style={{position:"absolute",inset:0,animation:"orbitSpin 8s linear infinite"}}><div style={{position:"absolute",top:-2.5,left:"50%",width:6,height:6,marginLeft:-3,borderRadius:"50%",background:T.green}}/></div>
   </div>);
 }
 
-// ─── DATA LAYER ──────────────────────────────────────────────────────────────
+// ─── SEED (local fallback mode) ──────────────────────────────────────────────
 const SEED = {
   users:[
-    {id:"u1",email:"admin@rankorbit.com",password:"admin123",role:"super_admin",name:"Talha (Admin)",avatar:"T",createdAt:"2025-01-01"},
-    {id:"u2",email:"manager@rankorbit.com",password:"manager123",role:"manager",name:"Sara (Manager)",avatar:"S",createdAt:"2025-01-15"},
-    {id:"u3",email:"agent@rankorbit.com",password:"agent123",role:"agent",name:"Ali (Agent)",avatar:"A",createdAt:"2025-02-01"},
-    {id:"u4",email:"mike@example.com",password:"client123",role:"client",name:"Mike Johnson",avatar:"M",businessName:"Mike's Plumbing",plan:"growth",phone:"(555) 200-1000",address:"123 Main St",city:"Austin",state:"TX",zip:"78701",website:"mikesplumbing.com",category:"Home Services",createdAt:"2025-03-01",status:"active",napScore:94,assignedAgent:"u3"},
-    {id:"u5",email:"sarah@dentalcare.com",password:"client123",role:"client",name:"Sarah Miller",avatar:"S",businessName:"Sarah's Dental Care",plan:"gmb",phone:"(555) 300-2000",address:"456 Oak Ave",city:"Houston",state:"TX",zip:"77001",website:"sarahsdental.com",category:"Medical / Health",createdAt:"2025-03-15",status:"active",napScore:88,assignedAgent:"u3"},
-    {id:"u6",email:"john@autoshop.com",password:"client123",role:"client",name:"John Davis",avatar:"J",businessName:"Davis Auto Repair",plan:"essentials",phone:"(555) 400-3000",address:"789 Elm Rd",city:"Dallas",state:"TX",zip:"75201",website:"davisauto.com",category:"Auto Services",createdAt:"2025-04-01",status:"active",napScore:72,assignedAgent:"u3"},
+    {id:"u1",email:"admin@rankorbit.com",password:"admin123",role:"super_admin",name:"Talha (Admin)",avatar:"T",protected:true},
+    {id:"u2",email:"manager@rankorbit.com",password:"manager123",role:"manager",name:"Sara (Manager)",avatar:"S",protected:true},
+    {id:"u3",email:"agent@rankorbit.com",password:"agent123",role:"agent",name:"Ali (Agent)",avatar:"A",protected:true},
+    {id:"u4",email:"mike@example.com",password:"client123",role:"client",name:"Mike Johnson",avatar:"M",businessName:"Mike's Plumbing",plan:"growth",phone:"(555) 200-1000",address:"123 Main St",city:"Austin",state:"TX",zip:"78701",website:"mikesplumbing.com",category:"Home Services",status:"active",napScore:94,protected:true},
+    {id:"u5",email:"sarah@dentalcare.com",password:"client123",role:"client",name:"Sarah Miller",avatar:"S",businessName:"Sarah's Dental Care",plan:"gmb",phone:"(555) 300-2000",address:"456 Oak Ave",city:"Houston",state:"TX",zip:"77001",website:"sarahsdental.com",category:"Medical / Health",status:"active",napScore:88,protected:true},
+    {id:"u6",email:"john@autoshop.com",password:"client123",role:"client",name:"John Davis",avatar:"J",businessName:"Davis Auto Repair",plan:"essentials",phone:"(555) 400-3000",address:"789 Elm Rd",city:"Dallas",state:"TX",zip:"75201",website:"davisauto.com",category:"Auto Services",status:"active",napScore:72,protected:true},
   ],
-  listings:{
-    u4:[
-      {id:"l1",directory:"Google Business Profile",status:"live",submitted:"Mar 1",liveDate:"Mar 2",napMatch:"match",liveLink:"https://business.google.com",da:99,notes:""},
-      {id:"l2",directory:"Yellow Pages",status:"live",submitted:"Mar 1",liveDate:"Mar 5",napMatch:"match",liveLink:"https://yellowpages.com",da:92,notes:""},
-      {id:"l3",directory:"Foursquare",status:"live",submitted:"Mar 2",liveDate:"Mar 6",napMatch:"match",liveLink:"https://foursquare.com",da:88,notes:""},
-      {id:"l4",directory:"Manta",status:"live",submitted:"Mar 3",liveDate:"Mar 8",napMatch:"match",liveLink:"https://manta.com",da:74,notes:""},
-      {id:"l5",directory:"MerchantCircle",status:"live",submitted:"Mar 4",liveDate:"Mar 10",napMatch:"fixed",liveLink:"https://merchantcircle.com",da:68,notes:"Phone corrected Jun 24"},
-      {id:"l6",directory:"Hotfrog",status:"live",submitted:"Apr 1",liveDate:"Apr 4",napMatch:"match",liveLink:"https://hotfrog.com",da:62,notes:""},
-      {id:"l7",directory:"Storeboard",status:"live",submitted:"Apr 2",liveDate:"Apr 7",napMatch:"match",liveLink:"https://storeboard.com",da:55,notes:""},
-      {id:"l8",directory:"Proven Expert",status:"live",submitted:"Apr 3",liveDate:"Apr 9",napMatch:"match",liveLink:"https://provenexpert.com",da:58,notes:""},
-      {id:"l9",directory:"Apple Business Connect",status:"pending",submitted:"Jul 1",liveDate:"—",napMatch:"—",liveLink:"",da:96,notes:"Awaiting Apple verification"},
-      {id:"l10",directory:"Bing Places",status:"pending",submitted:"Jul 1",liveDate:"—",napMatch:"—",liveLink:"",da:94,notes:""},
-    ],
-    u5:[
-      {id:"l11",directory:"Google Business Profile",status:"live",submitted:"Mar 15",liveDate:"Mar 16",napMatch:"match",liveLink:"https://business.google.com",da:99,notes:""},
-      {id:"l12",directory:"Healthgrades",status:"live",submitted:"Mar 16",liveDate:"Mar 20",napMatch:"match",liveLink:"https://healthgrades.com",da:82,notes:""},
-      {id:"l13",directory:"Zocdoc",status:"live",submitted:"Mar 17",liveDate:"Mar 22",napMatch:"match",liveLink:"https://zocdoc.com",da:78,notes:""},
-      {id:"l14",directory:"Yellow Pages",status:"live",submitted:"Mar 18",liveDate:"Mar 25",napMatch:"mismatch",liveLink:"https://yellowpages.com",da:92,notes:"Address format issue"},
-      {id:"l15",directory:"Vitals",status:"pending",submitted:"Jul 2",liveDate:"—",napMatch:"—",liveLink:"",da:70,notes:""},
-    ],
-    u6:[
-      {id:"l16",directory:"Google Business Profile",status:"live",submitted:"Apr 1",liveDate:"Apr 2",napMatch:"match",liveLink:"https://business.google.com",da:99,notes:""},
-      {id:"l17",directory:"Yellow Pages",status:"live",submitted:"Apr 2",liveDate:"Apr 6",napMatch:"match",liveLink:"https://yellowpages.com",da:92,notes:""},
-      {id:"l18",directory:"Yelp",status:"flagged",submitted:"Apr 3",liveDate:"Apr 8",napMatch:"mismatch",liveLink:"https://yelp.com",da:90,notes:"Unauthorized edit detected"},
-      {id:"l19",directory:"Manta",status:"rejected",submitted:"May 1",liveDate:"—",napMatch:"—",liveLink:"",da:74,notes:"Duplicate listing found"},
-    ],
-  },
-  gmb:{
-    u5:{views:1240,calls:47,directions:83,
-      trend:[{m:"Mar",v:680,c:28,d:51},{m:"Apr",v:820,c:34,d:63},{m:"May",v:1050,c:42,d:74},{m:"Jun",v:1240,c:47,d:83}],
-      posts:[{title:"New Patient Special",date:"Jun 25",status:"live"},{title:"Open Saturdays",date:"Jun 15",status:"live"}],
-      qa:[{q:"Do you accept insurance?",a:"Yes, we accept most major insurance plans.",date:"Jun 20"}],
-      photos:3,completeness:{category:true,description:true,hours:true,photo:true,services:false,attributes:false}},
-  },
+  listings:[
+    {id:"l1",clientId:"u4",directory:"Google Business Profile",status:"live",submitted:"Mar 1",liveDate:"Mar 2",napMatch:"match",liveLink:"https://business.google.com",da:99,notes:""},
+    {id:"l2",clientId:"u4",directory:"Yellow Pages",status:"live",submitted:"Mar 1",liveDate:"Mar 5",napMatch:"match",liveLink:"https://yellowpages.com",da:92,notes:""},
+    {id:"l3",clientId:"u4",directory:"Foursquare",status:"live",submitted:"Mar 2",liveDate:"Mar 6",napMatch:"match",liveLink:"https://foursquare.com",da:88,notes:""},
+    {id:"l4",clientId:"u4",directory:"Manta",status:"live",submitted:"Mar 3",liveDate:"Mar 8",napMatch:"match",liveLink:"https://manta.com",da:74,notes:""},
+    {id:"l5",clientId:"u4",directory:"MerchantCircle",status:"live",submitted:"Mar 4",liveDate:"Mar 10",napMatch:"fixed",liveLink:"https://merchantcircle.com",da:68,notes:"Phone corrected Jun 24"},
+    {id:"l6",clientId:"u4",directory:"Hotfrog",status:"live",submitted:"Apr 1",liveDate:"Apr 4",napMatch:"match",liveLink:"https://hotfrog.com",da:62,notes:""},
+    {id:"l7",clientId:"u4",directory:"Storeboard",status:"live",submitted:"Apr 2",liveDate:"Apr 7",napMatch:"match",liveLink:"https://storeboard.com",da:55,notes:""},
+    {id:"l8",clientId:"u4",directory:"Proven Expert",status:"live",submitted:"Apr 3",liveDate:"Apr 9",napMatch:"match",liveLink:"https://provenexpert.com",da:58,notes:""},
+    {id:"l9",clientId:"u4",directory:"Apple Business Connect",status:"pending",submitted:"Jul 1",liveDate:"—",napMatch:"—",liveLink:"",da:96,notes:"Awaiting Apple verification"},
+    {id:"l10",clientId:"u4",directory:"Bing Places",status:"pending",submitted:"Jul 1",liveDate:"—",napMatch:"—",liveLink:"",da:94,notes:""},
+    {id:"l11",clientId:"u5",directory:"Google Business Profile",status:"live",submitted:"Mar 15",liveDate:"Mar 16",napMatch:"match",liveLink:"https://business.google.com",da:99,notes:""},
+    {id:"l12",clientId:"u5",directory:"Healthgrades",status:"live",submitted:"Mar 16",liveDate:"Mar 20",napMatch:"match",liveLink:"https://healthgrades.com",da:82,notes:""},
+    {id:"l13",clientId:"u5",directory:"Zocdoc",status:"live",submitted:"Mar 17",liveDate:"Mar 22",napMatch:"match",liveLink:"https://zocdoc.com",da:78,notes:""},
+    {id:"l14",clientId:"u5",directory:"Yellow Pages",status:"live",submitted:"Mar 18",liveDate:"Mar 25",napMatch:"mismatch",liveLink:"https://yellowpages.com",da:92,notes:"Address format issue"},
+    {id:"l15",clientId:"u5",directory:"Vitals",status:"pending",submitted:"Jul 2",liveDate:"—",napMatch:"—",liveLink:"",da:70,notes:""},
+    {id:"l16",clientId:"u6",directory:"Google Business Profile",status:"live",submitted:"Apr 1",liveDate:"Apr 2",napMatch:"match",liveLink:"https://business.google.com",da:99,notes:""},
+    {id:"l17",clientId:"u6",directory:"Yellow Pages",status:"live",submitted:"Apr 2",liveDate:"Apr 6",napMatch:"match",liveLink:"https://yellowpages.com",da:92,notes:""},
+    {id:"l18",clientId:"u6",directory:"Yelp",status:"flagged",submitted:"Apr 3",liveDate:"Apr 8",napMatch:"mismatch",liveLink:"https://yelp.com",da:90,notes:"Unauthorized edit detected"},
+    {id:"l19",clientId:"u6",directory:"Manta",status:"rejected",submitted:"May 1",liveDate:"—",napMatch:"—",liveLink:"",da:74,notes:"Duplicate listing found"},
+  ],
+  gmb:{u5:{views:1240,calls:47,directions:83,source:"manual",
+    trend:[{m:"Mar",v:680,c:28,d:51},{m:"Apr",v:820,c:34,d:63},{m:"May",v:1050,c:42,d:74},{m:"Jun",v:1240,c:47,d:83}],
+    posts:[{title:"New Patient Special",date:"Jun 25",status:"live"},{title:"Open Saturdays",date:"Jun 15",status:"live"}],
+    qa:[{q:"Do you accept insurance?",a:"Yes, we accept most major insurance plans.",date:"Jun 20"}],
+    photos:3,completeness:{category:true,description:true,hours:true,photo:true,services:false,attributes:false}}},
+  analytics:{},
   activity:[
     {id:"a1",clientId:"u4",type:"listing_live",desc:"Yellow Pages listing went live",date:"Jul 4, 2025",by:"Ali (Agent)"},
     {id:"a2",clientId:"u4",type:"nap_fix",desc:"Phone corrected on MerchantCircle",date:"Jun 24, 2025",by:"Ali (Agent)"},
@@ -123,22 +109,134 @@ const SEED = {
     {id:"a5",clientId:"u6",type:"flagged",desc:"Yelp listing flagged — unauthorized edit detected",date:"Jun 20, 2025",by:"System"},
     {id:"a6",clientId:"u6",type:"rejected",desc:"Manta listing rejected — duplicate found",date:"May 10, 2025",by:"Ali (Agent)"},
   ],
+  settings:{stripe:{essentials:"",growth:"",gmb:"",pubKey:""}},
 };
-function dbGet(key){try{const v=localStorage.getItem(key);return v?JSON.parse(v):null;}catch{return null;}}
-function dbSet(key,val){try{localStorage.setItem(key,JSON.stringify(val));}catch(e){console.error(e);}}
-function initDB(){
-  dbSet("ro_users",SEED.users);
-  if(!dbGet("ro_listings"))dbSet("ro_listings",SEED.listings);
-  if(!dbGet("ro_gmb"))dbSet("ro_gmb",SEED.gmb);
-  if(!dbGet("ro_activity"))dbSet("ro_activity",SEED.activity);
-}
+
+// ─── API LAYER — Supabase Auth + profiles, with local demo fallback ──────────
+const SUPA_URL=import.meta.env.VITE_SUPABASE_URL||"";
+const SUPA_KEY=import.meta.env.VITE_SUPABASE_ANON_KEY||"";
+const supa=(SUPA_URL&&SUPA_KEY)?createClient(SUPA_URL,SUPA_KEY):null;
+const LS=(k)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch{return null;}};
+const LSet=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}};
+const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random());
+
+const api={
+  mode: supa?"supabase":"local",
+  async init(){
+    if(supa)return;
+    if(!LS("ro3_users")){
+      LSet("ro3_users",SEED.users);LSet("ro3_listings",SEED.listings);
+      LSet("ro3_gmb",SEED.gmb);LSet("ro3_analytics",SEED.analytics);
+      LSet("ro3_activity",SEED.activity);LSet("ro3_settings",SEED.settings);
+    }
+  },
+  // Returns the logged-in profile if a Supabase session already exists
+  async currentUser(){
+    if(!supa)return null;
+    const{data:{session}}=await supa.auth.getSession();
+    if(!session)return null;
+    const{data}=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
+    return data||null;
+  },
+  async login(email,password){
+    if(supa){
+      const{data,error}=await supa.auth.signInWithPassword({email,password});
+      if(error)return{error:error.message.includes("Invalid")?"Invalid email or password.":error.message};
+      const{data:prof}=await supa.from("profiles").select("*").eq("id",data.user.id).maybeSingle();
+      if(prof?.status==="suspended"){await supa.auth.signOut();return{error:"This account is suspended. Contact your account manager."};}
+      return{user:prof};
+    }
+    const u=(LS("ro3_users")||[]).find(x=>x.email===email&&x.password===password);
+    if(!u)return{error:"Invalid email or password. Try a demo account below."};
+    if(u.status==="suspended")return{error:"This account is suspended. Contact your account manager."};
+    return{user:u};
+  },
+  async signup({email,password,name,businessName,phone}){
+    if(supa){
+      const{data,error}=await supa.auth.signUp({email,password,options:{data:{name}}});
+      if(error)return{error:error.message};
+      // profile row auto-created by trigger; enrich it
+      if(data.user){
+        await supa.from("profiles").update({name,businessName,phone,avatar:(name||email)[0].toUpperCase()}).eq("id",data.user.id);
+      }
+      if(!data.session)return{needsConfirm:true};
+      const{data:prof}=await supa.from("profiles").select("*").eq("id",data.user.id).maybeSingle();
+      return{user:prof};
+    }
+    const us=LS("ro3_users")||[];
+    if(us.find(x=>x.email===email))return{error:"An account with this email already exists."};
+    const u={id:uid(),email,password,role:"client",name,businessName,phone,avatar:(name||email)[0].toUpperCase(),status:"active",napScore:0,createdAt:new Date().toISOString()};
+    us.push(u);LSet("ro3_users",us);return{user:u};
+  },
+  async googleLogin(){
+    if(!supa)return{error:"Google sign-in needs the live database. It's disabled in demo mode."};
+    const{error}=await supa.auth.signInWithOAuth({provider:"google",options:{redirectTo:window.location.origin}});
+    if(error)return{error:error.message};
+    return{redirecting:true};
+  },
+  async resetPassword(email){
+    if(!supa)return{error:"Password reset needs the live database."};
+    const{error}=await supa.auth.resetPasswordForEmail(email,{redirectTo:window.location.origin});
+    return error?{error:error.message}:{ok:true};
+  },
+  async logout(){if(supa)await supa.auth.signOut();},
+  async loadAll(){
+    if(supa){
+      const[u,l,g,an,ac,s]=await Promise.all([
+        supa.from("profiles").select("*"),
+        supa.from("listings").select("*"),
+        supa.from("gmb").select("*"),
+        supa.from("analytics").select("*"),
+        supa.from("activity").select("*").order("createdAt",{ascending:false}),
+        supa.from("settings").select("*").eq("id",1).maybeSingle(),
+      ]);
+      const listings={};(l.data||[]).forEach(x=>{(listings[x.clientId]=listings[x.clientId]||[]).push(x);});
+      const gmb={};(g.data||[]).forEach(x=>gmb[x.clientId]=x.data);
+      const analytics={};(an.data||[]).forEach(x=>analytics[x.clientId]=x.data);
+      return{users:u.data||[],listings,gmb,analytics,activity:ac.data||[],settings:s.data?.data||SEED.settings};
+    }
+    const flat=LS("ro3_listings")||[];const listings={};flat.forEach(x=>{(listings[x.clientId]=listings[x.clientId]||[]).push(x);});
+    return{users:LS("ro3_users")||[],listings,gmb:LS("ro3_gmb")||{},analytics:LS("ro3_analytics")||{},activity:LS("ro3_activity")||[],settings:LS("ro3_settings")||SEED.settings};
+  },
+  async upsertProfile(u){
+    if(supa){const{error}=await supa.from("profiles").upsert(u);if(error)console.error(error);return;}
+    const us=LS("ro3_users")||[];const i=us.findIndex(x=>x.id===u.id);
+    if(i>=0)us[i]=u;else us.push(u);LSet("ro3_users",us);
+  },
+  async deleteUser(id){
+    if(supa){await supa.from("profiles").delete().eq("id",id);return;}
+    LSet("ro3_users",(LS("ro3_users")||[]).filter(x=>x.id!==id));
+    LSet("ro3_listings",(LS("ro3_listings")||[]).filter(x=>x.clientId!==id));
+    const g=LS("ro3_gmb")||{};delete g[id];LSet("ro3_gmb",g);
+  },
+  async upsertListing(l){
+    if(supa){const{error}=await supa.from("listings").upsert(l);if(error)console.error(error);return;}
+    const ls=LS("ro3_listings")||[];const i=ls.findIndex(x=>x.id===l.id);
+    if(i>=0)ls[i]=l;else ls.push(l);LSet("ro3_listings",ls);
+  },
+  async deleteListing(id){
+    if(supa){await supa.from("listings").delete().eq("id",id);return;}
+    LSet("ro3_listings",(LS("ro3_listings")||[]).filter(x=>x.id!==id));
+  },
+  async upsertGmb(clientId,data){
+    if(supa){await supa.from("gmb").upsert({clientId,data});return;}
+    const g=LS("ro3_gmb")||{};g[clientId]=data;LSet("ro3_gmb",g);
+  },
+  async upsertAnalytics(clientId,data){
+    if(supa){await supa.from("analytics").upsert({clientId,data});return;}
+    const a=LS("ro3_analytics")||{};a[clientId]=data;LSet("ro3_analytics",a);
+  },
+  async addActivity(a){
+    if(supa){await supa.from("activity").insert(a);return;}
+    LSet("ro3_activity",[a,...(LS("ro3_activity")||[])]);
+  },
+  async saveSettings(data){
+    if(supa){await supa.from("settings").update({data}).eq("id",1);return;}
+    LSet("ro3_settings",data);
+  },
+};
 
 // ─── HOOKS ───────────────────────────────────────────────────────────────────
-function useDB(key){
-  const[data,setData]=useState(()=>dbGet(key));
-  const save=useCallback((val)=>{dbSet(key,val);setData(val);},[key]);
-  return[data,save];
-}
 function useWindowSize(){
   const[w,setW]=useState(window.innerWidth);
   useEffect(()=>{const h=()=>setW(window.innerWidth);window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);
@@ -174,7 +272,7 @@ function useToast(){
 
 // ─── ATOMS ───────────────────────────────────────────────────────────────────
 const Badge=({type,label})=>{
-  const map={live:{bg:T.greenSoft,c:T.green,t:"Live"},pending:{bg:T.amberSoft,c:T.amber,t:"Pending"},rejected:{bg:T.redSoft,c:T.red,t:"Rejected"},flagged:{bg:T.redSoft,c:T.red,t:"Flagged"},fixed:{bg:T.blueSoft,c:T.blue,t:"NAP Fixed"},match:{bg:T.greenSoft,c:T.green,t:"✓ Match"},mismatch:{bg:T.redSoft,c:T.red,t:"Mismatch"},submitted:{bg:T.brandSoft,c:T.brand,t:"Submitted"},active:{bg:T.greenSoft,c:T.green,t:"Active"},paid:{bg:T.greenSoft,c:T.green,t:"Paid"}};
+  const map={live:{bg:T.greenSoft,c:T.green,t:"Live"},pending:{bg:T.amberSoft,c:T.amber,t:"Pending"},rejected:{bg:T.redSoft,c:T.red,t:"Rejected"},flagged:{bg:T.redSoft,c:T.red,t:"Flagged"},fixed:{bg:T.blueSoft,c:T.blue,t:"NAP Fixed"},match:{bg:T.greenSoft,c:T.green,t:"✓ Match"},mismatch:{bg:T.redSoft,c:T.red,t:"Mismatch"},submitted:{bg:T.brandSoft,c:T.brand,t:"Submitted"},active:{bg:T.greenSoft,c:T.green,t:"Active"},suspended:{bg:T.redSoft,c:T.red,t:"Suspended"},paid:{bg:T.greenSoft,c:T.green,t:"Paid"},manual:{bg:T.amberSoft,c:T.amber,t:"Manual data"},connected:{bg:T.greenSoft,c:T.green,t:"Connected"}};
   const s=map[type]||map.submitted;
   return(<span style={{display:"inline-flex",alignItems:"center",gap:6,padding:"3px 11px",borderRadius:20,fontSize:11.5,fontWeight:700,background:s.bg,color:s.c}}>
     <span style={{width:6,height:6,borderRadius:"50%",background:s.c,animation:type==="live"?"pulseDot 2.4s ease-in-out infinite":"none"}}/>{label||s.t}
@@ -195,7 +293,7 @@ const Btn=({children,onClick,variant="primary",size="md",style={}})=>{
 const Input=({label,value,onChange,placeholder,type="text",style={}})=>(
   <div style={{marginBottom:14,...style}}>
     {label&&<label style={{fontSize:11.5,color:T.sub,fontWeight:700,display:"block",marginBottom:6,letterSpacing:".4px"}}>{label.toUpperCase()}</label>}
-    <input type={type} value={value||""} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={{width:"100%",padding:"11px 15px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:11,color:T.ink,fontSize:13.5,boxSizing:"border-box",fontFamily:FONT_B}}/>
+    <input type={type} value={value??""} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={{width:"100%",padding:"11px 15px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:11,color:T.ink,fontSize:13.5,boxSizing:"border-box",fontFamily:FONT_B}}/>
   </div>
 );
 const Select=({label,value,onChange,options})=>(
@@ -212,11 +310,21 @@ const Modal=({open,onClose,title,children,width=500})=>{
     <div className="pop" style={{background:T.surface,borderRadius:20,padding:26,width:"100%",maxWidth:width,maxHeight:"90vh",overflowY:"auto",boxShadow:SHADOW_LG}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
         <div style={{fontSize:17,fontWeight:800,fontFamily:FONT_D}}>{title}</div>
-        <button onClick={onClose} style={{background:T.surface2,border:"none",color:T.sub,fontSize:16,cursor:"pointer",width:32,height:32,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+        <button onClick={onClose} style={{background:T.surface2,border:"none",color:T.sub,fontSize:16,cursor:"pointer",width:32,height:32,borderRadius:"50%"}}>×</button>
       </div>
       {children}
     </div>
   </div>);
+};
+const Confirm=({data,onClose})=>{
+  if(!data)return null;
+  return(<Modal open onClose={onClose} title={data.title} width={420}>
+    <div style={{fontSize:13.5,color:T.sub,lineHeight:1.6,marginBottom:20}}>{data.msg}</div>
+    <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+      <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+      <Btn variant={data.danger?"danger":"primary"} onClick={async()=>{await data.onYes();onClose();}}>{data.yes||"Confirm"}</Btn>
+    </div>
+  </Modal>);
 };
 const StatCard=({label,value,sub,color=T.brand,soft=T.brandSoft,icon,trend,delay=0})=>{
   const isNum=/^\d+/.test(String(value));
@@ -239,10 +347,13 @@ const ChartTip=({active,payload,label})=>{
     {payload.map((p,i)=><div key={i} style={{fontSize:12.5,color:"#fff",fontWeight:700}}><span style={{display:"inline-block",width:8,height:8,borderRadius:2,background:p.color,marginRight:6}}/>{p.name}: {p.value}</div>)}
   </div>);
 };
-const SectionTitle=({children,sub})=>(
-  <div style={{marginBottom:14}}>
-    <div style={{fontSize:14.5,fontWeight:800,fontFamily:FONT_D,color:T.ink}}>{children}</div>
-    {sub&&<div style={{fontSize:12,color:T.sub,marginTop:2}}>{sub}</div>}
+const SectionTitle=({children,sub,right})=>(
+  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14,gap:8,flexWrap:"wrap"}}>
+    <div>
+      <div style={{fontSize:14.5,fontWeight:800,fontFamily:FONT_D,color:T.ink}}>{children}</div>
+      {sub&&<div style={{fontSize:12,color:T.sub,marginTop:2}}>{sub}</div>}
+    </div>
+    {right}
   </div>
 );
 const Empty=({icon,title,sub})=>(
@@ -252,20 +363,43 @@ const Empty=({icon,title,sub})=>(
     <div style={{fontSize:12.5}}>{sub}</div>
   </div>
 );
-const actIcon=(t)=>({listing_live:"🟢",nap_fix:"🔧",edit_blocked:"🛡️",flagged:"🚩",rejected:"❌",gmb_update:"📍",submitted:"📤"}[t]||"⚡");
+const actIcon=(t)=>({listing_live:"🟢",nap_fix:"🔧",edit_blocked:"🛡️",flagged:"🚩",rejected:"❌",gmb_update:"📍",submitted:"📤",analytics:"📈",client:"👤"}[t]||"⚡");
 const PLANS={essentials:{name:"Essentials",price:49,quota:"10 listings/mo",color:T.blue,soft:T.blueSoft,features:["10 directory submissions every month","NAP consistency management","Unauthorized edit protection","Listing monitoring & alerts","Client dashboard access"]},
   growth:{name:"Growth",price:89,quota:"20 listings/mo",color:T.brand,soft:T.brandSoft,features:["20 directory submissions every month","Everything in Essentials","Expanded directory coverage","Priority support","Monthly coverage report"]},
   gmb:{name:"GMB Pro",price:249,quota:"20 listings + GMB",color:T.violet,soft:T.violetSoft,features:["Everything in Growth","Google Business Profile management","Monthly GMB posts & Q&A","Engagement analytics (views, calls)","Dedicated BDM support"]}};
+const BIZ_FIELDS=[["name","Full Name"],["businessName","Business Name"],["email","Email"],["phone","Phone"],["address","Address"],["city","City"],["state","State"],["zip","ZIP"],["website","Website"]];
+const CATEGORIES=["Home Services","Medical / Health","Legal","Restaurant / Food","Auto Services","Beauty & Salon","Real Estate","Other"];
+const today=()=>new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"});
+const todayFull=()=>new Date().toLocaleDateString("en-US",{year:"numeric",month:"short",day:"numeric"});
 
 // ─── AUTH ────────────────────────────────────────────────────────────────────
 function AuthScreen({onLogin}){
+  const[mode,setMode]=useState("login"); // login | signup | forgot
   const[email,setEmail]=useState("");
   const[password,setPassword]=useState("");
+  const[name,setName]=useState("");
+  const[businessName,setBusinessName]=useState("");
+  const[phone,setPhone]=useState("");
   const[error,setError]=useState("");
-  const users=dbGet("ro_users")||[];
-  const login=()=>{
-    const u=users.find(u=>u.email===email&&u.password===password);
-    if(u){onLogin(u);setError("");}else setError("Invalid email or password. Try a demo account below.");
+  const[info,setInfo]=useState("");
+  const[busy,setBusy]=useState(false);
+  const login=async()=>{
+    setBusy(true);const r=await api.login(email,password);setBusy(false);
+    if(r.error)setError(r.error);else{setError("");onLogin(r.user);}
+  };
+  const signup=async()=>{
+    if(!email||!password||!name){setError("Name, email and password are required.");return;}
+    if(password.length<6){setError("Password must be at least 6 characters.");return;}
+    setBusy(true);const r=await api.signup({email,password,name,businessName,phone});setBusy(false);
+    if(r.error)setError(r.error);
+    else if(r.needsConfirm){setError("");setInfo("Check your email to confirm your account, then sign in.");setMode("login");}
+    else{setError("");onLogin(r.user);}
+  };
+  const google=async()=>{setBusy(true);const r=await api.googleLogin();setBusy(false);if(r.error)setError(r.error);};
+  const forgot=async()=>{
+    if(!email){setError("Enter your email first.");return;}
+    setBusy(true);const r=await api.resetPassword(email);setBusy(false);
+    if(r.error)setError(r.error);else{setError("");setInfo("Password reset link sent. Check your email.");setMode("login");}
   };
   const staff=[{l:"Super Admin",e:"admin@rankorbit.com",p:"admin123",c:T.brand,s:"Full access"},{l:"Manager",e:"manager@rankorbit.com",p:"manager123",c:T.violet,s:"Ops access"},{l:"Agent",e:"agent@rankorbit.com",p:"agent123",c:T.blue,s:"Listings only"}];
   const clients=[{l:"Essentials $49",e:"john@autoshop.com",p:"client123",c:T.blue,s:"Davis Auto"},{l:"Growth $89",e:"mike@example.com",p:"client123",c:T.brand,s:"Mike's Plumbing"},{l:"GMB Pro $249",e:"sarah@dentalcare.com",p:"client123",c:T.violet,s:"Sarah's Dental"}];
@@ -288,19 +422,45 @@ function AuthScreen({onLogin}){
             <div style={{width:22,height:22,borderRadius:"50%",background:T.greenSoft,color:T.green,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800}}>✓</div>
             <span style={{fontSize:14,color:T.sub}}>{f}</span>
           </div>))}
+        <div style={{marginTop:18,display:"inline-flex",alignItems:"center",gap:8,padding:"6px 14px",background:api.mode==="supabase"?T.greenSoft:T.amberSoft,borderRadius:20,fontSize:11.5,fontWeight:700,color:api.mode==="supabase"?T.green:T.amber}}>
+          <span style={{width:7,height:7,borderRadius:"50%",background:api.mode==="supabase"?T.green:T.amber}}/>
+          {api.mode==="supabase"?"Live database connected":"Demo mode (local data)"}
+        </div>
       </div>)}
       <div className="pop" style={{width:"100%",maxWidth:430}}>
         {isMobile&&(<div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20,justifyContent:"center"}}>
           <MiniOrbit size={40}/><div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800}}>Rank <span style={{color:T.brand}}>Orbit</span></div>
         </div>)}
         <Card style={{padding:28,boxShadow:SHADOW_LG}}>
-          <div style={{fontFamily:FONT_D,fontSize:18,fontWeight:800,marginBottom:4}}>Sign in</div>
-          <div style={{fontSize:13,color:T.sub,marginBottom:20}}>Welcome back. Enter your details.</div>
+          <div style={{fontFamily:FONT_D,fontSize:18,fontWeight:800,marginBottom:4}}>{mode==="login"?"Sign in":mode==="signup"?"Create your account":"Reset password"}</div>
+          <div style={{fontSize:13,color:T.sub,marginBottom:20}}>{mode==="login"?"Welcome back. Enter your details.":mode==="signup"?"Start getting listed everywhere.":"We'll email you a reset link."}</div>
+          {info&&<div style={{fontSize:12.5,color:T.green,marginBottom:12,background:T.greenSoft,padding:"8px 12px",borderRadius:9}}>{info}</div>}
+          {mode==="signup"&&(<>
+            <Input label="Full Name" value={name} onChange={setName} placeholder="Mike Johnson"/>
+            <Input label="Business Name" value={businessName} onChange={setBusinessName} placeholder="Mike's Plumbing"/>
+            <Input label="Phone (optional)" value={phone} onChange={setPhone} placeholder="(555) 200-0000"/>
+          </>)}
           <Input label="Email" value={email} onChange={setEmail} placeholder="you@business.com"/>
-          <Input label="Password" type="password" value={password} onChange={setPassword} placeholder="••••••••"/>
+          {mode!=="forgot"&&<Input label="Password" type="password" value={password} onChange={setPassword} placeholder="••••••••"/>}
           {error&&<div style={{fontSize:12.5,color:T.red,marginBottom:12,background:T.redSoft,padding:"8px 12px",borderRadius:9}}>{error}</div>}
-          <Btn onClick={login} style={{width:"100%"}} size="lg">Sign In →</Btn>
-          <div style={{marginTop:22,paddingTop:18,borderTop:`1px solid ${T.line}`}}>
+          {mode==="login"&&<Btn onClick={login} style={{width:"100%"}} size="lg">{busy?"Signing in…":"Sign In →"}</Btn>}
+          {mode==="signup"&&<Btn onClick={signup} style={{width:"100%"}} size="lg">{busy?"Creating…":"Create Account →"}</Btn>}
+          {mode==="forgot"&&<Btn onClick={forgot} style={{width:"100%"}} size="lg">{busy?"Sending…":"Send Reset Link"}</Btn>}
+          {mode!=="forgot"&&(<>
+            <div style={{display:"flex",alignItems:"center",gap:12,margin:"16px 0"}}>
+              <div style={{flex:1,height:1,background:T.line}}/><span style={{fontSize:11,color:T.faint}}>or</span><div style={{flex:1,height:1,background:T.line}}/>
+            </div>
+            <button onClick={google} style={{width:"100%",padding:"11px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:11,fontSize:13.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B,display:"flex",alignItems:"center",justifyContent:"center",gap:10,color:T.ink}}>
+              <svg width="17" height="17" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1Z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23Z"/><path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84Z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38Z"/></svg>
+              Continue with Google
+            </button>
+          </>)}
+          <div style={{marginTop:16,textAlign:"center",fontSize:12.5,color:T.sub}}>
+            {mode==="login"&&(<>New here? <span onClick={()=>{setMode("signup");setError("");setInfo("");}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>Create an account</span> · <span onClick={()=>{setMode("forgot");setError("");setInfo("");}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>Forgot?</span></>)}
+            {mode==="signup"&&(<>Have an account? <span onClick={()=>{setMode("login");setError("");}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>Sign in</span></>)}
+            {mode==="forgot"&&(<span onClick={()=>{setMode("login");setError("");}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>← Back to sign in</span>)}
+          </div>
+          {mode==="login"&&(<div style={{marginTop:20,paddingTop:18,borderTop:`1px solid ${T.line}`}}>
             <div style={{fontSize:10.5,color:T.faint,fontWeight:800,letterSpacing:".8px",marginBottom:8}}>STAFF DEMO</div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:7,marginBottom:14}}>
               {staff.map(d=>(<button key={d.l} onClick={()=>{setEmail(d.e);setPassword(d.p);}} style={{padding:"9px 4px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:10,color:d.c,fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:FONT_B,lineHeight:1.5}}>{d.l}<br/><span style={{fontSize:9.5,color:T.faint,fontWeight:500}}>{d.s}</span></button>))}
@@ -310,14 +470,14 @@ function AuthScreen({onLogin}){
               {clients.map(d=>(<button key={d.l} onClick={()=>{setEmail(d.e);setPassword(d.p);}} style={{padding:"9px 4px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:10,color:d.c,fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:FONT_B,lineHeight:1.5}}>{d.l}<br/><span style={{fontSize:9.5,color:T.faint,fontWeight:500}}>{d.s}</span></button>))}
             </div>
             <div style={{marginTop:12,fontSize:11,color:T.faint,textAlign:"center"}}>Click any account to prefill, then Sign In</div>
-          </div>
+          </div>)}
         </Card>
       </div>
     </div>
   </div>);
 }
 
-// ─── SHELL (sidebar + topbar shared) ─────────────────────────────────────────
+// ─── SHELL ───────────────────────────────────────────────────────────────────
 function Shell({user,nav,page,setPage,onLogout,planBadge,badgeCounts={},children,brandTag}){
   const w=useWindowSize();const isMobile=w<820;
   const[open,setOpen]=useState(false);
@@ -385,42 +545,49 @@ const PageHead=({title,sub,right,isMobile})=>(
 );
 
 // ─── CLIENT DASHBOARD ────────────────────────────────────────────────────────
-function ClientDashboard({user,onLogout}){
+function ClientDashboard({user,data,reload,onLogout}){
   const[page,setPage]=useState("home");
   const[toast,Toasts]=useToast();
   const w=useWindowSize();const isMobile=w<820;
-  const allListings=dbGet("ro_listings")||{};
-  const allGmb=dbGet("ro_gmb")||{};
-  const allActivity=dbGet("ro_activity")||[];
-  const my=allListings[user.id]||[];
-  const myGmb=allGmb[user.id];
-  const myAct=allActivity.filter(a=>a.clientId===user.id);
+  const my=data.listings[user.id]||[];
+  const myGmb=data.gmb[user.id];
+  const myAnalytics=data.analytics[user.id];
+  const myAct=data.activity.filter(a=>a.clientId===user.id);
+  const settings=data.settings;
   const live=my.filter(l=>l.status==="live").length;
   const pending=my.filter(l=>l.status==="pending").length;
-  const plan=PLANS[user.plan];
+  const plan=PLANS[user.plan]||PLANS.essentials;
   const hour=new Date().getHours();
   const greet=hour<12?"Good morning":hour<17?"Good afternoon":"Good evening";
   const nav=[
     {id:"home",icon:"🏠",label:"Home"},
     {id:"listings",icon:"📋",label:"Listings"},
     {id:"gmb",icon:"📍",label:"GMB Management",locked:user.plan!=="gmb"},
+    {id:"analytics",icon:"📈",label:"Analytics"},
     {id:"billing",icon:"💳",label:"Plan & Billing"},
     {id:"call",icon:"📞",label:"Book a Call"},
   ];
   const growthData=[{m:"Mar",live:Math.max(0,live-6)},{m:"Apr",live:Math.max(0,live-4)},{m:"May",live:Math.max(0,live-2)},{m:"Jun",live:Math.max(0,live-1)},{m:"Jul",live}];
-  const planBadge=(<div style={{marginTop:14,padding:"10px 13px",background:plan.soft,borderRadius:13}}>
+  const planBadge=user.plan?(<div style={{marginTop:14,padding:"10px 13px",background:plan.soft,borderRadius:13}}>
     <div style={{fontSize:10,color:T.sub,fontWeight:800,letterSpacing:".5px"}}>YOUR PLAN</div>
     <div style={{fontSize:14,fontWeight:800,color:plan.color,marginTop:2,fontFamily:FONT_D}}>{plan.name} · ${plan.price}/mo</div>
     <div style={{fontSize:10.5,color:T.sub,marginTop:2}}>{plan.quota}</div>
+  </div>):(<div style={{marginTop:14,padding:"10px 13px",background:T.amberSoft,borderRadius:13}}>
+    <div style={{fontSize:10,color:T.amber,fontWeight:800,letterSpacing:".5px"}}>NO PLAN YET</div>
+    <div style={{fontSize:12,color:T.sub,marginTop:3}}>Pick a plan on the Billing page to get started.</div>
   </div>);
 
   const Home=()=>(<div>
-    <PageHead isMobile={isMobile} title={`${greet}, ${user.name.split(" ")[0]} 👋`} sub={`Here's what we're doing for ${user.businessName} right now`}
+    <PageHead isMobile={isMobile} title={`${greet}, ${(user.name||"there").split(" ")[0]} 👋`} sub={`Here's what we're doing for ${user.businessName||"your business"} right now`}
       right={<Btn variant="soft" size="sm" onClick={()=>setPage("call")}>📞 Talk to your BDM</Btn>}/>
+    {!user.plan&&(<Card style={{marginBottom:18,background:`linear-gradient(135deg,${T.brandSoft},#fff)`,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
+      <div><div style={{fontFamily:FONT_D,fontSize:16,fontWeight:800}}>Welcome to Rank Orbit 🚀</div><div style={{fontSize:13,color:T.sub,marginTop:3}}>Choose a plan to start getting listed, or your account manager will set you up after your call.</div></div>
+      <Btn onClick={()=>setPage("billing")}>Choose a plan</Btn>
+    </Card>)}
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:14,marginBottom:22}}>
-      <StatCard label="Listings Live" value={live} sub={`${pending} pending approval`} icon="🟢" color={T.green} soft={T.greenSoft} trend={12} delay={0}/>
-      <StatCard label="NAP Score" value={`${user.napScore}%`} sub="Info matches everywhere" icon="✅" delay={80}/>
-      <StatCard label="Edits Blocked" value={3} sub="Unauthorized changes reverted" icon="🛡️" color={T.amber} soft={T.amberSoft} delay={160}/>
+      <StatCard label="Listings Live" value={live} sub={`${pending} pending approval`} icon="🟢" color={T.green} soft={T.greenSoft} trend={live>0?12:null} delay={0}/>
+      <StatCard label="NAP Score" value={`${user.napScore||0}%`} sub="Info matches everywhere" icon="✅" delay={80}/>
+      <StatCard label="Edits Blocked" value={myAct.filter(a=>a.type==="edit_blocked").length} sub="Unauthorized changes reverted" icon="🛡️" color={T.amber} soft={T.amberSoft} delay={160}/>
       <StatCard label="Directories" value={my.length} sub="Managed for you" icon="🌐" color={T.blue} soft={T.blueSoft} delay={240}/>
     </div>
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1.7fr 1fr",gap:16,marginBottom:16}}>
@@ -474,21 +641,12 @@ function ClientDashboard({user,onLogout}){
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:14,marginBottom:20}}>
       <StatCard label="Live" value={live} icon="✅" color={T.green} soft={T.greenSoft} delay={0}/>
       <StatCard label="Pending" value={pending} icon="⏳" color={T.amber} soft={T.amberSoft} delay={70}/>
-      <StatCard label="NAP Score" value={`${user.napScore}%`} icon="📊" delay={140}/>
+      <StatCard label="NAP Score" value={`${user.napScore||0}%`} icon="📊" delay={140}/>
       <StatCard label="Protected" value={my.length} sub="Monitored 24/7" icon="🛡️" color={T.blue} soft={T.blueSoft} delay={210}/>
-    </div>
-    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:14,marginBottom:18}}>
-      <div className="fadeUp" style={{background:T.redSoft,borderRadius:16,padding:"14px 18px",display:"flex",gap:13,alignItems:"flex-start"}}>
-        <span style={{fontSize:22}}>🛡️</span>
-        <div><div style={{fontSize:13.5,fontWeight:800}}>Unauthorized edit blocked</div><div style={{fontSize:12.5,color:T.sub,marginTop:2}}>Someone tried changing your business hours on Yelp. We reverted it within 6 hours.</div></div>
-      </div>
-      <div className="fadeUp" style={{animationDelay:"90ms",background:T.blueSoft,borderRadius:16,padding:"14px 18px",display:"flex",gap:13,alignItems:"flex-start"}}>
-        <span style={{fontSize:22}}>🔧</span>
-        <div><div style={{fontSize:13.5,fontWeight:800}}>Info corrected & synced</div><div style={{fontSize:12.5,color:T.sub,marginTop:2}}>Your phone number was fixed on one directory so everything matches your master record.</div></div>
-      </div>
     </div>
     <Card style={{overflowX:"auto",padding:isMobile?14:22}}>
       <SectionTitle>Your Directories</SectionTitle>
+      {my.length===0?<Empty icon="📋" title="No listings yet" sub="Your directory submissions will appear here once your plan is active."/>:
       <table style={{width:"100%",borderCollapse:"collapse",minWidth:620}}>
         <thead><tr>{["Directory","Status","Authority","Live Since","Info Match","Link"].map(h=><th key={h} style={{textAlign:"left",padding:"10px 12px",fontSize:10.5,fontWeight:800,color:T.faint,textTransform:"uppercase",letterSpacing:".7px",borderBottom:`1.5px solid ${T.line}`}}>{h}</th>)}</tr></thead>
         <tbody>{my.map((d)=>(<tr key={d.id} className="hoverRow">
@@ -504,9 +662,39 @@ function ClientDashboard({user,onLogout}){
           <td style={{padding:"12px",borderBottom:`1px solid ${T.line}`}}>{d.napMatch==="—"?<span style={{fontSize:12,color:T.faint}}>—</span>:<Badge type={d.napMatch}/>}</td>
           <td style={{padding:"12px",borderBottom:`1px solid ${T.line}`}}>{d.liveLink?<a href={d.liveLink} target="_blank" rel="noreferrer" style={{color:T.brand,fontSize:12.5,fontWeight:700,textDecoration:"none"}}>View ↗</a>:<span style={{color:T.faint,fontSize:12}}>—</span>}</td>
         </tr>))}</tbody>
-      </table>
+      </table>}
     </Card>
   </div>);
+
+  const Analytics=()=>{
+    const a=myAnalytics;
+    if(!a||!a.trend?.length)return(<div>
+      <PageHead isMobile={isMobile} title="Website Analytics" sub="Traffic and engagement from your website"/>
+      <Card><Empty icon="📈" title="Analytics not connected yet" sub="Your account manager will connect Google Analytics or add your numbers soon."/></Card>
+    </div>);
+    return(<div>
+      <PageHead isMobile={isMobile} title="Website Analytics" sub="Traffic and engagement from your website" right={<Badge type={a.source==="connected"?"connected":"manual"}/>}/>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:14,marginBottom:20}}>
+        <StatCard label="Sessions" value={a.sessions||0} icon="👣" color={T.green} soft={T.greenSoft} delay={0}/>
+        <StatCard label="Users" value={a.users||0} icon="👤" delay={70}/>
+        <StatCard label="Page Views" value={a.pageviews||0} icon="📄" color={T.blue} soft={T.blueSoft} delay={140}/>
+        <StatCard label="Avg. Time" value={a.avgTime||"0:00"} icon="⏱️" color={T.violet} soft={T.violetSoft} delay={210}/>
+      </div>
+      <Card><SectionTitle sub="Monthly website sessions & users">Traffic Trend</SectionTitle>
+        <ResponsiveContainer width="100%" height={220}>
+          <AreaChart data={a.trend}>
+            <defs><linearGradient id="as" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={T.brand} stopOpacity={.25}/><stop offset="100%" stopColor={T.brand} stopOpacity={0}/></linearGradient></defs>
+            <CartesianGrid strokeDasharray="3 3" stroke={T.line} vertical={false}/>
+            <XAxis dataKey="m" tick={{fill:T.faint,fontSize:11}} axisLine={false} tickLine={false}/>
+            <YAxis tick={{fill:T.faint,fontSize:11}} axisLine={false} tickLine={false} width={34}/>
+            <Tooltip content={<ChartTip/>}/>
+            <Area type="monotone" dataKey="s" name="Sessions" stroke={T.brand} strokeWidth={2.5} fill="url(#as)" dot={false} animationDuration={1100}/>
+            <Area type="monotone" dataKey="u" name="Users" stroke={T.green} strokeWidth={2} fill="none" dot={false} animationDuration={1300}/>
+          </AreaChart>
+        </ResponsiveContainer>
+      </Card>
+    </div>);
+  };
 
   const Gmb=()=>{
     if(user.plan!=="gmb")return(<div>
@@ -515,16 +703,13 @@ function ClientDashboard({user,onLogout}){
         <div style={{display:"flex",justifyContent:"center",marginBottom:18}}><Orbit size={100} speed={10}/></div>
         <div style={{fontFamily:FONT_D,fontSize:21,fontWeight:800,marginBottom:8}}>Put your Google profile on autopilot</div>
         <div style={{fontSize:13.5,color:T.sub,maxWidth:420,margin:"0 auto 24px",lineHeight:1.6}}>We publish posts, answer Q&A, keep your profile complete, and show you exactly how many calls and visits Google sends you every month.</div>
-        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:10,maxWidth:520,margin:"0 auto 26px"}}>
-          {["Monthly GMB posts","Q&A management","Photo uploads","Profile completeness","Calls & views analytics","Dedicated BDM"].map((f,i)=>(<div key={i} className="fadeUp" style={{animationDelay:`${i*70}ms`,padding:"10px 13px",background:T.violetSoft,borderRadius:11,fontSize:12.5,color:T.ink,fontWeight:600,display:"flex",gap:7,alignItems:"center"}}><span style={{color:T.violet}}>✓</span>{f}</div>))}
-        </div>
-        <Btn size="lg" onClick={()=>{setPage("billing");toast("See the GMB Pro plan below","info");}}>Upgrade to GMB Pro — $249/mo</Btn>
+        <Btn size="lg" onClick={()=>setPage("billing")}>Upgrade to GMB Pro — $249/mo</Btn>
         <div style={{fontSize:11.5,color:T.faint,marginTop:12}}>Includes everything in Growth · Cancel anytime</div>
       </Card>
     </div>);
     const d=myGmb||{views:0,calls:0,directions:0,trend:[],posts:[],qa:[],completeness:{}};
     return(<div>
-      <PageHead isMobile={isMobile} title="GMB Management" sub="Your Google Business Profile, actively managed"/>
+      <PageHead isMobile={isMobile} title="GMB Management" sub="Your Google Business Profile, actively managed" right={<Badge type={d.source==="connected"?"connected":"manual"}/>}/>
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:14,marginBottom:20}}>
         <StatCard label="Profile Views" value={d.views} icon="👁️" color={T.green} soft={T.greenSoft} trend={18} delay={0}/>
         <StatCard label="Calls From Google" value={d.calls} icon="📞" trend={12} delay={80}/>
@@ -550,14 +735,14 @@ function ClientDashboard({user,onLogout}){
       </Card>
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16}}>
         <Card><SectionTitle>Posts Published</SectionTitle>
-          {d.posts.length===0?<Empty icon="📝" title="No posts yet" sub="Your first GMB post is being drafted."/>:
+          {(!d.posts||d.posts.length===0)?<Empty icon="📝" title="No posts yet" sub="Your first GMB post is being drafted."/>:
             d.posts.map((p,i)=>(<div key={i} className="hoverRow" style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 8px",borderRadius:10,borderBottom:i<d.posts.length-1?`1px solid ${T.line}`:"none"}}>
               <div><div style={{fontSize:13.5,fontWeight:700}}>{p.title}</div><div style={{fontSize:11.5,color:T.faint,marginTop:2}}>Published {p.date}</div></div>
               <Badge type="live"/>
             </div>))}
         </Card>
         <Card><SectionTitle>Profile Completeness</SectionTitle>
-          {Object.entries(d.completeness).map(([k,v])=>(<div key={k} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${T.line}`}}>
+          {Object.entries(d.completeness||{}).map(([k,v])=>(<div key={k} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${T.line}`}}>
             <span style={{fontSize:13,color:T.sub,textTransform:"capitalize"}}>{k}</span>
             <span style={{fontSize:12.5,fontWeight:800,color:v?T.green:T.amber}}>{v?"✓ Done":"○ In progress"}</span>
           </div>))}
@@ -567,10 +752,15 @@ function ClientDashboard({user,onLogout}){
   };
 
   const Billing=()=>{
-    const nextDate="August 1, 2025";
+    const stripe=settings?.stripe||{};
+    const goStripe=(planId)=>{
+      const link=stripe[planId];
+      if(link&&link.startsWith("http"))window.open(link,"_blank");
+      else toast("Payment link not set up yet — your account manager will send it","info");
+    };
     return(<div>
       <PageHead isMobile={isMobile} title="Plan & Billing" sub="Everything about what you pay and what you get"/>
-      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1.4fr 1fr",gap:16,marginBottom:20}}>
+      {user.plan&&(<div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1.4fr 1fr",gap:16,marginBottom:20}}>
         <Card className="fadeUp" style={{position:"relative",overflow:"hidden"}}>
           <div style={{position:"absolute",top:-40,right:-40,width:160,height:160,borderRadius:"50%",background:plan.soft,opacity:.6}}/>
           <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".8px",marginBottom:6}}>CURRENT PLAN</div>
@@ -580,63 +770,55 @@ function ClientDashboard({user,onLogout}){
             <Badge type="active"/>
           </div>
           <div style={{marginTop:16}}>
-            {plan.features.map((f,i)=>(<div key={i} className="fadeUp" style={{animationDelay:`${i*60}ms`,display:"flex",gap:9,alignItems:"center",marginBottom:8}}>
+            {plan.features.map((f,i)=>(<div key={i} style={{display:"flex",gap:9,alignItems:"center",marginBottom:8}}>
               <div style={{width:19,height:19,borderRadius:"50%",background:T.greenSoft,color:T.green,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10.5,fontWeight:800,flexShrink:0}}>✓</div>
               <span style={{fontSize:13,color:T.sub}}>{f}</span>
             </div>))}
           </div>
         </Card>
-        <div style={{display:"flex",flexDirection:"column",gap:14}}>
-          <Card className="fadeUp" style={{animationDelay:"100ms",background:`linear-gradient(135deg,${T.brandSoft},#fff)`}}>
-            <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".8px",marginBottom:8}}>NEXT CHARGE</div>
-            <div style={{fontFamily:FONT_D,fontSize:24,fontWeight:800,color:T.brand}}>${plan.price}.00</div>
-            <div style={{fontSize:13,color:T.sub,marginTop:3}}>on {nextDate}</div>
-            <div style={{fontSize:11.5,color:T.faint,marginTop:8,lineHeight:1.5}}>Renews automatically every month. Cancel anytime, no fees, no lock-in.</div>
-          </Card>
-          <Card className="fadeUp" style={{animationDelay:"170ms"}}>
-            <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".8px",marginBottom:10}}>PAYMENT METHOD</div>
-            <div style={{display:"flex",gap:12,alignItems:"center"}}>
-              <div style={{width:44,height:30,borderRadius:6,background:`linear-gradient(135deg,${T.ink},#3A3A66)`,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:9,fontWeight:800,letterSpacing:"1px"}}>VISA</div>
-              <div><div style={{fontSize:13.5,fontWeight:700}}>•••• 4242</div><div style={{fontSize:11.5,color:T.faint}}>Expires 08/27</div></div>
-              <button onClick={()=>toast("Payment update coming soon","info")} style={{marginLeft:"auto",background:"none",border:"none",color:T.brand,fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>Update</button>
-            </div>
-          </Card>
-        </div>
-      </div>
-      <SectionTitle sub="Switch plans anytime — changes apply from your next billing cycle">Compare Plans</SectionTitle>
-      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:14,marginBottom:22}}>
+        <Card className="fadeUp" style={{animationDelay:"100ms",background:`linear-gradient(135deg,${T.brandSoft},#fff)`}}>
+          <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".8px",marginBottom:8}}>NEXT CHARGE</div>
+          <div style={{fontFamily:FONT_D,fontSize:24,fontWeight:800,color:T.brand}}>${plan.price}.00</div>
+          <div style={{fontSize:13,color:T.sub,marginTop:3}}>on the 1st of next month</div>
+          <div style={{fontSize:11.5,color:T.faint,marginTop:8,lineHeight:1.5}}>Renews automatically every month. Cancel anytime, no fees, no lock-in.</div>
+        </Card>
+      </div>)}
+      <SectionTitle sub="Pick a plan to start, or upgrade anytime — secure checkout via Stripe">{user.plan?"Change Plan":"Choose Your Plan"}</SectionTitle>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:14}}>
         {Object.entries(PLANS).map(([id,p],i)=>{
           const current=id===user.plan;
-          return(<div key={id} className="fadeUp hoverCard" style={{animationDelay:`${i*90}ms`,background:T.surface,border:`2px solid ${current?p.color:T.line}`,borderRadius:18,padding:20,position:"relative",boxShadow:current?SHADOW_LG:SHADOW}}>
-            {current&&<div style={{position:"absolute",top:-11,left:"50%",transform:"translateX(-50%)",background:p.color,color:"#fff",fontSize:10,fontWeight:800,padding:"3px 13px",borderRadius:20,letterSpacing:".5px"}}>YOUR PLAN</div>}
-            <div style={{fontFamily:FONT_D,fontSize:15,fontWeight:800}}>{p.name}</div>
-            <div style={{fontFamily:FONT_D,fontSize:27,fontWeight:800,color:p.color,margin:"5px 0 2px"}}>${p.price}<span style={{fontSize:12.5,color:T.faint,fontWeight:600}}>/mo</span></div>
-            <div style={{fontSize:12,color:T.sub,fontWeight:700,marginBottom:13}}>{p.quota}</div>
-            <div style={{height:1,background:T.line,marginBottom:13}}/>
-            {p.features.slice(0,4).map((f,j)=><div key={j} style={{fontSize:12,color:T.sub,marginBottom:7,display:"flex",gap:7}}><span style={{color:T.green,fontWeight:800}}>✓</span>{f}</div>)}
-            {!current&&<Btn variant={p.price>plan.price?"primary":"ghost"} size="sm" style={{width:"100%",marginTop:8}} onClick={()=>toast(`${p.price>plan.price?"Upgrade":"Change"} request sent — your BDM will confirm within 24h`)}>{p.price>plan.price?"Upgrade":"Switch"} to {p.name}</Btn>}
+          return(<div key={id} className="fadeUp hoverCard" style={{animationDelay:`${i*90}ms`,background:T.surface,border:`2px solid ${current?p.color:T.line}`,borderRadius:18,padding:22,position:"relative",boxShadow:current?SHADOW_LG:SHADOW}}>
+            {current&&<div style={{position:"absolute",top:-11,left:"50%",transform:"translateX(-50%)",background:p.color,color:"#fff",fontSize:10,fontWeight:800,padding:"3px 13px",borderRadius:20}}>CURRENT PLAN</div>}
+            {id==="growth"&&!current&&<div style={{position:"absolute",top:-11,left:"50%",transform:"translateX(-50%)",background:`linear-gradient(135deg,${T.brand},${T.violet})`,color:"#fff",fontSize:10,fontWeight:800,padding:"3px 13px",borderRadius:20}}>MOST POPULAR</div>}
+            <div style={{fontFamily:FONT_D,fontSize:16,fontWeight:800}}>{p.name}</div>
+            <div style={{fontFamily:FONT_D,fontSize:30,fontWeight:800,color:p.color,margin:"5px 0 2px"}}>${p.price}<span style={{fontSize:13,color:T.faint,fontWeight:600}}>/mo</span></div>
+            <div style={{fontSize:12,color:T.sub,fontWeight:700,marginBottom:14}}>{p.quota}</div>
+            <div style={{height:1,background:T.line,marginBottom:14}}/>
+            {p.features.map((f,j)=><div key={j} style={{fontSize:12,color:T.sub,marginBottom:8,display:"flex",gap:7}}><span style={{color:T.green,fontWeight:800}}>✓</span>{f}</div>)}
+            {current?<Btn variant="ghost" size="sm" style={{width:"100%",marginTop:10}} onClick={()=>toast("This is your active plan")}>Your current plan</Btn>:
+              <Btn size="sm" style={{width:"100%",marginTop:10}} onClick={()=>goStripe(id)}>{user.plan?"Switch to ":"Subscribe to "}{p.name} →</Btn>}
           </div>);
         })}
       </div>
-      <Card>
+      {user.plan&&(<Card style={{marginTop:20}}>
         <SectionTitle>Invoice History</SectionTitle>
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",minWidth:460}}>
             <thead><tr>{["Date","Description","Amount","Status",""].map(h=><th key={h} style={{textAlign:"left",padding:"9px 12px",fontSize:10.5,fontWeight:800,color:T.faint,textTransform:"uppercase",letterSpacing:".7px",borderBottom:`1.5px solid ${T.line}`}}>{h}</th>)}</tr></thead>
-            <tbody>{["Jul 1, 2025","Jun 1, 2025","May 1, 2025"].map((d,i)=>(<tr key={i} className="hoverRow">
-              <td style={{padding:"12px",fontSize:13,fontWeight:700,borderBottom:`1px solid ${T.line}`}}>{d}</td>
+            <tbody>{[0,1,2].map(m=>{const dt=new Date();dt.setMonth(dt.getMonth()-m);return(<tr key={m} className="hoverRow">
+              <td style={{padding:"12px",fontSize:13,fontWeight:700,borderBottom:`1px solid ${T.line}`}}>{dt.toLocaleDateString("en-US",{month:"short",year:"numeric"})} 1</td>
               <td style={{padding:"12px",fontSize:12.5,color:T.sub,borderBottom:`1px solid ${T.line}`}}>{plan.name} plan · monthly</td>
               <td style={{padding:"12px",fontSize:13,fontWeight:800,borderBottom:`1px solid ${T.line}`}}>${plan.price}.00</td>
               <td style={{padding:"12px",borderBottom:`1px solid ${T.line}`}}><Badge type="paid"/></td>
               <td style={{padding:"12px",borderBottom:`1px solid ${T.line}`}}><button onClick={()=>toast("Invoice PDF downloading","info")} style={{background:"none",border:"none",color:T.brand,fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>PDF ↓</button></td>
-            </tr>))}</tbody>
+            </tr>);})}</tbody>
           </table>
         </div>
         <div style={{marginTop:18,paddingTop:16,borderTop:`1px solid ${T.line}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
           <div style={{fontSize:12,color:T.faint}}>Need to pause or cancel? No hidden steps.</div>
-          <Btn variant="ghost" size="sm" onClick={()=>toast("Cancellation request noted — your BDM will reach out to confirm","info")}>Cancel subscription</Btn>
+          <Btn variant="ghost" size="sm" onClick={()=>toast("Cancellation request noted — your BDM will confirm","info")}>Cancel subscription</Btn>
         </div>
-      </Card>
+      </Card>)}
     </div>);
   };
 
@@ -706,44 +888,35 @@ function ClientDashboard({user,onLogout}){
     {page==="home"&&<Home/>}
     {page==="listings"&&<Listings/>}
     {page==="gmb"&&<Gmb/>}
+    {page==="analytics"&&<Analytics/>}
     {page==="billing"&&<Billing/>}
     {page==="call"&&<CallPage/>}
   </Shell><Toasts/></>);
 }
 
 // ─── ADMIN DASHBOARD ─────────────────────────────────────────────────────────
-function AdminDashboard({user,onLogout}){
+function AdminDashboard({user,data,reload,onLogout}){
   const[page,setPage]=useState("overview");
   const[selClient,setSelClient]=useState(null);
   const[modal,setModal]=useState(null);
+  const[confirm,setConfirm]=useState(null);
   const[toast,Toasts]=useToast();
-  const[tick,setTick]=useState(0);
-  const refresh=()=>setTick(t=>t+1);
   const w=useWindowSize();const isMobile=w<820;
-  const allUsers=dbGet("ro_users")||[];
-  const allListings=dbGet("ro_listings")||{};
-  const allGmb=dbGet("ro_gmb")||{};
-  const allActivity=dbGet("ro_activity")||[];
-  const clients=allUsers.filter(u=>u.role==="client");
-  const staff=allUsers.filter(u=>u.role!=="client");
+  const{users,listings,gmb,analytics,activity,settings}=data;
+  const clients=users.filter(u=>u.role==="client");
+  const staff=users.filter(u=>u.role!=="client");
   const isAdmin=user.role==="super_admin";
-  const revenue=clients.reduce((s,c)=>s+PLANS[c.plan].price,0);
-  const flat=Object.entries(allListings).flatMap(([cId,ls])=>ls.map(l=>({...l,_cid:cId})));
+  const isStaffMgr=user.role==="super_admin"||user.role==="manager";
+  const revenue=clients.reduce((s,c)=>s+(PLANS[c.plan]?.price||0),0);
+  const flat=Object.values(listings).flat();
   const totalLive=flat.filter(l=>l.status==="live").length;
   const totalPending=flat.filter(l=>l.status==="pending").length;
   const totalFlagged=flat.filter(l=>l.status==="flagged"||l.status==="rejected").length;
+  const actionNeeded=flat.filter(l=>l.actionNeeded).length;
 
-  const saveUsers=(v)=>{dbSet("ro_users",v);refresh();};
-  const saveListings=(v)=>{dbSet("ro_listings",v);refresh();};
-  const saveGmb=(v)=>{dbSet("ro_gmb",v);refresh();};
-  const addActivity=(clientId,type,desc)=>{
-    const a=[{id:`a${Date.now()}`,clientId,type,desc,date:new Date().toLocaleDateString("en-US",{year:"numeric",month:"short",day:"numeric"}),by:user.name},...allActivity];
-    dbSet("ro_activity",a);refresh();
-  };
-  const updateListing=(cid,lid,updates)=>{
-    const ls=[...(allListings[cid]||[])];const i=ls.findIndex(l=>l.id===lid);
-    if(i>=0){ls[i]={...ls[i],...updates};saveListings({...allListings,[cid]:ls});}
-  };
+  const addActivity=async(clientId,type,desc)=>{await api.addActivity({id:uid(),clientId,type,desc,date:todayFull(),by:user.name});};
+  const R=async(fn,msg)=>{await fn();if(msg)toast(msg);await reload();};
+
   const nav=[
     {id:"overview",icon:"📊",label:"Overview",roles:["super_admin","manager","agent"]},
     {id:"clients",icon:"👥",label:"Clients",roles:["super_admin","manager","agent"],match:["clientDetail"]},
@@ -751,54 +924,71 @@ function AdminDashboard({user,onLogout}){
     {id:"gmb",icon:"📍",label:"GMB",roles:["super_admin","manager"]},
     {id:"team",icon:"🔑",label:"Team",roles:["super_admin"]},
     {id:"activity",icon:"📜",label:"Activity Log",roles:["super_admin","manager"]},
+    {id:"settings",icon:"⚙️",label:"Settings",roles:["super_admin"]},
   ].filter(n=>n.roles.includes(user.role));
   const roleBadge=(<div style={{marginTop:14,padding:"9px 13px",background:T.surface2,borderRadius:12}}>
     <div style={{fontSize:10,color:T.faint,fontWeight:800,letterSpacing:".5px"}}>SIGNED IN AS</div>
     <div style={{fontSize:13,fontWeight:800,color:T.brand,marginTop:2}}>{user.role==="super_admin"?"Super Admin":user.role==="manager"?"Manager":"Agent"}</div>
   </div>);
 
-  // Modals
+  // ── MODALS ──
   const AddListingModal=({clientId,onClose})=>{
-    const[dir,setDir]=useState("");const[da,setDa]=useState("");const[notes,setNotes]=useState("");
+    const[f,setF]=useState({directory:"",da:"",notes:"",actionNeeded:false,actionNote:""});
+    const set=(k,v)=>setF(x=>({...x,[k]:v}));
     return(<Modal open onClose={onClose} title="Add New Listing">
-      <Input label="Directory Name" value={dir} onChange={setDir} placeholder="e.g. Hotfrog"/>
-      <Input label="Domain Authority" value={da} onChange={setDa} placeholder="e.g. 62" type="number"/>
-      <Input label="Notes" value={notes} onChange={setNotes} placeholder="Optional notes"/>
+      <Input label="Directory Name" value={f.directory} onChange={v=>set("directory",v)} placeholder="e.g. Apple Business Connect"/>
+      <Input label="Domain Authority" value={f.da} onChange={v=>set("da",v)} placeholder="e.g. 96" type="number"/>
+      <Input label="Internal Notes" value={f.notes} onChange={v=>set("notes",v)} placeholder="Notes for your team"/>
+      <label style={{display:"flex",alignItems:"center",gap:9,padding:"10px 12px",background:T.amberSoft,borderRadius:11,cursor:"pointer",marginBottom:12}}>
+        <input type="checkbox" checked={f.actionNeeded} onChange={e=>set("actionNeeded",e.target.checked)} style={{width:16,height:16,accentColor:T.amber}}/>
+        <span style={{fontSize:12.5,fontWeight:700,color:T.amber}}>Client action required (e.g. Apple postcard verification)</span>
+      </label>
+      {f.actionNeeded&&<Input label="What the client must do" value={f.actionNote} onChange={v=>set("actionNote",v)} placeholder="e.g. Enter the code from the Apple postcard"/>}
       <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-        <Btn onClick={()=>{if(!dir)return;
-          const ls=[...(allListings[clientId]||[]),{id:`l${Date.now()}`,directory:dir,status:"submitted",submitted:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"}),liveDate:"—",napMatch:"—",liveLink:"",da:parseInt(da)||0,notes}];
-          saveListings({...allListings,[clientId]:ls});addActivity(clientId,"submitted",`${dir} submitted`);toast(`${dir} added`);onClose();}}>Add Listing</Btn>
+        <Btn onClick={()=>R(async()=>{
+          await api.upsertListing({id:uid(),clientId,directory:f.directory,status:"submitted",submitted:today(),liveDate:"—",napMatch:"—",liveLink:"",da:parseInt(f.da)||0,notes:f.notes,actionNeeded:f.actionNeeded,actionNote:f.actionNote});
+          await addActivity(clientId,"submitted",`${f.directory} submitted`);
+        },`${f.directory} added`).then(onClose)}>Add Listing</Btn>
       </div>
     </Modal>);
   };
   const UpdateListingModal=({listing,clientId,onClose})=>{
-    const[status,setStatus]=useState(listing.status);
-    const[liveLink,setLiveLink]=useState(listing.liveLink||"");
-    const[liveDate,setLiveDate]=useState(listing.liveDate||"");
-    const[napMatch,setNapMatch]=useState(listing.napMatch||"—");
-    const[notes,setNotes]=useState(listing.notes||"");
+    const[f,setF]=useState({status:listing.status,liveLink:listing.liveLink||"",liveDate:listing.liveDate||"",napMatch:listing.napMatch||"—",notes:listing.notes||"",actionNeeded:!!listing.actionNeeded,actionNote:listing.actionNote||""});
+    const set=(k,v)=>setF(x=>({...x,[k]:v}));
     return(<Modal open onClose={onClose} title={`Update · ${listing.directory}`}>
-      <Select label="Status" value={status} onChange={setStatus} options={["submitted","pending","live","rejected","flagged"].map(s=>({value:s,label:s[0].toUpperCase()+s.slice(1)}))}/>
-      <Input label="Live Listing URL" value={liveLink} onChange={setLiveLink} placeholder="https://directory.com/business"/>
-      <Input label="Live Date" value={liveDate} onChange={setLiveDate} placeholder="e.g. Jul 5"/>
-      <Select label="NAP Match" value={napMatch} onChange={setNapMatch} options={[{value:"—",label:"— Pending"},{value:"match",label:"✓ Match"},{value:"mismatch",label:"Mismatch"},{value:"fixed",label:"Fixed"}]}/>
-      <Input label="Internal Notes" value={notes} onChange={setNotes} placeholder="Rejection reason, fix details…"/>
-      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-        <Btn onClick={()=>{
-          updateListing(clientId,listing.id,{status,liveLink,liveDate:status==="live"?(liveDate!=="—"&&liveDate?liveDate:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"})):listing.liveDate,napMatch,notes});
-          if(status==="live"&&listing.status!=="live")addActivity(clientId,"listing_live",`${listing.directory} listing went live`);
-          if(status==="rejected"&&listing.status!=="rejected")addActivity(clientId,"rejected",`${listing.directory} rejected. ${notes}`);
-          if(status==="flagged"&&listing.status!=="flagged")addActivity(clientId,"flagged",`${listing.directory} flagged. ${notes}`);
-          toast("Listing updated");onClose();}}>Save Changes</Btn>
+      <Select label="Status" value={f.status} onChange={v=>set("status",v)} options={["submitted","pending","live","rejected","flagged"].map(s=>({value:s,label:s[0].toUpperCase()+s.slice(1)}))}/>
+      <Input label="Live Listing URL" value={f.liveLink} onChange={v=>set("liveLink",v)} placeholder="https://directory.com/business"/>
+      <Input label="Live Date" value={f.liveDate} onChange={v=>set("liveDate",v)} placeholder="e.g. Jul 5"/>
+      <Select label="NAP Match" value={f.napMatch} onChange={v=>set("napMatch",v)} options={[{value:"—",label:"— Pending"},{value:"match",label:"✓ Match"},{value:"mismatch",label:"Mismatch"},{value:"fixed",label:"Fixed"}]}/>
+      <div style={{marginBottom:12}}>
+        <label style={{fontSize:11.5,color:T.sub,fontWeight:700,display:"block",marginBottom:6,letterSpacing:".4px"}}>NOTES (CLIENT CAN READ)</label>
+        <textarea value={f.notes} onChange={e=>set("notes",e.target.value)} placeholder="Progress notes, context, anything the client should know…" style={{width:"100%",padding:"11px 15px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:11,color:T.ink,fontSize:13.5,boxSizing:"border-box",fontFamily:FONT_B,resize:"vertical",minHeight:70}}/>
+      </div>
+      <label style={{display:"flex",alignItems:"center",gap:9,padding:"10px 12px",background:T.amberSoft,borderRadius:11,cursor:"pointer",marginBottom:12}}>
+        <input type="checkbox" checked={f.actionNeeded} onChange={e=>set("actionNeeded",e.target.checked)} style={{width:16,height:16,accentColor:T.amber}}/>
+        <span style={{fontSize:12.5,fontWeight:700,color:T.amber}}>Client action required (verification, etc.)</span>
+      </label>
+      {f.actionNeeded&&<Input label="What the client must do" value={f.actionNote} onChange={v=>set("actionNote",v)} placeholder="e.g. Enter the Apple postcard code"/>}
+      <div style={{display:"flex",gap:8,justifyContent:"space-between"}}>
+        <Btn variant="danger" onClick={()=>setConfirm({title:"Delete listing?",msg:`Remove ${listing.directory} permanently? This cannot be undone.`,danger:true,yes:"Delete",onYes:()=>R(async()=>{await api.deleteListing(listing.id);await addActivity(clientId,"rejected",`${listing.directory} listing removed`);},"Listing deleted").then(onClose)})}>Delete</Btn>
+        <div style={{display:"flex",gap:8}}>
+          <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+          <Btn onClick={()=>R(async()=>{
+            await api.upsertListing({...listing,status:f.status,liveLink:f.liveLink,liveDate:f.status==="live"?(f.liveDate&&f.liveDate!=="—"?f.liveDate:today()):listing.liveDate,napMatch:f.napMatch,notes:f.notes,actionNeeded:f.actionNeeded,actionNote:f.actionNote});
+            if(f.status==="live"&&listing.status!=="live")await addActivity(clientId,"listing_live",`${listing.directory} listing went live`);
+            if(f.status==="rejected"&&listing.status!=="rejected")await addActivity(clientId,"rejected",`${listing.directory} rejected. ${f.notes}`);
+            if(f.status==="flagged"&&listing.status!=="flagged")await addActivity(clientId,"flagged",`${listing.directory} flagged. ${f.notes}`);
+          },"Listing updated").then(onClose)}>Save Changes</Btn>
+        </div>
       </div>
     </Modal>);
   };
-  const AddClientModal=({onClose})=>{
-    const[f,setF]=useState({role:"client",plan:"essentials",status:"active"});
+  const ClientFormModal=({client,onClose})=>{
+    const[f,setF]=useState(client||{role:"client",plan:"",status:"active",category:"Home Services"});
     const set=(k,v)=>setF(x=>({...x,[k]:v}));
-    return(<Modal open onClose={onClose} title="Add New Client" width={560}>
+    const editing=!!client;
+    return(<Modal open onClose={onClose} title={editing?"Edit Client":"Add New Client"} width={560}>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
         <Input label="Full Name" value={f.name} onChange={v=>set("name",v)} placeholder="Mike Johnson"/>
         <Input label="Business Name" value={f.businessName} onChange={v=>set("businessName",v)} placeholder="Mike's Plumbing"/>
@@ -807,17 +997,26 @@ function AdminDashboard({user,onLogout}){
         <Input label="City" value={f.city} onChange={v=>set("city",v)} placeholder="Austin"/>
         <Input label="State" value={f.state} onChange={v=>set("state",v)} placeholder="TX"/>
       </div>
-      <Select label="Plan" value={f.plan} onChange={v=>set("plan",v)} options={Object.entries(PLANS).map(([id,p])=>({value:id,label:`${p.name} $${p.price}/mo`}))}/>
-      <Select label="Category" value={f.category} onChange={v=>set("category",v)} options={["Home Services","Medical / Health","Legal","Restaurant / Food","Auto Services","Beauty & Salon","Real Estate","Other"].map(o=>({value:o,label:o}))}/>
-      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-        <Btn variant="green" onClick={()=>{if(!f.email||!f.name)return;
-          saveUsers([...allUsers,{id:`u${Date.now()}`,...f,avatar:(f.name||"?")[0].toUpperCase(),password:"client123",napScore:0,createdAt:new Date().toISOString().split("T")[0]}]);
-          toast(`${f.businessName||f.name} added as client`);onClose();}}>Add Client</Btn>
+      <Input label="Address" value={f.address} onChange={v=>set("address",v)} placeholder="123 Main St"/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        <Select label="Plan" value={f.plan} onChange={v=>set("plan",v)} options={[{value:"",label:"No plan yet"},...Object.entries(PLANS).map(([id,p])=>({value:id,label:`${p.name} $${p.price}/mo`}))]}/>
+        <Select label="Category" value={f.category} onChange={v=>set("category",v)} options={CATEGORIES.map(o=>({value:o,label:o}))}/>
       </div>
+      {editing&&<Select label="Status" value={f.status} onChange={v=>set("status",v)} options={[{value:"active",label:"Active"},{value:"suspended",label:"Suspended"}]}/>}
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:4}}>
+        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+        <Btn variant="green" onClick={()=>{
+          if(!f.email||!f.name){toast("Name and email required","warn");return;}
+          R(async()=>{
+            if(editing)await api.upsertProfile(f);
+            else{await api.upsertProfile({...f,id:uid(),avatar:(f.name||"?")[0].toUpperCase(),napScore:0,createdAt:new Date().toISOString()});await addActivity("","client",`New client added: ${f.businessName||f.name}`);}
+          },editing?"Client updated":`${f.businessName||f.name} added`).then(onClose);
+        }}>{editing?"Save Changes":"Add Client"}</Btn>
+      </div>
+      {!editing&&api.mode==="supabase"&&<div style={{marginTop:12,fontSize:11,color:T.faint,lineHeight:1.5}}>Note: this creates a profile record. For the client to log in, they sign up themselves (email/Google) with this email, or you send them a reset link.</div>}
     </Modal>);
   };
-  const AddTeamModal=({onClose})=>{
+  const TeamModal=({onClose})=>{
     const[f,setF]=useState({role:"agent"});
     const set=(k,v)=>setF(x=>({...x,[k]:v}));
     return(<Modal open onClose={onClose} title="Add Team Member">
@@ -826,39 +1025,84 @@ function AdminDashboard({user,onLogout}){
       <Select label="Role" value={f.role} onChange={v=>set("role",v)} options={[{value:"manager",label:"Manager"},{value:"agent",label:"Agent"}]}/>
       <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-        <Btn onClick={()=>{if(!f.email||!f.name)return;saveUsers([...allUsers,{id:`u${Date.now()}`,...f,avatar:(f.name||"?")[0].toUpperCase(),password:"temp123",createdAt:new Date().toISOString().split("T")[0]}]);toast(`${f.name} added to team`);onClose();}}>Add Member</Btn>
+        <Btn onClick={()=>{if(!f.email||!f.name){toast("Name and email required","warn");return;}
+          R(async()=>api.upsertProfile({...f,id:uid(),avatar:(f.name||"?")[0].toUpperCase(),status:"active",createdAt:new Date().toISOString()}),`${f.name} added to team`).then(onClose);}}>Add Member</Btn>
       </div>
+      {api.mode==="supabase"&&<div style={{marginTop:10,fontSize:11,color:T.faint,lineHeight:1.5}}>They sign up with this email to get login access, then this role applies.</div>}
     </Modal>);
   };
-  const GmbUpdateModal=({client,onClose})=>{
-    const ex=allGmb[client.id]||{views:0,calls:0,directions:0,trend:[],posts:[],qa:[],photos:0,completeness:{category:false,description:false,hours:false,photo:false,services:false,attributes:false}};
+  const GmbModal=({client,onClose})=>{
+    const ex=gmb[client.id]||{views:0,calls:0,directions:0,source:"manual",trend:[],posts:[],qa:[],photos:0,completeness:{category:false,description:false,hours:false,photo:false,services:false,attributes:false}};
     const[f,setF]=useState({views:ex.views,calls:ex.calls,directions:ex.directions,postTitle:"",qaQ:"",qaA:""});
     const set=(k,v)=>setF(x=>({...x,[k]:v}));
     return(<Modal open onClose={onClose} title={`GMB Update · ${client.businessName}`} width={560}>
-      <div style={{fontSize:11,fontWeight:800,color:T.faint,marginBottom:10,letterSpacing:".6px"}}>ENGAGEMENT METRICS</div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px"}}>ENGAGEMENT METRICS (MANUAL)</div>
+        <Badge type="manual"/>
+      </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
         <Input label="Views" value={f.views} onChange={v=>set("views",v)} type="number"/>
         <Input label="Calls" value={f.calls} onChange={v=>set("calls",v)} type="number"/>
         <Input label="Directions" value={f.directions} onChange={v=>set("directions",v)} type="number"/>
       </div>
-      <Input label="New GMB Post (optional)" value={f.postTitle} onChange={v=>set("postTitle",v)} placeholder="e.g. Summer Special — 10% Off"/>
-      <Input label="Q&A Question (optional)" value={f.qaQ} onChange={v=>set("qaQ",v)} placeholder="Customer question"/>
-      <Input label="Q&A Answer" value={f.qaA} onChange={v=>set("qaA",v)} placeholder="Your answer"/>
+      <Input label="Add GMB Post (optional)" value={f.postTitle} onChange={v=>set("postTitle",v)} placeholder="e.g. Summer Special — 10% Off"/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        <Input label="Q&A Question (optional)" value={f.qaQ} onChange={v=>set("qaQ",v)} placeholder="Customer question"/>
+        <Input label="Answer" value={f.qaA} onChange={v=>set("qaA",v)} placeholder="Your reply"/>
+      </div>
       <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-        <Btn variant="green" onClick={()=>{
-          const today=new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"});
+        <Btn variant="green" onClick={()=>R(async()=>{
           const trend=[...ex.trend,{m:new Date().toLocaleString("en-US",{month:"short"}),v:+f.views||0,c:+f.calls||0,d:+f.directions||0}];
-          const posts=f.postTitle?[...ex.posts,{title:f.postTitle,date:today,status:"live"}]:ex.posts;
-          const qa=f.qaQ&&f.qaA?[...ex.qa,{q:f.qaQ,a:f.qaA,date:today}]:ex.qa;
-          saveGmb({...allGmb,[client.id]:{...ex,views:+f.views||0,calls:+f.calls||0,directions:+f.directions||0,trend,posts,qa}});
-          addActivity(client.id,"gmb_update",`GMB data updated for ${client.businessName}`);
-          toast("GMB data saved");onClose();}}>Save GMB Update</Btn>
+          const posts=f.postTitle?[...ex.posts,{title:f.postTitle,date:today(),status:"live"}]:ex.posts;
+          const qa=f.qaQ&&f.qaA?[...ex.qa,{q:f.qaQ,a:f.qaA,date:today()}]:ex.qa;
+          await api.upsertGmb(client.id,{...ex,views:+f.views||0,calls:+f.calls||0,directions:+f.directions||0,source:"manual",trend,posts,qa});
+          await addActivity(client.id,"gmb_update",`GMB data updated for ${client.businessName}`);
+        },"GMB data saved").then(onClose)}>Save GMB Update</Btn>
+      </div>
+    </Modal>);
+  };
+  const AnalyticsModal=({client,onClose})=>{
+    const ex=analytics[client.id]||{sessions:0,users:0,pageviews:0,avgTime:"0:00",source:"manual",trend:[]};
+    const[f,setF]=useState({sessions:ex.sessions,users:ex.users,pageviews:ex.pageviews,avgTime:ex.avgTime});
+    const set=(k,v)=>setF(x=>({...x,[k]:v}));
+    return(<Modal open onClose={onClose} title={`Analytics · ${client.businessName}`} width={520}>
+      <div style={{display:"flex",justifycontent:"space-between",alignItems:"center",marginBottom:12}}>
+        <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px"}}>MANUAL ANALYTICS ENTRY</div><Badge type="manual"/>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        <Input label="Sessions" value={f.sessions} onChange={v=>set("sessions",v)} type="number"/>
+        <Input label="Users" value={f.users} onChange={v=>set("users",v)} type="number"/>
+        <Input label="Page Views" value={f.pageviews} onChange={v=>set("pageviews",v)} type="number"/>
+        <Input label="Avg. Time (m:ss)" value={f.avgTime} onChange={v=>set("avgTime",v)} placeholder="2:34"/>
+      </div>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+        <Btn variant="green" onClick={()=>R(async()=>{
+          const trend=[...(ex.trend||[]),{m:new Date().toLocaleString("en-US",{month:"short"}),s:+f.sessions||0,u:+f.users||0}];
+          await api.upsertAnalytics(client.id,{sessions:+f.sessions||0,users:+f.users||0,pageviews:+f.pageviews||0,avgTime:f.avgTime||"0:00",source:"manual",trend});
+          await addActivity(client.id,"analytics",`Analytics updated for ${client.businessName}`);
+        },"Analytics saved").then(onClose)}>Save Analytics</Btn>
+      </div>
+    </Modal>);
+  };
+  const IntegrationsModal=({client,onClose})=>{
+    const[gaId,setGaId]=useState(client.gaId||"");
+    const[gbpId,setGbpId]=useState(client.gbpId||"");
+    return(<Modal open onClose={onClose} title={`Integrations · ${client.businessName}`} width={520}>
+      <div style={{padding:"12px 14px",background:T.blueSoft,borderRadius:11,marginBottom:16,fontSize:12,color:T.blue,lineHeight:1.5}}>
+        Store the client's IDs here. Live auto-pull (OAuth) is coming next; for now, use the manual GMB/Analytics entry to feed their dashboards.
+      </div>
+      <Input label="Google Analytics 4 Measurement ID" value={gaId} onChange={setGaId} placeholder="G-XXXXXXXXXX"/>
+      <Input label="Google Business Profile ID / Name" value={gbpId} onChange={setGbpId} placeholder="accounts/123/locations/456"/>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:4}}>
+        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+        <Btn onClick={()=>R(async()=>api.upsertProfile({...client,gaId,gbpId}),"Integration IDs saved").then(onClose)}>Save</Btn>
       </div>
     </Modal>);
   };
 
-  // Pages
+  // ── ADMIN PAGES ──
   const Overview=()=>{
     const revData=[{m:"Mar",r:138},{m:"Apr",r:187},{m:"May",r:236},{m:"Jun",r:revenue},{m:"Jul",r:revenue}];
     const listData=[{m:"Mar",n:12,l:12},{m:"Apr",n:10,l:18},{m:"May",n:8,l:26},{m:"Jun",n:10,l:totalLive}];
@@ -868,7 +1112,7 @@ function AdminDashboard({user,onLogout}){
         {isAdmin&&<StatCard label="Monthly Revenue" value={`$${revenue}`} sub={`${clients.length} active subscriptions`} icon="💰" color={T.green} soft={T.greenSoft} trend={8} delay={0}/>}
         <StatCard label="Clients" value={clients.length} sub="Across all plans" icon="👥" delay={70}/>
         <StatCard label="Listings Live" value={totalLive} sub={`${totalPending} pending`} icon="🌐" color={T.blue} soft={T.blueSoft} delay={140}/>
-        <StatCard label="Needs Attention" value={totalFlagged} sub="Flagged or rejected" icon="🚩" color={T.red} soft={T.redSoft} delay={210}/>
+        <StatCard label="Needs Attention" value={totalFlagged} sub={`${actionNeeded} awaiting client action`} icon="🚩" color={T.red} soft={T.redSoft} delay={210}/>
       </div>
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1.7fr 1fr",gap:16,marginBottom:16}}>
         {isAdmin?(<Card><SectionTitle sub="Monthly recurring revenue (Super Admin only)">Revenue Trend</SectionTitle>
@@ -909,15 +1153,18 @@ function AdminDashboard({user,onLogout}){
         </Card>
       </div>
       <Card><SectionTitle>Client Health</SectionTitle>
-        {clients.map((c,i)=>{const cl=allListings[c.id]||[];const lv=cl.filter(l=>l.status==="live").length;
+        {clients.length===0?<Empty icon="👥" title="No clients yet" sub="Add your first client to get started."/>:
+        clients.map((c,i)=>{const cl=listings[c.id]||[];const lv=cl.filter(l=>l.status==="live").length;const an=cl.filter(l=>l.actionNeeded).length;
           return(<div key={c.id} className="hoverRow" onClick={()=>{setSelClient(c.id);setPage("clientDetail");}} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 10px",borderRadius:12,cursor:"pointer",borderBottom:i<clients.length-1?`1px solid ${T.line}`:"none",flexWrap:"wrap",gap:8}}>
             <div style={{display:"flex",gap:12,alignItems:"center"}}>
-              <div style={{width:36,height:36,borderRadius:"50%",background:`linear-gradient(135deg,${PLANS[c.plan].color},${T.violet})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:"#fff"}}>{c.avatar}</div>
-              <div><div style={{fontSize:13.5,fontWeight:800}}>{c.businessName}</div><div style={{fontSize:11,color:T.faint}}>{PLANS[c.plan].name} · ${PLANS[c.plan].price}/mo</div></div>
+              <div style={{width:36,height:36,borderRadius:"50%",background:`linear-gradient(135deg,${PLANS[c.plan]?.color||T.faint},${T.violet})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:"#fff"}}>{c.avatar}</div>
+              <div><div style={{fontSize:13.5,fontWeight:800}}>{c.businessName||c.name}</div><div style={{fontSize:11,color:T.faint}}>{c.plan?`${PLANS[c.plan].name} · $${PLANS[c.plan].price}/mo`:"No plan"}</div></div>
             </div>
             <div style={{display:"flex",gap:14,alignItems:"center"}}>
+              {an>0&&<Badge type="pending" label={`${an} action`}/>}
+              {c.status==="suspended"&&<Badge type="suspended"/>}
               <span style={{fontSize:12,color:T.sub,fontWeight:700}}>{lv} live</span>
-              <span style={{fontSize:12,fontWeight:800,color:c.napScore>=90?T.green:c.napScore>=70?T.amber:T.red}}>NAP {c.napScore}%</span>
+              <span style={{fontSize:12,fontWeight:800,color:c.napScore>=90?T.green:c.napScore>=70?T.amber:T.red}}>NAP {c.napScore||0}%</span>
               <span style={{color:T.brand,fontSize:12.5,fontWeight:800}}>→</span>
             </div>
           </div>);})}
@@ -929,29 +1176,29 @@ function AdminDashboard({user,onLogout}){
     const[search,setSearch]=useState("");
     const filtered=clients.filter(c=>!search||`${c.businessName} ${c.name} ${c.email} ${c.city}`.toLowerCase().includes(search.toLowerCase()));
     return(<div>
-      <PageHead isMobile={isMobile} title="Clients" sub={`${clients.length} active clients`}
-        right={user.role!=="agent"&&<Btn onClick={()=>setModal({type:"addClient"})}>+ Add Client</Btn>}/>
+      <PageHead isMobile={isMobile} title="Clients" sub={`${clients.length} clients`} right={isStaffMgr&&<Btn onClick={()=>setModal({type:"clientForm"})}>+ Add Client</Btn>}/>
       <div style={{marginBottom:16,maxWidth:420}}>
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍  Search by business, name, email, city…" style={{width:"100%",padding:"12px 16px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:13,fontSize:13.5,boxSizing:"border-box",fontFamily:FONT_B,boxShadow:SHADOW}}/>
       </div>
-      {filtered.length===0?<Card><Empty icon="🔍" title="No clients found" sub="Try a different search term."/></Card>:
+      {filtered.length===0?<Card><Empty icon="🔍" title="No clients found" sub="Try a different search, or add a client."/></Card>:
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         {filtered.map((c,idx)=>{
-          const cl=allListings[c.id]||[];const lv=cl.filter(l=>l.status==="live").length;const pd=cl.filter(l=>l.status==="pending").length;const fl=cl.filter(l=>l.status==="flagged"||l.status==="rejected").length;
-          return(<Card key={c.id} hover className="fadeUp" style={{animationDelay:`${idx*60}ms`,cursor:"pointer"}} >
+          const cl=listings[c.id]||[];const lv=cl.filter(l=>l.status==="live").length;const pd=cl.filter(l=>l.status==="pending").length;const fl=cl.filter(l=>l.status==="flagged"||l.status==="rejected").length;const an=cl.filter(l=>l.actionNeeded).length;
+          return(<Card key={c.id} hover className="fadeUp" style={{animationDelay:`${idx*50}ms`,cursor:"pointer"}}>
             <div onClick={()=>{setSelClient(c.id);setPage("clientDetail");}} style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
               <div style={{display:"flex",gap:14,alignItems:"center"}}>
-                <div style={{width:46,height:46,borderRadius:14,background:`linear-gradient(135deg,${PLANS[c.plan].color},${T.violet})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,fontWeight:800,color:"#fff",flexShrink:0}}>{c.avatar}</div>
+                <div style={{width:46,height:46,borderRadius:14,background:`linear-gradient(135deg,${PLANS[c.plan]?.color||T.faint},${T.violet})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,fontWeight:800,color:"#fff",flexShrink:0}}>{c.avatar}</div>
                 <div>
-                  <div style={{fontSize:14.5,fontWeight:800,fontFamily:FONT_D}}>{c.businessName}</div>
-                  <div style={{fontSize:12,color:T.sub}}>{c.name} · {c.city}, {c.state} · {c.category}</div>
+                  <div style={{fontSize:14.5,fontWeight:800,fontFamily:FONT_D,display:"flex",alignItems:"center",gap:8}}>{c.businessName||c.name}{c.status==="suspended"&&<Badge type="suspended"/>}</div>
+                  <div style={{fontSize:12,color:T.sub}}>{c.name} · {c.city||"—"}{c.state?", "+c.state:""} · {c.category||"—"}</div>
                 </div>
               </div>
-              <div style={{display:"flex",gap:isMobile?12:20,alignItems:"center",flexWrap:"wrap"}}>
+              <div style={{display:"flex",gap:isMobile?12:18,alignItems:"center",flexWrap:"wrap"}}>
+                {an>0&&<Badge type="pending" label={`${an} action`}/>}
                 <div style={{textAlign:"center"}}><div style={{fontSize:17,fontWeight:800,color:T.green,fontFamily:FONT_D}}>{lv}</div><div style={{fontSize:9.5,color:T.faint,fontWeight:700,letterSpacing:".5px"}}>LIVE</div></div>
                 <div style={{textAlign:"center"}}><div style={{fontSize:17,fontWeight:800,color:T.amber,fontFamily:FONT_D}}>{pd}</div><div style={{fontSize:9.5,color:T.faint,fontWeight:700,letterSpacing:".5px"}}>PENDING</div></div>
                 {fl>0&&<div style={{textAlign:"center"}}><div style={{fontSize:17,fontWeight:800,color:T.red,fontFamily:FONT_D}}>{fl}</div><div style={{fontSize:9.5,color:T.faint,fontWeight:700,letterSpacing:".5px"}}>FLAGS</div></div>}
-                <Badge type="submitted" label={`$${PLANS[c.plan].price}/mo`}/>
+                <Badge type="submitted" label={c.plan?`$${PLANS[c.plan].price}/mo`:"No plan"}/>
                 <span style={{color:T.brand,fontWeight:800}}>→</span>
               </div>
             </div>
@@ -962,55 +1209,67 @@ function AdminDashboard({user,onLogout}){
 
   const ClientDetail=()=>{
     const c=clients.find(x=>x.id===selClient);if(!c)return null;
-    const cl=allListings[c.id]||[];
+    const cl=listings[c.id]||[];
     const[nap,setNap]=useState(c.napScore||0);
+    const canEdit=isStaffMgr;
     return(<div>
       <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:20,flexWrap:"wrap"}}>
         <button onClick={()=>{setPage("clients");setSelClient(null);}} style={{background:T.surface,border:`1px solid ${T.line}`,borderRadius:10,padding:"7px 14px",color:T.sub,fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>← Clients</button>
-        <div style={{fontFamily:FONT_D,fontSize:isMobile?17:21,fontWeight:800}}>{c.businessName}</div>
-        <Badge type="active"/><Badge type="submitted" label={`${PLANS[c.plan].name} $${PLANS[c.plan].price}/mo`}/>
+        <div style={{fontFamily:FONT_D,fontSize:isMobile?17:21,fontWeight:800}}>{c.businessName||c.name}</div>
+        <Badge type={c.status==="suspended"?"suspended":"active"}/>{c.plan&&<Badge type="submitted" label={`${PLANS[c.plan].name} $${PLANS[c.plan].price}/mo`}/>}
       </div>
+      {canEdit&&<div style={{display:"flex",gap:8,marginBottom:18,flexWrap:"wrap"}}>
+        <Btn variant="ghost" size="sm" onClick={()=>setModal({type:"clientForm",client:c})}>✏️ Edit Info</Btn>
+        <Btn variant="ghost" size="sm" onClick={()=>setModal({type:"integrations",client:c})}>🔗 Integrations</Btn>
+        <Btn variant="ghost" size="sm" onClick={()=>setModal({type:"analytics",client:c})}>📈 Update Analytics</Btn>
+        {c.plan==="gmb"&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"gmb",client:c})}>📍 Update GMB</Btn>}
+        {c.status==="active"?
+          <Btn variant="ghost" size="sm" onClick={()=>setConfirm({title:"Suspend client?",msg:`${c.businessName||c.name} won't be able to log in until reactivated.`,yes:"Suspend",onYes:()=>R(async()=>api.upsertProfile({...c,status:"suspended"}),"Client suspended")})}>⏸ Suspend</Btn>:
+          <Btn variant="green" size="sm" onClick={()=>R(async()=>api.upsertProfile({...c,status:"active"}),"Client reactivated")}>▶ Reactivate</Btn>}
+        {isAdmin&&!c.protected&&<Btn variant="danger" size="sm" onClick={()=>setConfirm({title:"Delete client?",msg:`Permanently delete ${c.businessName||c.name} and all their listings? This cannot be undone.`,danger:true,yes:"Delete",onYes:()=>R(async()=>{await api.deleteUser(c.id);},"Client deleted").then(()=>{setPage("clients");setSelClient(null);})})}>🗑 Delete</Btn>}
+        {c.protected&&<span style={{fontSize:11,color:T.faint,alignSelf:"center"}}>🔒 Demo account (protected)</span>}
+      </div>}
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16,marginBottom:18}}>
         <Card><SectionTitle>Business Info</SectionTitle>
-          {[["Owner",c.name],["Email",c.email],["Phone",c.phone],["Address",`${c.address||"—"}, ${c.city}, ${c.state}`],["Website",c.website||"—"],["Category",c.category]].map(([k,v])=>(
+          {[["Owner",c.name],["Email",c.email],["Phone",c.phone],["Address",`${c.address||"—"}${c.city?", "+c.city:""}${c.state?", "+c.state:""}`],["Website",c.website||"—"],["Category",c.category||"—"],["GA4 ID",c.gaId||"Not connected"],["GBP ID",c.gbpId||"Not connected"]].map(([k,v])=>(
             <div key={k} style={{display:"flex",justifyContent:"space-between",gap:12,padding:"8px 0",borderBottom:`1px solid ${T.line}`}}>
               <span style={{fontSize:12.5,color:T.faint,fontWeight:700}}>{k}</span><span style={{fontSize:12.5,fontWeight:600,textAlign:"right",wordBreak:"break-word"}}>{v}</span>
             </div>))}
         </Card>
         <Card><SectionTitle>NAP Consistency</SectionTitle>
           <div style={{fontFamily:FONT_D,fontSize:44,fontWeight:800,textAlign:"center",padding:"8px 0",color:nap>=90?T.green:nap>=70?T.amber:T.red}}>{nap}%</div>
-          <input type="range" min="0" max="100" value={nap} onChange={e=>setNap(+e.target.value)} style={{width:"100%",accentColor:T.brand}}/>
-          <Btn style={{width:"100%",marginTop:12}} onClick={()=>{saveUsers(allUsers.map(u=>u.id===c.id?{...u,napScore:nap}:u));toast(`NAP score saved: ${nap}%`);}}>Save NAP Score</Btn>
-          <button onClick={()=>{addActivity(c.id,"edit_blocked","Unauthorized edit blocked and reverted");toast("Unauthorized edit logged & reverted","info");}} style={{width:"100%",marginTop:10,padding:"11px 0",background:T.redSoft,border:"none",borderRadius:11,color:T.red,fontSize:12.5,fontWeight:800,cursor:"pointer",fontFamily:FONT_B}}>🛡️ Log Unauthorized Edit + Revert</button>
+          {canEdit?<><input type="range" min="0" max="100" value={nap} onChange={e=>setNap(+e.target.value)} style={{width:"100%",accentColor:T.brand}}/>
+          <Btn style={{width:"100%",marginTop:12}} onClick={()=>R(async()=>api.upsertProfile({...c,napScore:nap}),`NAP score saved: ${nap}%`)}>Save NAP Score</Btn>
+          <button onClick={()=>R(async()=>addActivity(c.id,"edit_blocked","Unauthorized edit blocked and reverted"),"Unauthorized edit logged & reverted")} style={{width:"100%",marginTop:10,padding:"11px 0",background:T.redSoft,border:"none",borderRadius:11,color:T.red,fontSize:12.5,fontWeight:800,cursor:"pointer",fontFamily:FONT_B}}>🛡️ Log Unauthorized Edit + Revert</button></>:
+          <div style={{fontSize:12,color:T.faint,textAlign:"center"}}>View only</div>}
         </Card>
       </div>
       <Card style={{marginBottom:16}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
           <div style={{fontSize:14.5,fontWeight:800,fontFamily:FONT_D}}>Listings ({cl.length})</div>
-          <div style={{display:"flex",gap:8}}>
-            {c.plan==="gmb"&&<Btn variant="soft" size="sm" onClick={()=>setModal({type:"gmb",client:c})}>📍 Update GMB</Btn>}
-            <Btn size="sm" onClick={()=>setModal({type:"addListing",clientId:c.id})}>+ Add Listing</Btn>
-          </div>
+          {canEdit&&<Btn size="sm" onClick={()=>setModal({type:"addListing",clientId:c.id})}>+ Add Listing</Btn>}
         </div>
-        <div style={{overflowX:"auto"}}>
-          <table style={{width:"100%",borderCollapse:"collapse",minWidth:640}}>
-            <thead><tr>{["Directory","Status","DA","Submitted","Live","NAP","Link","Action"].map(h=><th key={h} style={{textAlign:"left",padding:"9px 12px",fontSize:10.5,fontWeight:800,color:T.faint,textTransform:"uppercase",letterSpacing:".6px",borderBottom:`1.5px solid ${T.line}`}}>{h}</th>)}</tr></thead>
-            <tbody>{cl.map((d)=>(<tr key={d.id} className="hoverRow">
-              <td style={{padding:"11px 12px",fontSize:13,fontWeight:700,borderBottom:`1px solid ${T.line}`}}>{d.directory}</td>
-              <td style={{padding:"11px 12px",borderBottom:`1px solid ${T.line}`}}><Badge type={d.status}/></td>
-              <td style={{padding:"11px 12px",fontSize:12.5,fontWeight:800,color:d.da>=80?T.green:d.da>=60?T.amber:T.sub,borderBottom:`1px solid ${T.line}`}}>{d.da}</td>
-              <td style={{padding:"11px 12px",fontSize:12,color:T.sub,borderBottom:`1px solid ${T.line}`}}>{d.submitted}</td>
-              <td style={{padding:"11px 12px",fontSize:12,color:d.liveDate==="—"?T.faint:T.green,fontWeight:700,borderBottom:`1px solid ${T.line}`}}>{d.liveDate}</td>
-              <td style={{padding:"11px 12px",borderBottom:`1px solid ${T.line}`}}>{d.napMatch==="—"?<span style={{fontSize:11,color:T.faint}}>—</span>:<Badge type={d.napMatch}/>}</td>
-              <td style={{padding:"11px 12px",borderBottom:`1px solid ${T.line}`}}>{d.liveLink?<a href={d.liveLink} target="_blank" rel="noreferrer" style={{color:T.brand,fontSize:12,fontWeight:700,textDecoration:"none"}}>View ↗</a>:<span style={{color:T.faint,fontSize:11.5}}>—</span>}</td>
-              <td style={{padding:"11px 12px",borderBottom:`1px solid ${T.line}`}}><Btn variant="soft" size="sm" onClick={()=>setModal({type:"updateListing",listing:d,clientId:c.id})}>Update</Btn></td>
-            </tr>))}</tbody>
-          </table>
-        </div>
+        {cl.length===0?<Empty icon="📋" title="No listings yet" sub="Add the first directory submission."/>:
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {cl.map(d=>(<div key={d.id} style={{border:`1px solid ${d.actionNeeded?T.amber:T.line}`,borderRadius:13,padding:"14px 16px",background:d.actionNeeded?T.amberSoft:T.surface}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                <span style={{fontSize:13.5,fontWeight:800}}>{d.directory}</span>
+                <Badge type={d.status}/>
+                {d.napMatch&&d.napMatch!=="—"&&<Badge type={d.napMatch}/>}
+                {d.da>0&&<span style={{fontSize:11,fontWeight:800,color:d.da>=80?T.green:d.da>=60?T.amber:T.faint}}>DA {d.da}</span>}
+                {d.liveLink&&<a href={d.liveLink} target="_blank" rel="noreferrer" style={{color:T.brand,fontSize:12,fontWeight:700,textDecoration:"none"}}>View ↗</a>}
+              </div>
+              {canEdit&&<Btn variant="soft" size="sm" onClick={()=>setModal({type:"updateListing",listing:d,clientId:c.id})}>Update</Btn>}
+            </div>
+            {d.actionNeeded&&<div style={{marginTop:10,padding:"9px 12px",background:"#fff",borderRadius:9,fontSize:12,color:T.amber,fontWeight:700,display:"flex",alignItems:"center",gap:7}}>⚠️ Client action: {d.actionNote||"Verification required from the client"}</div>}
+            {d.notes&&<div style={{marginTop:8,fontSize:12,color:T.sub,lineHeight:1.5}}><b style={{color:T.faint}}>Notes:</b> {d.notes}</div>}
+          </div>))}
+        </div>}
       </Card>
       <Card><SectionTitle>Activity Log</SectionTitle>
-        {allActivity.filter(a=>a.clientId===c.id).length===0?<Empty icon="📜" title="No activity yet" sub="Actions taken for this client will appear here."/>:
-          allActivity.filter(a=>a.clientId===c.id).map((a,i,arr)=>(<div key={a.id} style={{display:"flex",gap:12,padding:"10px 6px",borderBottom:i<arr.length-1?`1px solid ${T.line}`:"none",alignItems:"flex-start"}}>
+        {activity.filter(a=>a.clientId===c.id).length===0?<Empty icon="📜" title="No activity yet" sub="Actions for this client appear here."/>:
+          activity.filter(a=>a.clientId===c.id).map((a,i,arr)=>(<div key={a.id} style={{display:"flex",gap:12,padding:"10px 6px",borderBottom:i<arr.length-1?`1px solid ${T.line}`:"none",alignItems:"flex-start"}}>
             <div style={{width:32,height:32,borderRadius:10,background:T.surface2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0}}>{actIcon(a.type)}</div>
             <div><div style={{fontSize:12.5,fontWeight:600}}>{a.desc}</div><div style={{fontSize:11,color:T.faint,marginTop:2}}>{a.date} · {a.by}</div></div>
           </div>))}
@@ -1020,27 +1279,28 @@ function AdminDashboard({user,onLogout}){
 
   const AllListings=()=>{
     const[filter,setFilter]=useState("all");
-    const withNames=flat.map(l=>({...l,_name:clients.find(c=>c.id===l._cid)?.businessName||"?"}));
-    const filtered=filter==="all"?withNames:withNames.filter(l=>l.status===filter);
-    const counts=(s)=>s==="all"?withNames.length:withNames.filter(l=>l.status===s).length;
+    const withNames=flat.map(l=>({...l,_name:clients.find(c=>c.id===l.clientId)?.businessName||"?"}));
+    const filtered=filter==="all"?withNames:filter==="action"?withNames.filter(l=>l.actionNeeded):withNames.filter(l=>l.status===filter);
+    const cnt=(s)=>s==="all"?withNames.length:s==="action"?withNames.filter(l=>l.actionNeeded).length:withNames.filter(l=>l.status===s).length;
     return(<div>
       <PageHead isMobile={isMobile} title="All Listings" sub={`${withNames.length} total across ${clients.length} clients`}/>
       <div style={{display:"flex",gap:8,marginBottom:18,flexWrap:"wrap"}}>
-        {["all","live","pending","submitted","flagged","rejected"].map(s=>(
-          <button key={s} onClick={()=>setFilter(s)} style={{padding:"7px 16px",borderRadius:20,border:`1.5px solid ${filter===s?T.brand:T.line}`,background:filter===s?T.brandSoft:T.surface,color:filter===s?T.brand:T.sub,fontSize:12.5,fontWeight:filter===s?800:600,cursor:"pointer",fontFamily:FONT_B}}>{s[0].toUpperCase()+s.slice(1)} ({counts(s)})</button>))}
+        {["all","live","pending","submitted","flagged","rejected","action"].map(s=>(
+          <button key={s} onClick={()=>setFilter(s)} style={{padding:"7px 15px",borderRadius:20,border:`1.5px solid ${filter===s?T.brand:T.line}`,background:filter===s?T.brandSoft:T.surface,color:filter===s?T.brand:T.sub,fontSize:12.5,fontWeight:filter===s?800:600,cursor:"pointer",fontFamily:FONT_B}}>{s==="action"?"⚠️ Client action":s[0].toUpperCase()+s.slice(1)} ({cnt(s)})</button>))}
       </div>
       <Card style={{overflowX:"auto",padding:isMobile?14:22}}>
         {filtered.length===0?<Empty icon="📋" title="Nothing here" sub={`No ${filter} listings right now.`}/>:
-        <table style={{width:"100%",borderCollapse:"collapse",minWidth:640}}>
-          <thead><tr>{["Client","Directory","Status","DA","Live","NAP","Action"].map(h=><th key={h} style={{textAlign:"left",padding:"9px 12px",fontSize:10.5,fontWeight:800,color:T.faint,textTransform:"uppercase",letterSpacing:".6px",borderBottom:`1.5px solid ${T.line}`}}>{h}</th>)}</tr></thead>
-          <tbody>{filtered.map((d)=>(<tr key={`${d._cid}-${d.id}`} className="hoverRow">
+        <table style={{width:"100%",borderCollapse:"collapse",minWidth:680}}>
+          <thead><tr>{["Client","Directory","Status","DA","Live","NAP","Flag","Action"].map(h=><th key={h} style={{textAlign:"left",padding:"9px 12px",fontSize:10.5,fontWeight:800,color:T.faint,textTransform:"uppercase",letterSpacing:".6px",borderBottom:`1.5px solid ${T.line}`}}>{h}</th>)}</tr></thead>
+          <tbody>{filtered.map((d)=>(<tr key={d.id} className="hoverRow">
             <td style={{padding:"11px 12px",fontSize:12,color:T.sub,fontWeight:600,borderBottom:`1px solid ${T.line}`}}>{d._name}</td>
             <td style={{padding:"11px 12px",fontSize:13,fontWeight:700,borderBottom:`1px solid ${T.line}`}}>{d.directory}</td>
             <td style={{padding:"11px 12px",borderBottom:`1px solid ${T.line}`}}><Badge type={d.status}/></td>
-            <td style={{padding:"11px 12px",fontSize:12.5,fontWeight:800,color:d.da>=80?T.green:d.da>=60?T.amber:T.sub,borderBottom:`1px solid ${T.line}`}}>{d.da}</td>
+            <td style={{padding:"11px 12px",fontSize:12.5,fontWeight:800,color:d.da>=80?T.green:d.da>=60?T.amber:T.sub,borderBottom:`1px solid ${T.line}`}}>{d.da||"—"}</td>
             <td style={{padding:"11px 12px",fontSize:12,color:d.liveDate==="—"?T.faint:T.green,fontWeight:700,borderBottom:`1px solid ${T.line}`}}>{d.liveDate}</td>
             <td style={{padding:"11px 12px",borderBottom:`1px solid ${T.line}`}}>{d.napMatch==="—"?<span style={{fontSize:11,color:T.faint}}>—</span>:<Badge type={d.napMatch}/>}</td>
-            <td style={{padding:"11px 12px",borderBottom:`1px solid ${T.line}`}}><Btn variant="soft" size="sm" onClick={()=>{setSelClient(d._cid);setPage("clientDetail");}}>Open</Btn></td>
+            <td style={{padding:"11px 12px",borderBottom:`1px solid ${T.line}`}}>{d.actionNeeded?<span title={d.actionNote} style={{fontSize:14}}>⚠️</span>:<span style={{fontSize:11,color:T.faint}}>—</span>}</td>
+            <td style={{padding:"11px 12px",borderBottom:`1px solid ${T.line}`}}><Btn variant="soft" size="sm" onClick={()=>{setSelClient(d.clientId);setPage("clientDetail");}}>Open</Btn></td>
           </tr>))}</tbody>
         </table>}
       </Card>
@@ -1051,19 +1311,19 @@ function AdminDashboard({user,onLogout}){
     const gmbClients=clients.filter(c=>c.plan==="gmb");
     return(<div>
       <PageHead isMobile={isMobile} title="GMB Management" sub={`${gmbClients.length} GMB Pro clients`}/>
-      {gmbClients.length===0?<Card><Empty icon="📍" title="No GMB Pro clients yet" sub="Clients on the $249 plan will appear here."/></Card>:
-        gmbClients.map(c=>{const d=allGmb[c.id];
+      {gmbClients.length===0?<Card><Empty icon="📍" title="No GMB Pro clients yet" sub="Clients on the $249 plan appear here."/></Card>:
+        gmbClients.map(c=>{const d=gmb[c.id];
           return(<Card key={c.id} hover style={{marginBottom:12}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
               <div style={{display:"flex",gap:13,alignItems:"center"}}>
                 <div style={{width:42,height:42,borderRadius:13,background:`linear-gradient(135deg,${T.violet},${T.brand})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:800,color:"#fff"}}>{c.avatar}</div>
                 <div>
                   <div style={{fontSize:14,fontWeight:800,fontFamily:FONT_D}}>{c.businessName}</div>
-                  <div style={{fontSize:12,color:T.sub,marginTop:2}}>{d?`${d.views.toLocaleString()} views · ${d.calls} calls · ${d.directions} directions`:"No GMB data yet"}{d&&` · ${d.posts?.length||0} posts`}</div>
+                  <div style={{fontSize:12,color:T.sub,marginTop:2}}>{d?`${d.views?.toLocaleString()||0} views · ${d.calls||0} calls · ${d.directions||0} directions · ${d.posts?.length||0} posts`:"No GMB data yet"}</div>
                 </div>
               </div>
               <div style={{display:"flex",gap:8}}>
-                <Btn variant="ghost" size="sm" onClick={()=>{setSelClient(c.id);setPage("clientDetail");}}>View Client</Btn>
+                <Btn variant="ghost" size="sm" onClick={()=>{setSelClient(c.id);setPage("clientDetail");}}>View</Btn>
                 <Btn variant="green" size="sm" onClick={()=>setModal({type:"gmb",client:c})}>Update GMB</Btn>
               </div>
             </div>
@@ -1072,8 +1332,8 @@ function AdminDashboard({user,onLogout}){
   };
 
   const Team=()=>(<div>
-    <PageHead isMobile={isMobile} title="Team" sub={`${staff.length} team members`} right={<Btn onClick={()=>setModal({type:"addTeam"})}>+ Add Member</Btn>}/>
-    {staff.map((m,i)=>(<Card key={m.id} hover className="fadeUp" style={{animationDelay:`${i*70}ms`,marginBottom:12}}>
+    <PageHead isMobile={isMobile} title="Team" sub={`${staff.length} team members`} right={<Btn onClick={()=>setModal({type:"team"})}>+ Add Member</Btn>}/>
+    {staff.map((m,i)=>(<Card key={m.id} hover className="fadeUp" style={{animationDelay:`${i*60}ms`,marginBottom:12}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
         <div style={{display:"flex",gap:13,alignItems:"center"}}>
           <div style={{width:42,height:42,borderRadius:"50%",background:m.role==="super_admin"?`linear-gradient(135deg,${T.brand},${T.violet})`:m.role==="manager"?`linear-gradient(135deg,${T.amber},#E8A33D)`:`linear-gradient(135deg,${T.blue},#5B9FE8)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:800,color:"#fff"}}>{m.avatar}</div>
@@ -1081,13 +1341,14 @@ function AdminDashboard({user,onLogout}){
         </div>
         <div style={{display:"flex",gap:10,alignItems:"center"}}>
           <Badge type={m.role==="super_admin"?"live":m.role==="manager"?"pending":"submitted"} label={m.role==="super_admin"?"Super Admin":m.role==="manager"?"Manager":"Agent"}/>
-          {m.id!==user.id&&m.role!=="super_admin"&&<Btn variant="danger" size="sm" onClick={()=>{saveUsers(allUsers.filter(u=>u.id!==m.id));toast(`${m.name} removed`);}}>Remove</Btn>}
+          {m.id!==user.id&&m.role!=="super_admin"&&!m.protected&&<Btn variant="danger" size="sm" onClick={()=>setConfirm({title:"Remove team member?",msg:`Remove ${m.name} from the team?`,danger:true,yes:"Remove",onYes:()=>R(async()=>api.deleteUser(m.id),`${m.name} removed`)})}>Remove</Btn>}
+          {m.protected&&<span style={{fontSize:11,color:T.faint}}>🔒 Demo</span>}
         </div>
       </div>
     </Card>))}
     <Card style={{background:T.surface2,boxShadow:"none",border:`1px dashed ${T.line}`}}>
       <div style={{fontSize:11,fontWeight:800,color:T.faint,marginBottom:10,letterSpacing:".6px"}}>ROLE PERMISSIONS</div>
-      {[["Super Admin",T.brand,"Full access — clients, listings, GMB, team, revenue"],["Manager",T.amber,"Clients, listings, GMB. No team or revenue access."],["Agent",T.blue,"View clients and update listing statuses only."]].map(([r,c,p])=>(
+      {[["Super Admin",T.brand,"Full access — clients, listings, GMB, team, revenue, settings"],["Manager",T.amber,"Clients, listings, GMB. No team, revenue, or settings."],["Agent",T.blue,"View clients and update listing statuses/notes only."]].map(([r,c,p])=>(
         <div key={r} style={{display:"flex",gap:9,marginBottom:8,alignItems:"flex-start"}}><span style={{width:8,height:8,borderRadius:3,background:c,marginTop:5,flexShrink:0}}/><div style={{fontSize:12.5}}><b style={{color:c}}>{r}:</b> <span style={{color:T.sub}}>{p}</span></div></div>))}
     </Card>
   </div>);
@@ -1095,21 +1356,52 @@ function AdminDashboard({user,onLogout}){
   const Activity=()=>(<div>
     <PageHead isMobile={isMobile} title="Activity Log" sub="Every platform event, newest first"/>
     <Card>
-      {allActivity.length===0?<Empty icon="📜" title="No activity yet" sub="Platform events will appear here."/>:
-        allActivity.map((a,i)=>(<div key={a.id} className="hoverRow" style={{display:"flex",gap:13,padding:"11px 8px",borderRadius:10,borderBottom:i<allActivity.length-1?`1px solid ${T.line}`:"none",alignItems:"flex-start"}}>
+      {activity.length===0?<Empty icon="📜" title="No activity yet" sub="Platform events appear here."/>:
+        activity.map((a,i)=>(<div key={a.id} className="hoverRow" style={{display:"flex",gap:13,padding:"11px 8px",borderRadius:10,borderBottom:i<activity.length-1?`1px solid ${T.line}`:"none",alignItems:"flex-start"}}>
           <div style={{width:34,height:34,borderRadius:11,background:T.surface2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{actIcon(a.type)}</div>
           <div style={{flex:1}}>
             <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:4}}>
               <div style={{fontSize:13,fontWeight:600}}>{a.desc}</div>
               <div style={{fontSize:11,color:T.faint}}>{a.date}</div>
             </div>
-            <div style={{fontSize:11.5,color:T.faint,marginTop:2}}>{clients.find(c=>c.id===a.clientId)?.businessName||a.clientId} · by {a.by}</div>
+            <div style={{fontSize:11.5,color:T.faint,marginTop:2}}>{clients.find(c=>c.id===a.clientId)?.businessName||"—"} · by {a.by}</div>
           </div>
         </div>))}
     </Card>
   </div>);
 
-  return(<><Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} planBadge={roleBadge} brandTag="ADMIN" badgeCounts={{listings:totalFlagged}}>
+  const Settings=()=>{
+    const s=settings?.stripe||{essentials:"",growth:"",gmb:"",pubKey:""};
+    const[f,setF]=useState(s);
+    const set=(k,v)=>setF(x=>({...x,[k]:v}));
+    return(<div>
+      <PageHead isMobile={isMobile} title="Settings" sub="Payment links and platform configuration"/>
+      <Card style={{marginBottom:16}}>
+        <SectionTitle sub="Paste your Stripe Payment Link for each plan. Client Subscribe/Upgrade buttons open these.">Stripe Payment Links</SectionTitle>
+        <div style={{padding:"12px 14px",background:T.blueSoft,borderRadius:11,marginBottom:16,fontSize:12,color:T.blue,lineHeight:1.55}}>
+          <b>How:</b> Stripe Dashboard → Payment Links → create one recurring link per plan → paste the URLs below. Clients check out securely; you activate their plan after payment (auto-activation via webhook is the next phase).
+        </div>
+        <Input label="Essentials ($49/mo) link" value={f.essentials} onChange={v=>set("essentials",v)} placeholder="https://buy.stripe.com/..."/>
+        <Input label="Growth ($89/mo) link" value={f.growth} onChange={v=>set("growth",v)} placeholder="https://buy.stripe.com/..."/>
+        <Input label="GMB Pro ($249/mo) link" value={f.gmb} onChange={v=>set("gmb",v)} placeholder="https://buy.stripe.com/..."/>
+        <Input label="Stripe Publishable Key (optional)" value={f.pubKey} onChange={v=>set("pubKey",v)} placeholder="pk_live_..."/>
+        <Btn onClick={()=>R(async()=>api.saveSettings({...settings,stripe:f}),"Stripe settings saved")}>Save Stripe Settings</Btn>
+      </Card>
+      <Card>
+        <SectionTitle sub="Current data backend">System</SectionTitle>
+        <div style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${T.line}`}}>
+          <span style={{fontSize:13,color:T.sub}}>Database mode</span>
+          <Badge type={api.mode==="supabase"?"connected":"manual"} label={api.mode==="supabase"?"Supabase (live)":"Local (demo)"}/>
+        </div>
+        <div style={{display:"flex",justifyContent:"space-between",padding:"10px 0"}}>
+          <span style={{fontSize:13,color:T.sub}}>Live GA4 / GBP auto-sync</span>
+          <Badge type="pending" label="Next phase (OAuth)"/>
+        </div>
+      </Card>
+    </div>);
+  };
+
+  return(<><Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} planBadge={roleBadge} brandTag="ADMIN" badgeCounts={{listings:totalFlagged+actionNeeded}}>
     {page==="overview"&&<Overview/>}
     {page==="clients"&&<Clients/>}
     {page==="clientDetail"&&<ClientDetail/>}
@@ -1117,12 +1409,16 @@ function AdminDashboard({user,onLogout}){
     {page==="gmb"&&<GmbAdmin/>}
     {page==="team"&&<Team/>}
     {page==="activity"&&<Activity/>}
+    {page==="settings"&&<Settings/>}
   </Shell>
-  {modal?.type==="addClient"&&<AddClientModal onClose={()=>setModal(null)}/>}
-  {modal?.type==="addTeam"&&<AddTeamModal onClose={()=>setModal(null)}/>}
+  {modal?.type==="clientForm"&&<ClientFormModal client={modal.client} onClose={()=>setModal(null)}/>}
+  {modal?.type==="team"&&<TeamModal onClose={()=>setModal(null)}/>}
   {modal?.type==="addListing"&&<AddListingModal clientId={modal.clientId} onClose={()=>setModal(null)}/>}
   {modal?.type==="updateListing"&&<UpdateListingModal listing={modal.listing} clientId={modal.clientId} onClose={()=>setModal(null)}/>}
-  {modal?.type==="gmb"&&<GmbUpdateModal client={modal.client} onClose={()=>setModal(null)}/>}
+  {modal?.type==="gmb"&&<GmbModal client={modal.client} onClose={()=>setModal(null)}/>}
+  {modal?.type==="analytics"&&<AnalyticsModal client={modal.client} onClose={()=>setModal(null)}/>}
+  {modal?.type==="integrations"&&<IntegrationsModal client={modal.client} onClose={()=>setModal(null)}/>}
+  <Confirm data={confirm} onClose={()=>setConfirm(null)}/>
   <Toasts/></>);
 }
 
@@ -1130,14 +1426,19 @@ function AdminDashboard({user,onLogout}){
 export default function App(){
   const[ready,setReady]=useState(false);
   const[currentUser,setCurrentUser]=useState(null);
-  useEffect(()=>{initDB();setReady(true);},[]);
+  const[data,setData]=useState(null);
+  const reload=useCallback(async()=>{const d=await api.loadAll();setData(d);},[]);
+  useEffect(()=>{(async()=>{await api.init();const existing=await api.currentUser();if(existing)setCurrentUser(existing);await reload();setReady(true);})();},[reload]);
+  const onLogin=async(u)=>{setCurrentUser(u);await reload();};
+  const onLogout=async()=>{await api.logout();setCurrentUser(null);};
   if(!ready)return(<div style={{height:"100vh",background:T.bg,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,fontFamily:FONT_B}}>
     <GlobalStyle/><Orbit size={90} speed={6}/>
     <div style={{fontSize:13,color:T.sub,fontWeight:600}}>Loading platform…</div>
   </div>);
   return(<><GlobalStyle/>
-    {!currentUser?<AuthScreen onLogin={setCurrentUser}/>:
-      currentUser.role==="client"?<ClientDashboard user={currentUser} onLogout={()=>setCurrentUser(null)}/>:
-      <AdminDashboard user={currentUser} onLogout={()=>setCurrentUser(null)}/>}
+    {!currentUser?<AuthScreen onLogin={onLogin}/>:
+      !data?<div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}><Orbit size={80}/></div>:
+      currentUser.role==="client"?<ClientDashboard user={currentUser} data={data} reload={reload} onLogout={onLogout}/>:
+      <AdminDashboard user={currentUser} data={data} reload={reload} onLogout={onLogout}/>}
   </>);
 }
