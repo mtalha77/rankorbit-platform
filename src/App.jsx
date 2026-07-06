@@ -794,11 +794,14 @@ const PageHead=({title,sub,right,isMobile})=>(
 );
 
 // ─── CLIENT DASHBOARD ────────────────────────────────────────────────────────
-function ClientDashboard({user,data,reload,onLogout}){
+function ClientDashboard({user:userProp,data,reload,onLogout}){
   const[page,setPage]=useState("home");
   const[toast,Toasts]=useToast();
   const[showManual,setShowManual]=useState(false);
   const w=useWindowSize();const isMobile=w<820;
+  // Always use the freshest copy of the profile (data.users is refreshed by reload()),
+  // so profile edits (e.g. completing the business profile) reflect immediately.
+  const user=(data.users||[]).find(u=>u.id===userProp.id)||userProp;
   // First-login user manual: show once, then remember (per-user, this browser).
   useEffect(()=>{
     try{const key="ro_manual_seen_"+user.id;if(!localStorage.getItem(key)){setShowManual(true);localStorage.setItem(key,"1");}}catch{}
@@ -1102,6 +1105,7 @@ function ClientDashboard({user,data,reload,onLogout}){
 
   const Billing=()=>{
     const stripe=settings?.stripe||{};
+    const stripeReady=!!(stripe.essentials||stripe.growth||stripe.gmb);
     const goStripe=(planId)=>{
       const link=stripe[planId];
       if(link&&link.startsWith("http")){
@@ -1109,7 +1113,11 @@ function ClientDashboard({user,data,reload,onLogout}){
         const sep=link.includes("?")?"&":"?";
         const url=`${link}${sep}client_reference_id=${encodeURIComponent(user.id)}&prefilled_email=${encodeURIComponent(user.email||"")}`;
         window.open(url,"_blank");
-      }else toast("Payment link not set up yet, your account manager will send it","info");
+      }else if(!stripeReady){
+        // DEMO MODE: no Stripe configured yet. Activate the plan directly so the flow can be tested
+        // end-to-end without payment. This path disappears automatically once any Payment Link is set.
+        R(async()=>{await api.upsertProfile({...user,plan:planId,status:"active",currentPeriodEnd:nextMonthFirst()});},`${PLANS[planId].name} activated (demo mode, no charge)`);
+      }else toast("Payment link for this plan isn't set up yet, your account manager will send it","info");
     };
     // Require core business details before a plan can be selected (captures data upfront, esp. Google signups).
     const profileComplete=!!(user.businessName&&user.phone&&user.address&&user.city&&user.state&&user.category);
@@ -1149,6 +1157,7 @@ function ClientDashboard({user,data,reload,onLogout}){
         </Card>
       </div>)}
       <SectionTitle sub="Pick a plan to start, or upgrade anytime, secure checkout via Stripe">{user.plan?"Change Plan":"Choose Your Plan"}</SectionTitle>
+      {!stripeReady&&<div style={{padding:"10px 14px",background:T.amberSoft,borderRadius:11,marginBottom:14,fontSize:12,color:T.amber,fontWeight:600}}>Demo mode: plans activate instantly with no payment. Real Stripe checkout goes live once Payment Links are added.</div>}
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:14}}>
         {Object.entries(PLANSV).map(([id,p],i)=>{
           const current=id===user.plan;
@@ -1161,7 +1170,7 @@ function ClientDashboard({user,data,reload,onLogout}){
             <div style={{height:1,background:T.line,marginBottom:14}}/>
             {p.features.map((f,j)=><div key={j} style={{fontSize:12,color:T.sub,marginBottom:8,display:"flex",gap:7}}><span style={{color:T.green,fontWeight:800}}>✓</span>{f}</div>)}
             {current?<Btn variant="ghost" size="sm" style={{width:"100%",marginTop:10}} onClick={()=>toast("This is your active plan")}>Your current plan</Btn>:
-              <Btn size="sm" style={{width:"100%",marginTop:10}} onClick={()=>goStripe(id)}>{user.plan?"Switch to ":"Subscribe to "}{p.name} →</Btn>}
+              <Btn size="sm" style={{width:"100%",marginTop:10}} onClick={()=>goStripe(id)}>{!stripeReady?"Activate ":user.plan?"Switch to ":"Subscribe to "}{p.name} →</Btn>}
           </div>);
         })}
       </div>
