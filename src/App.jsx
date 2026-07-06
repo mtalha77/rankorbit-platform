@@ -227,28 +227,54 @@ const api={
   async logout(){if(supa)await supa.auth.signOut();},
   async loadAll(){
     if(supa){
-      const[u,l,g,an,ac,s]=await Promise.all([
+      const[u,l,g,an,ac,s,au]=await Promise.all([
         supa.from("profiles").select("*"),
         supa.from("listings").select("*"),
         supa.from("gmb").select("*"),
         supa.from("analytics").select("*"),
         supa.from("activity").select("*").order("createdAt",{ascending:false}),
         supa.from("settings").select("*").eq("id",1).maybeSingle(),
+        supa.from("audit").select("*").order("createdAt",{ascending:false}).limit(500),
       ]);
-      const listings={};(l.data||[]).forEach(x=>{(listings[x.clientId]=listings[x.clientId]||[]).push(x);});
+      const allUsers=u.data||[];const allListings=l.data||[];
+      // Split live vs trashed (soft-deleted) so the UI can show a Trash view.
+      const users=allUsers.filter(x=>!x.deletedAt);
+      const trashedUsers=allUsers.filter(x=>x.deletedAt);
+      const liveListings=allListings.filter(x=>!x.deletedAt);
+      const trashedListings=allListings.filter(x=>x.deletedAt);
+      const listings={};liveListings.forEach(x=>{(listings[x.clientId]=listings[x.clientId]||[]).push(x);});
       const gmb={};(g.data||[]).forEach(x=>gmb[x.clientId]=x.data);
       const analytics={};(an.data||[]).forEach(x=>analytics[x.clientId]=x.data);
-      return{users:u.data||[],listings,gmb,analytics,activity:ac.data||[],settings:s.data?.data||SEED.settings};
+      return{users,trashedUsers,listings,trashedListings,gmb,analytics,activity:ac.data||[],audit:au.data||[],settings:s.data?.data||SEED.settings};
     }
-    const flat=LS("ro3_listings")||[];const listings={};flat.forEach(x=>{(listings[x.clientId]=listings[x.clientId]||[]).push(x);});
-    return{users:LS("ro3_users")||[],listings,gmb:LS("ro3_gmb")||{},analytics:LS("ro3_analytics")||{},activity:LS("ro3_activity")||[],settings:LS("ro3_settings")||SEED.settings};
+    const flatAll=LS("ro3_listings")||[];
+    const flat=flatAll.filter(x=>!x.deletedAt);
+    const listings={};flat.forEach(x=>{(listings[x.clientId]=listings[x.clientId]||[]).push(x);});
+    const allU=LS("ro3_users")||[];
+    return{users:allU.filter(x=>!x.deletedAt),trashedUsers:allU.filter(x=>x.deletedAt),listings,trashedListings:flatAll.filter(x=>x.deletedAt),gmb:LS("ro3_gmb")||{},analytics:LS("ro3_analytics")||{},activity:LS("ro3_activity")||[],audit:LS("ro3_audit")||[],settings:LS("ro3_settings")||SEED.settings};
+  },
+  // Audit log: every sensitive staff action records who/what/when. Fire-and-forget.
+  async logAudit({actor,action,targetType,targetId,targetName,detail}){
+    const row={id:uid(),actorId:actor?.id||"",actorName:actor?.name||actor?.email||"Unknown",actorRole:actor?.role||"",action,targetType:targetType||"",targetId:targetId||"",targetName:targetName||"",detail:detail||"",createdAt:new Date().toISOString()};
+    if(supa){await supa.from("audit").insert(row);return;}
+    LSet("ro3_audit",[row,...(LS("ro3_audit")||[])]);
   },
   async upsertProfile(u){
     if(supa){const{error}=await supa.from("profiles").upsert(u);if(error)console.error(error);return;}
     const us=LS("ro3_users")||[];const i=us.findIndex(x=>x.id===u.id);
     if(i>=0)us[i]=u;else us.push(u);LSet("ro3_users",us);
   },
+  // Soft-delete: sets deletedAt. Recoverable for 30 days, then purge.
   async deleteUser(id){
+    const when=new Date().toISOString();
+    if(supa){await supa.from("profiles").update({deletedAt:when}).eq("id",id);return;}
+    const us=LS("ro3_users")||[];const i=us.findIndex(x=>x.id===id);if(i>=0){us[i].deletedAt=when;LSet("ro3_users",us);}
+  },
+  async restoreUser(id){
+    if(supa){await supa.from("profiles").update({deletedAt:null}).eq("id",id);return;}
+    const us=LS("ro3_users")||[];const i=us.findIndex(x=>x.id===id);if(i>=0){delete us[i].deletedAt;LSet("ro3_users",us);}
+  },
+  async purgeUser(id){ // permanent
     if(supa){await supa.from("profiles").delete().eq("id",id);return;}
     LSet("ro3_users",(LS("ro3_users")||[]).filter(x=>x.id!==id));
     LSet("ro3_listings",(LS("ro3_listings")||[]).filter(x=>x.clientId!==id));
@@ -260,6 +286,15 @@ const api={
     if(i>=0)ls[i]=l;else ls.push(l);LSet("ro3_listings",ls);
   },
   async deleteListing(id){
+    const when=new Date().toISOString();
+    if(supa){await supa.from("listings").update({deletedAt:when}).eq("id",id);return;}
+    const ls=LS("ro3_listings")||[];const i=ls.findIndex(x=>x.id===id);if(i>=0){ls[i].deletedAt=when;LSet("ro3_listings",ls);}
+  },
+  async restoreListing(id){
+    if(supa){await supa.from("listings").update({deletedAt:null}).eq("id",id);return;}
+    const ls=LS("ro3_listings")||[];const i=ls.findIndex(x=>x.id===id);if(i>=0){delete ls[i].deletedAt;LSet("ro3_listings",ls);}
+  },
+  async purgeListing(id){
     if(supa){await supa.from("listings").delete().eq("id",id);return;}
     LSet("ro3_listings",(LS("ro3_listings")||[]).filter(x=>x.id!==id));
   },
@@ -392,6 +427,91 @@ const ChartTip=({active,payload,label})=>{
     {payload.map((p,i)=><div key={i} style={{fontSize:12.5,color:"#fff",fontWeight:700}}><span style={{display:"inline-block",width:8,height:8,borderRadius:2,background:p.color,marginRight:6}}/>{p.name}: {p.value}</div>)}
   </div>);
 };
+// ─── EXPORT UTILITIES (CSV / XLSX / PDF) ─────────────────────────────────────
+// Used by every list in the app via <ListToolbar>. Columns: [{key,label,get?}].
+function rowsToMatrix(rows,cols){
+  const header=cols.map(c=>c.label);
+  const body=rows.map(r=>cols.map(c=>{
+    const v=c.get?c.get(r):r[c.key];
+    return v==null?"":String(v);
+  }));
+  return[header,...body];
+}
+function downloadBlob(content,filename,type){
+  const blob=new Blob([content],{type});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");a.href=url;a.download=filename;a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function exportCSV(rows,cols,name){
+  const m=rowsToMatrix(rows,cols);
+  const csv=m.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
+  downloadBlob("\uFEFF"+csv,`${name}.csv`,"text/csv;charset=utf-8;");
+}
+// XLSX via SheetJS, lazy-loaded from CDN only when first used (keeps bundle lean).
+let _xlsx=null;
+async function loadXLSX(){
+  if(_xlsx)return _xlsx;
+  if(window.XLSX){_xlsx=window.XLSX;return _xlsx;}
+  await new Promise((res,rej)=>{const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";s.onload=res;s.onerror=rej;document.head.appendChild(s);});
+  _xlsx=window.XLSX;return _xlsx;
+}
+async function exportXLSX(rows,cols,name){
+  try{
+    const XLSX=await loadXLSX();
+    const m=rowsToMatrix(rows,cols);
+    const ws=XLSX.utils.aoa_to_sheet(m);
+    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Data");
+    XLSX.writeFile(wb,`${name}.xlsx`);
+  }catch(e){exportCSV(rows,cols,name);} // graceful fallback
+}
+// PDF via a print window — reliable, no heavy dep, user picks "Save as PDF".
+function exportPDF(rows,cols,name,title){
+  const m=rowsToMatrix(rows,cols);
+  const head=m[0].map(h=>`<th>${h}</th>`).join("");
+  const body=m.slice(1).map(r=>`<tr>${r.map(c=>`<td>${String(c).replace(/</g,"&lt;")}</td>`).join("")}</tr>`).join("");
+  const html=`<html><head><title>${title||name}</title><style>
+    body{font-family:Arial,sans-serif;padding:24px;color:#171732}
+    h1{font-size:18px;margin:0 0 4px} .meta{color:#666;font-size:12px;margin-bottom:16px}
+    table{border-collapse:collapse;width:100%;font-size:11px}
+    th{background:#5B5BD6;color:#fff;text-align:left;padding:7px 9px}
+    td{border-bottom:1px solid #eee;padding:6px 9px}
+    tr:nth-child(even) td{background:#F6F7FB}
+  </style></head><body>
+    <h1>Rank Orbit — ${title||name}</h1>
+    <div class="meta">${rows.length} rows · exported ${new Date().toLocaleString()}</div>
+    <table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
+    <script>window.onload=()=>{window.print();}<\/script>
+  </body></html>`;
+  const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();}
+}
+
+// Reusable toolbar: search box + optional dropdown filters + CSV/XLSX/PDF export.
+// filters: [{label, value, set, options:[{value,label}]}]
+function ListToolbar({search,setSearch,filters=[],rows,cols,exportName,exportTitle,placeholder="Search…"}){
+  const w=useWindowSize();const isMobile=w<820;
+  return(<div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center",marginBottom:14}}>
+    <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={placeholder}
+      style={{flex:isMobile?"1 1 100%":"1 1 220px",minWidth:0,padding:"9px 14px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:10,fontSize:13,fontFamily:FONT_B,color:T.ink,boxSizing:"border-box"}}/>
+    {filters.map((f,i)=>(
+      <select key={i} value={f.value} onChange={e=>f.set(e.target.value)}
+        style={{padding:"9px 12px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:10,fontSize:12.5,fontFamily:FONT_B,color:T.ink,cursor:"pointer"}}>
+        {f.options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    ))}
+    {cols&&rows&&(<div style={{display:"flex",gap:6,marginLeft:isMobile?0:"auto"}}>
+      <ExportBtn label="CSV" onClick={()=>exportCSV(rows,cols,exportName)}/>
+      <ExportBtn label="Excel" onClick={()=>exportXLSX(rows,cols,exportName)}/>
+      <ExportBtn label="PDF" onClick={()=>exportPDF(rows,cols,exportName,exportTitle)}/>
+    </div>)}
+  </div>);
+}
+const ExportBtn=({label,onClick})=>(
+  <button onClick={onClick} title={`Download ${label}`} style={{padding:"8px 12px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:9,fontSize:12,fontWeight:700,color:T.sub,cursor:"pointer",fontFamily:FONT_B,display:"inline-flex",alignItems:"center",gap:5}}>
+    <span style={{fontSize:12}}>⤓</span>{label}
+  </button>
+);
+
 const SectionTitle=({children,sub,right})=>(
   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14,gap:8,flexWrap:"wrap"}}>
     <div>
@@ -416,6 +536,7 @@ const BIZ_FIELDS=[["name","Full Name"],["businessName","Business Name"],["email"
 const CATEGORIES=["Home Services","Medical / Health","Legal","Restaurant / Food","Auto Services","Beauty & Salon","Real Estate","Other"];
 const today=()=>new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"});
 const todayFull=()=>new Date().toLocaleDateString("en-US",{year:"numeric",month:"short",day:"numeric"});
+const nextMonthFirst=()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth()+1,1).toISOString();};
 
 // ─── AUTH ────────────────────────────────────────────────────────────────────
 function AuthScreen({onLogin,portal="client"}){
@@ -642,6 +763,7 @@ function ClientDashboard({user,data,reload,onLogout}){
     {id:"analytics",icon:"📈",label:"Analytics"},
     {id:"billing",icon:"💳",label:"Plan & Billing"},
     {id:"call",icon:"📞",label:"Book a Call"},
+    {id:"legal",icon:"📄",label:"Terms & Privacy"},
   ];
   const growthData=[{m:"Mar",live:Math.max(0,live-6)},{m:"Apr",live:Math.max(0,live-4)},{m:"May",live:Math.max(0,live-2)},{m:"Jun",live:Math.max(0,live-1)},{m:"Jul",live}];
   const planBadge=user.plan?(<div style={{marginTop:14,padding:"10px 13px",background:plan.soft,borderRadius:13}}>
@@ -856,11 +978,19 @@ function ClientDashboard({user,data,reload,onLogout}){
             </div>))}
           </div>
         </Card>
-        <Card className="fadeUp" style={{animationDelay:"100ms",background:`linear-gradient(135deg,${T.brandSoft},#fff)`}}>
-          <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".8px",marginBottom:8}}>NEXT CHARGE</div>
-          <div style={{fontFamily:FONT_D,fontSize:24,fontWeight:800,color:T.brand}}>${plan.price}.00</div>
-          <div style={{fontSize:13,color:T.sub,marginTop:3}}>on the 1st of next month</div>
-          <div style={{fontSize:11.5,color:T.faint,marginTop:8,lineHeight:1.5}}>Renews automatically every month. Cancel anytime, no fees, no lock-in.</div>
+        <Card className="fadeUp" style={{animationDelay:"100ms",background:user.cancelAtPeriodEnd?`linear-gradient(135deg,${T.amberSoft},#fff)`:`linear-gradient(135deg,${T.brandSoft},#fff)`}}>
+          {user.cancelAtPeriodEnd?(<>
+            <div style={{fontSize:11,fontWeight:800,color:T.amber,letterSpacing:".8px",marginBottom:8}}>SUBSCRIPTION ENDING</div>
+            <div style={{fontFamily:FONT_D,fontSize:19,fontWeight:800,color:T.amber}}>Cancels on renewal</div>
+            <div style={{fontSize:13,color:T.sub,marginTop:6,lineHeight:1.5}}>You keep full access until <b>{user.currentPeriodEnd?new Date(user.currentPeriodEnd).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}):"the end of your billing period"}</b>. You won't be charged again.</div>
+            <Btn variant="green" size="sm" style={{width:"100%",marginTop:12}} onClick={()=>R(async()=>{await api.upsertProfile({...user,cancelAtPeriodEnd:false,canceledAt:null});},"Subscription resumed — you're all set")}>Resume subscription</Btn>
+          </>):(<>
+            <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".8px",marginBottom:8}}>NEXT CHARGE</div>
+            <div style={{fontFamily:FONT_D,fontSize:24,fontWeight:800,color:T.brand}}>${plan.price}.00</div>
+            <div style={{fontSize:13,color:T.sub,marginTop:3}}>on the 1st of next month</div>
+            <div style={{fontSize:11.5,color:T.faint,marginTop:8,lineHeight:1.5}}>Renews automatically. Cancel before your renewal date to avoid the next charge — you keep access until the period ends.</div>
+            <button onClick={()=>setConfirm({title:"Cancel subscription?",msg:`Your ${plan.name} plan will stay active until the end of your current billing period, then cancel. You won't be charged again. No refunds for the current period (see Terms).`,danger:true,yes:"Cancel at period end",onYes:()=>R(async()=>{await api.upsertProfile({...user,cancelAtPeriodEnd:true,canceledAt:new Date().toISOString(),currentPeriodEnd:user.currentPeriodEnd||nextMonthFirst()});},"Subscription set to cancel at period end")})} style={{marginTop:12,background:"none",border:"none",color:T.faint,fontSize:11.5,fontWeight:700,cursor:"pointer",textDecoration:"underline",fontFamily:FONT_B,padding:0}}>Cancel subscription</button>
+          </>)}
         </Card>
       </div>)}
       <SectionTitle sub="Pick a plan to start, or upgrade anytime — secure checkout via Stripe">{user.plan?"Change Plan":"Choose Your Plan"}</SectionTitle>
@@ -881,24 +1011,35 @@ function ClientDashboard({user,data,reload,onLogout}){
         })}
       </div>
       {user.plan&&(<Card style={{marginTop:20}}>
-        <SectionTitle>Invoice History</SectionTitle>
+        <SectionTitle right={<Btn variant="ghost" size="sm" onClick={()=>{
+          if(settings?.stripe?.portalLink){const sep=settings.stripe.portalLink.includes("?")?"&":"?";window.open(`${settings.stripe.portalLink}${sep}prefilled_email=${encodeURIComponent(user.email||"")}`,"_blank");}
+          else toast("Card management opens in Stripe once your account manager enables the billing portal","info");
+        }}>💳 Manage billing</Btn>}>Invoice History</SectionTitle>
         <div style={{overflowX:"auto"}}>
-          <table style={{width:"100%",borderCollapse:"collapse",minWidth:460}}>
-            <thead><tr>{["Date","Description","Amount","Status",""].map(h=><th key={h} style={{textAlign:"left",padding:"9px 12px",fontSize:10.5,fontWeight:800,color:T.faint,textTransform:"uppercase",letterSpacing:".7px",borderBottom:`1.5px solid ${T.line}`}}>{h}</th>)}</tr></thead>
-            <tbody>{[0,1,2].map(m=>{const dt=new Date();dt.setMonth(dt.getMonth()-m);return(<tr key={m} className="hoverRow">
+          <table style={{width:"100%",borderCollapse:"collapse",minWidth:520}}>
+            <thead><tr>{["Date","Description","Card","Amount","Status",""].map(h=><th key={h} style={{textAlign:"left",padding:"9px 12px",fontSize:10.5,fontWeight:800,color:T.faint,textTransform:"uppercase",letterSpacing:".7px",borderBottom:`1.5px solid ${T.line}`}}>{h}</th>)}</tr></thead>
+            <tbody>{[0,1,2].map(m=>{const dt=new Date();dt.setMonth(dt.getMonth()-m);const last4=user.cardLast4||"••••";return(<tr key={m} className="hoverRow">
               <td style={{padding:"12px",fontSize:13,fontWeight:700,borderBottom:`1px solid ${T.line}`}}>{dt.toLocaleDateString("en-US",{month:"short",year:"numeric"})} 1</td>
               <td style={{padding:"12px",fontSize:12.5,color:T.sub,borderBottom:`1px solid ${T.line}`}}>{plan.name} plan · monthly</td>
+              <td style={{padding:"12px",fontSize:12.5,color:T.sub,borderBottom:`1px solid ${T.line}`,whiteSpace:"nowrap"}}>{user.cardBrand||"Card"} •••• {last4}</td>
               <td style={{padding:"12px",fontSize:13,fontWeight:800,borderBottom:`1px solid ${T.line}`}}>${plan.price}.00</td>
               <td style={{padding:"12px",borderBottom:`1px solid ${T.line}`}}><Badge type="paid"/></td>
-              <td style={{padding:"12px",borderBottom:`1px solid ${T.line}`}}><button onClick={()=>toast("Invoice PDF downloading","info")} style={{background:"none",border:"none",color:T.brand,fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>PDF ↓</button></td>
+              <td style={{padding:"12px",borderBottom:`1px solid ${T.line}`}}><button onClick={()=>toast("Invoice PDF available in Manage billing","info")} style={{background:"none",border:"none",color:T.brand,fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>PDF ↓</button></td>
             </tr>);})}</tbody>
           </table>
         </div>
-        <div style={{marginTop:18,paddingTop:16,borderTop:`1px solid ${T.line}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
-          <div style={{fontSize:12,color:T.faint}}>Need to pause or cancel? No hidden steps.</div>
-          <Btn variant="ghost" size="sm" onClick={()=>toast("Cancellation request noted — your BDM will confirm","info")}>Cancel subscription</Btn>
+        <div style={{marginTop:16,paddingTop:14,borderTop:`1px solid ${T.line}`,fontSize:11.5,color:T.faint,lineHeight:1.5}}>
+          Your primary card shows above. Add or remove cards, and download official invoices, in <b>Manage billing</b> (secure Stripe portal). Card details are never stored on our servers.
         </div>
       </Card>)}
+      <Card style={{marginTop:16}}>
+        <SectionTitle sub="Download everything we hold about your account — profile, listings, and activity.">Your Data</SectionTitle>
+        <Btn variant="ghost" size="sm" onClick={()=>{
+          const mine={profile:user,listings:my,activity:myAct,exportedAt:new Date().toISOString()};
+          downloadBlob(JSON.stringify(mine,null,2),`rankorbit-my-data-${Date.now()}.json`,"application/json");
+          toast("Your data downloaded");
+        }}>⤓ Download my data (JSON)</Btn>
+      </Card>
     </div>);
   };
 
@@ -964,6 +1105,70 @@ function ClientDashboard({user,data,reload,onLogout}){
     </div>);
   };
 
+  const LegalPage=()=>{
+    const[tab,setTab]=useState("terms");
+    const co="Rank Orbit";const eff=new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"});
+    const H=({children})=>(<div style={{fontSize:14,fontWeight:800,fontFamily:FONT_D,color:T.ink,margin:"18px 0 7px"}}>{children}</div>);
+    const P=({children})=>(<p style={{fontSize:13,color:T.sub,lineHeight:1.65,margin:"0 0 10px"}}>{children}</p>);
+    return(<div>
+      <PageHead isMobile={isMobile} title="Terms & Privacy" sub={`Effective ${eff}`}/>
+      <div style={{display:"flex",gap:8,marginBottom:16}}>
+        {[["terms","Terms of Service"],["privacy","Privacy Policy"]].map(([id,l])=>(
+          <button key={id} onClick={()=>setTab(id)} style={{padding:"8px 18px",borderRadius:20,border:`1.5px solid ${tab===id?T.brand:T.line}`,background:tab===id?T.brandSoft:T.surface,color:tab===id?T.brand:T.sub,fontSize:13,fontWeight:tab===id?800:600,cursor:"pointer",fontFamily:FONT_B}}>{l}</button>))}
+      </div>
+      <Card style={{maxWidth:820}}>
+        <div style={{padding:"11px 15px",background:T.amberSoft,borderRadius:11,marginBottom:18,fontSize:11.5,color:T.amber,lineHeight:1.5}}>
+          <b>Template notice:</b> This is a starting-point document. Have it reviewed by a qualified lawyer in your jurisdiction before relying on it for real clients.
+        </div>
+        {tab==="terms"?(<div>
+          <H>1. Agreement</H>
+          <P>These Terms of Service govern your use of the {co} platform and services ("Services"). By creating an account or subscribing, you agree to these terms. If you are accepting on behalf of a business, you confirm you are authorized to bind that business.</P>
+          <H>2. The Services</H>
+          <P>{co} provides local business visibility services, including directory listing submissions and management, NAP (Name, Address, Phone) consistency monitoring, unauthorized-edit protection, and, on eligible plans, Google Business Profile management. Deliverables and volumes depend on your selected plan.</P>
+          <H>3. Subscriptions and Billing</H>
+          <P>Services are billed as recurring monthly subscriptions via our payment processor (Stripe). Your subscription renews automatically each month until cancelled. By subscribing, you authorize {co} to charge your payment method on each renewal date.</P>
+          <H>4. Cancellation</H>
+          <P>You may cancel at any time from your billing dashboard. Cancellation takes effect at the end of your current billing period: you retain full access until that date, and you will not be charged for the following period. To avoid the next charge, you must cancel before your renewal date.</P>
+          <H>5. No Refunds</H>
+          <P><b>All fees are non-refundable.</b> Due to the nature of the Services — which involve immediate allocation of work, third-party submissions, and labor performed on your behalf — any amount you have already paid is not refundable, in whole or in part, including for partial billing periods, unused quota, or after cancellation. This clause applies to the fullest extent permitted by law.</P>
+          <H>6. Client Responsibilities</H>
+          <P>You agree to provide accurate business information and to hold the necessary rights to the data you submit. You are responsible for maintaining the confidentiality of your account credentials. Results such as search rankings and visibility depend on third-party platforms and are not guaranteed.</P>
+          <H>7. Third-Party Platforms</H>
+          <P>The Services interact with third-party directories and platforms (e.g., Google, Apple, Bing). {co} is not responsible for changes, outages, policy decisions, or removals made by those platforms.</P>
+          <H>8. Limitation of Liability</H>
+          <P>To the maximum extent permitted by law, {co}'s total liability for any claim arising from the Services is limited to the amount you paid in the one (1) month preceding the claim. {co} is not liable for indirect, incidental, or consequential damages.</P>
+          <H>9. Suspension and Termination</H>
+          <P>{co} may suspend or terminate accounts that violate these terms, misuse the Services, or fail payment. Fees already paid remain non-refundable per Section 5.</P>
+          <H>10. Changes to Terms</H>
+          <P>{co} may update these terms. Material changes will be communicated by email or in-platform notice. Continued use after changes constitutes acceptance.</P>
+          <H>11. Contact</H>
+          <P>Questions about these terms: info@rankorbit.com.</P>
+        </div>):(<div>
+          <H>1. Overview</H>
+          <P>This Privacy Policy explains how {co} collects, uses, and protects information when you use our Services. We are committed to handling your data responsibly and transparently.</P>
+          <H>2. Information We Collect</H>
+          <P>Account information (name, business name, email, phone), business listing data you provide (address, categories, website), billing information processed securely by our payment processor, and usage data such as activity logs and platform interactions. We do not store full card numbers on our servers; payment details are handled by Stripe.</P>
+          <H>3. How We Use Information</H>
+          <P>To deliver the Services (submit and manage listings, monitor consistency), to communicate about your account and subscription, to process payments, to provide support, and to improve the platform.</P>
+          <H>4. Data Sharing</H>
+          <P>We share your business information with third-party directories and platforms strictly as needed to deliver the Services. We use trusted processors (e.g., Stripe for payments, our hosting and database providers). We do not sell your personal data.</P>
+          <H>5. Data Security</H>
+          <P>We use industry-standard measures including encryption in transit (HTTPS), access controls and row-level security on our database, hashed credentials, and restricted staff access. No system is perfectly secure, but we work continuously to protect your data.</P>
+          <H>6. Data Retention</H>
+          <P>We retain account data for as long as your account is active. Deleted items are held in a recoverable state for 30 days, then permanently purged. You may request export or deletion of your data at any time.</P>
+          <H>7. Your Rights</H>
+          <P>You can access, export, or request deletion of your personal data. Use the "Download my data" option in Billing, or contact us. Depending on your jurisdiction, you may have additional rights under laws such as GDPR.</P>
+          <H>8. Cookies and Sessions</H>
+          <P>We use essential cookies and local session storage to keep you signed in and operate the platform. We do not use them to sell your data.</P>
+          <H>9. Changes</H>
+          <P>We may update this policy and will notify you of material changes by email or in-platform notice.</P>
+          <H>10. Contact</H>
+          <P>Privacy questions or data requests: info@rankorbit.com.</P>
+        </div>)}
+      </Card>
+    </div>);
+  };
+
   return(<><Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} planBadge={planBadge}>
     {page==="home"&&<Home/>}
     {page==="listings"&&<Listings/>}
@@ -971,6 +1176,7 @@ function ClientDashboard({user,data,reload,onLogout}){
     {page==="analytics"&&<Analytics/>}
     {page==="billing"&&<Billing/>}
     {page==="call"&&<CallPage/>}
+    {page==="legal"&&<LegalPage/>}
   </Shell><Toasts/></>);
 }
 
@@ -995,6 +1201,18 @@ function AdminDashboard({user,data,reload,onLogout}){
   const actionNeeded=flat.filter(l=>l.actionNeeded).length;
 
   const addActivity=async(clientId,type,desc)=>{await api.addActivity({id:uid(),clientId,type,desc,date:todayFull(),by:user.name});};
+  // Audit trail: records the acting staff member for any sensitive action.
+  const audit=async(action,{targetType,targetId,targetName,detail}={})=>{
+    await api.logAudit({actor:user,action,targetType,targetId,targetName,detail});
+  };
+  // When an AGENT edits/deletes a listing, flag it for managers (queued for email in Batch 4).
+  const notifyManagersIfAgent=async(action,listing)=>{
+    if(user.role!=="agent")return;
+    const clientName=clients.find(c=>c.id===listing.clientId)?.businessName||"a client";
+    await api.addActivity({id:uid(),clientId:listing.clientId,type:"edit_blocked",desc:`⚠️ Manager review: agent ${user.name} ${action} "${listing.directory}" for ${clientName}`,date:todayFull(),by:"System"});
+    // Batch 4 will also send this to managers via /api/notify.
+    if(typeof window!=="undefined")window.__pendingManagerAlerts=(window.__pendingManagerAlerts||0)+1;
+  };
   const R=async(fn,msg)=>{await fn();if(msg)toast(msg);await reload();};
 
   const nav=[
@@ -1004,6 +1222,8 @@ function AdminDashboard({user,data,reload,onLogout}){
     {id:"gmb",icon:"📍",label:"GMB",roles:["super_admin","manager"]},
     {id:"team",icon:"🔑",label:"Team",roles:["super_admin"]},
     {id:"activity",icon:"📜",label:"Activity Log",roles:["super_admin","manager"]},
+    {id:"audit",icon:"🛡️",label:"Audit Trail",roles:["super_admin"]},
+    {id:"trash",icon:"🗑️",label:"Trash",roles:["super_admin"]},
     {id:"settings",icon:"⚙️",label:"Settings",roles:["super_admin"]},
   ].filter(n=>n.roles.includes(user.role));
   const roleBadge=(<div style={{marginTop:14,padding:"9px 13px",background:T.surface2,borderRadius:12}}>
@@ -1051,11 +1271,13 @@ function AdminDashboard({user,data,reload,onLogout}){
       </label>
       {f.actionNeeded&&<Input label="What the client must do" value={f.actionNote} onChange={v=>set("actionNote",v)} placeholder="e.g. Enter the Apple postcard code"/>}
       <div style={{display:"flex",gap:8,justifyContent:"space-between"}}>
-        <Btn variant="danger" onClick={()=>setConfirm({title:"Delete listing?",msg:`Remove ${listing.directory} permanently? This cannot be undone.`,danger:true,yes:"Delete",onYes:()=>R(async()=>{await api.deleteListing(listing.id);await addActivity(clientId,"rejected",`${listing.directory} listing removed`);},"Listing deleted").then(onClose)})}>Delete</Btn>
+        <Btn variant="danger" onClick={()=>setConfirm({title:"Delete listing?",msg:`Move ${listing.directory} to Trash? It can be restored for 30 days, then permanently removed.`,danger:true,yes:"Delete",onYes:()=>R(async()=>{await api.deleteListing(listing.id);await addActivity(clientId,"rejected",`${listing.directory} listing removed`);await audit("listing.delete",{targetType:"listing",targetId:listing.id,targetName:listing.directory});await notifyManagersIfAgent("deleted",listing);},"Listing moved to Trash").then(onClose)})}>Delete</Btn>
         <div style={{display:"flex",gap:8}}>
           <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
           <Btn onClick={()=>R(async()=>{
             await api.upsertListing({...listing,status:f.status,liveLink:f.liveLink,liveDate:f.status==="live"?(f.liveDate&&f.liveDate!=="—"?f.liveDate:today()):listing.liveDate,napMatch:f.napMatch,notes:f.notes,actionNeeded:f.actionNeeded,actionNote:f.actionNote});
+            await audit("listing.edit",{targetType:"listing",targetId:listing.id,targetName:listing.directory,detail:`status→${f.status}`});
+            await notifyManagersIfAgent("edited",listing);
             if(f.status==="live"&&listing.status!=="live")await addActivity(clientId,"listing_live",`${listing.directory} listing went live`);
             if(f.status==="rejected"&&listing.status!=="rejected")await addActivity(clientId,"rejected",`${listing.directory} rejected. ${f.notes}`);
             if(f.status==="flagged"&&listing.status!=="flagged")await addActivity(clientId,"flagged",`${listing.directory} flagged. ${f.notes}`);
@@ -1254,13 +1476,31 @@ function AdminDashboard({user,data,reload,onLogout}){
 
   const Clients=()=>{
     const[search,setSearch]=useState("");
-    const filtered=clients.filter(c=>!search||`${c.businessName} ${c.name} ${c.email} ${c.city}`.toLowerCase().includes(search.toLowerCase()));
+    const[planF,setPlanF]=useState("all");
+    const[statusF,setStatusF]=useState("all");
+    const filtered=clients.filter(c=>{
+      if(search&&!`${c.businessName} ${c.name} ${c.email} ${c.city}`.toLowerCase().includes(search.toLowerCase()))return false;
+      if(planF!=="all"&&c.plan!==planF)return false;
+      if(statusF!=="all"&&(c.status||"active")!==statusF)return false;
+      return true;
+    });
+    const exportCols=[
+      {key:"businessName",label:"Business"},{key:"name",label:"Contact"},{key:"email",label:"Email"},
+      {key:"phone",label:"Phone"},{key:"city",label:"City"},{key:"state",label:"State"},
+      {key:"plan",label:"Plan",get:c=>c.plan?PLANS[c.plan]?.name:"None"},
+      {key:"status",label:"Status",get:c=>c.status||"active"},
+      {key:"napScore",label:"NAP %"},
+      {label:"Live Listings",get:c=>(listings[c.id]||[]).filter(l=>l.status==="live").length},
+    ];
     return(<div>
       <PageHead isMobile={isMobile} title="Clients" sub={`${clients.length} clients`} right={isStaffMgr&&<Btn onClick={()=>setModal({type:"clientForm"})}>+ Add Client</Btn>}/>
-      <div style={{marginBottom:16,maxWidth:420}}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍  Search by business, name, email, city…" style={{width:"100%",padding:"12px 16px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:13,fontSize:13.5,boxSizing:"border-box",fontFamily:FONT_B,boxShadow:SHADOW}}/>
-      </div>
-      {filtered.length===0?<Card><Empty icon="🔍" title="No clients found" sub="Try a different search, or add a client."/></Card>:
+      <ListToolbar search={search} setSearch={setSearch} placeholder="🔍  Search by business, name, email, city…"
+        filters={[
+          {value:planF,set:setPlanF,options:[{value:"all",label:"All plans"},...Object.entries(PLANS).map(([id,p])=>({value:id,label:p.name}))]},
+          {value:statusF,set:setStatusF,options:[{value:"all",label:"All statuses"},{value:"active",label:"Active"},{value:"suspended",label:"Suspended"}]},
+        ]}
+        rows={filtered} cols={exportCols} exportName="rankorbit-clients" exportTitle="Clients"/>
+      {filtered.length===0?<Card><Empty icon="🔍" title="No clients found" sub="Try a different search or filter, or add a client."/></Card>:
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         {filtered.map((c,idx)=>{
           const cl=listings[c.id]||[];const lv=cl.filter(l=>l.status==="live").length;const pd=cl.filter(l=>l.status==="pending").length;const fl=cl.filter(l=>l.status==="flagged"||l.status==="rejected").length;const an=cl.filter(l=>l.actionNeeded).length;
@@ -1304,9 +1544,9 @@ function AdminDashboard({user,data,reload,onLogout}){
         <Btn variant="ghost" size="sm" onClick={()=>setModal({type:"analytics",client:c})}>📈 Update Analytics</Btn>
         {c.plan==="gmb"&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"gmb",client:c})}>📍 Update GMB</Btn>}
         {c.status==="active"?
-          <Btn variant="ghost" size="sm" onClick={()=>setConfirm({title:"Suspend client?",msg:`${c.businessName||c.name} won't be able to log in until reactivated.`,yes:"Suspend",onYes:()=>R(async()=>api.upsertProfile({...c,status:"suspended"}),"Client suspended")})}>⏸ Suspend</Btn>:
-          <Btn variant="green" size="sm" onClick={()=>R(async()=>api.upsertProfile({...c,status:"active"}),"Client reactivated")}>▶ Reactivate</Btn>}
-        {isAdmin&&!c.protected&&<Btn variant="danger" size="sm" onClick={()=>setConfirm({title:"Delete client?",msg:`Permanently delete ${c.businessName||c.name} and all their listings? This cannot be undone.`,danger:true,yes:"Delete",onYes:()=>R(async()=>{await api.deleteUser(c.id);},"Client deleted").then(()=>{setPage("clients");setSelClient(null);})})}>🗑 Delete</Btn>}
+          <Btn variant="ghost" size="sm" onClick={()=>setConfirm({title:"Suspend client?",msg:`${c.businessName||c.name} won't be able to log in until reactivated.`,yes:"Suspend",onYes:()=>R(async()=>{await api.upsertProfile({...c,status:"suspended"});await audit("client.suspend",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name});},"Client suspended")})}>⏸ Suspend</Btn>:
+          <Btn variant="green" size="sm" onClick={()=>R(async()=>{await api.upsertProfile({...c,status:"active"});await audit("client.reactivate",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name});},"Client reactivated")}>▶ Reactivate</Btn>}
+        {isAdmin&&!c.protected&&<Btn variant="danger" size="sm" onClick={()=>setConfirm({title:"Delete client?",msg:`Move ${c.businessName||c.name} to Trash? Recoverable for 30 days, then permanently removed with all their listings.`,danger:true,yes:"Delete",onYes:()=>R(async()=>{await api.deleteUser(c.id);await audit("client.delete",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name});},"Client moved to Trash").then(()=>{setPage("clients");setSelClient(null);})})}>🗑 Delete</Btn>}
         {c.protected&&<span style={{fontSize:11,color:T.faint,alignSelf:"center"}}>🔒 Demo account (protected)</span>}
       </div>}
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16,marginBottom:18}}>
@@ -1359,11 +1599,20 @@ function AdminDashboard({user,data,reload,onLogout}){
 
   const AllListings=()=>{
     const[filter,setFilter]=useState("all");
+    const[search,setSearch]=useState("");
     const withNames=flat.map(l=>({...l,_name:clients.find(c=>c.id===l.clientId)?.businessName||"?"}));
-    const filtered=filter==="all"?withNames:filter==="action"?withNames.filter(l=>l.actionNeeded):withNames.filter(l=>l.status===filter);
+    let filtered=filter==="all"?withNames:filter==="action"?withNames.filter(l=>l.actionNeeded):withNames.filter(l=>l.status===filter);
+    if(search)filtered=filtered.filter(l=>`${l._name} ${l.directory} ${l.status}`.toLowerCase().includes(search.toLowerCase()));
     const cnt=(s)=>s==="all"?withNames.length:s==="action"?withNames.filter(l=>l.actionNeeded).length:withNames.filter(l=>l.status===s).length;
+    const exportCols=[
+      {key:"_name",label:"Client"},{key:"directory",label:"Directory"},{key:"status",label:"Status"},
+      {key:"da",label:"DA"},{key:"liveDate",label:"Live Date"},{key:"napMatch",label:"NAP"},
+      {label:"Action Needed",get:l=>l.actionNeeded?"Yes":"No"},{key:"actionNote",label:"Action Note"},
+    ];
     return(<div>
       <PageHead isMobile={isMobile} title="All Listings" sub={`${withNames.length} total across ${clients.length} clients`}/>
+      <ListToolbar search={search} setSearch={setSearch} placeholder="🔍  Search client, directory, status…"
+        rows={filtered} cols={exportCols} exportName="rankorbit-listings" exportTitle="All Listings"/>
       <div style={{display:"flex",gap:8,marginBottom:18,flexWrap:"wrap"}}>
         {["all","live","pending","submitted","flagged","rejected","action"].map(s=>(
           <button key={s} onClick={()=>setFilter(s)} style={{padding:"7px 15px",borderRadius:20,border:`1.5px solid ${filter===s?T.brand:T.line}`,background:filter===s?T.brandSoft:T.surface,color:filter===s?T.brand:T.sub,fontSize:12.5,fontWeight:filter===s?800:600,cursor:"pointer",fontFamily:FONT_B}}>{s==="action"?"⚠️ Client action":s[0].toUpperCase()+s.slice(1)} ({cnt(s)})</button>))}
@@ -1450,6 +1699,71 @@ function AdminDashboard({user,data,reload,onLogout}){
     </Card>
   </div>);
 
+  const AuditTrail=()=>{
+    const[search,setSearch]=useState("");
+    const[actionF,setActionF]=useState("all");
+    const auditRows=(data.audit||[]);
+    const actions=[...new Set(auditRows.map(a=>a.action))];
+    let filtered=auditRows;
+    if(actionF!=="all")filtered=filtered.filter(a=>a.action===actionF);
+    if(search)filtered=filtered.filter(a=>`${a.actorName} ${a.action} ${a.targetName} ${a.detail}`.toLowerCase().includes(search.toLowerCase()));
+    const cols=[
+      {key:"createdAt",label:"When",get:a=>new Date(a.createdAt).toLocaleString()},
+      {key:"actorName",label:"Staff"},{key:"actorRole",label:"Role"},
+      {key:"action",label:"Action"},{key:"targetName",label:"Target"},{key:"detail",label:"Detail"},
+    ];
+    return(<div>
+      <PageHead isMobile={isMobile} title="Audit Trail" sub="Every sensitive staff action — who did what, and when"/>
+      <ListToolbar search={search} setSearch={setSearch} placeholder="🔍  Search staff, action, target…"
+        filters={[{value:actionF,set:setActionF,options:[{value:"all",label:"All actions"},...actions.map(a=>({value:a,label:a}))]}]}
+        rows={filtered} cols={cols} exportName="rankorbit-audit" exportTitle="Audit Trail"/>
+      <Card style={{overflowX:"auto"}}>
+        {filtered.length===0?<Empty icon="🛡️" title="No audit records yet" sub="Staff actions like edits, deletes, and suspensions are logged here."/>:
+        <table style={{width:"100%",borderCollapse:"collapse",minWidth:640}}>
+          <thead><tr>{["When","Staff","Action","Target","Detail"].map(h=><th key={h} style={{textAlign:"left",padding:"9px 12px",fontSize:10.5,fontWeight:800,color:T.faint,textTransform:"uppercase",letterSpacing:".6px",borderBottom:`1.5px solid ${T.line}`}}>{h}</th>)}</tr></thead>
+          <tbody>{filtered.map(a=>(<tr key={a.id} className="hoverRow">
+            <td style={{padding:"10px 12px",fontSize:11.5,color:T.faint,borderBottom:`1px solid ${T.line}`,whiteSpace:"nowrap"}}>{new Date(a.createdAt).toLocaleString()}</td>
+            <td style={{padding:"10px 12px",fontSize:12.5,borderBottom:`1px solid ${T.line}`}}><b>{a.actorName}</b><br/><span style={{fontSize:10.5,color:T.faint}}>{a.actorRole}</span></td>
+            <td style={{padding:"10px 12px",borderBottom:`1px solid ${T.line}`}}><Badge type={a.action.includes("delete")?"rejected":a.action.includes("suspend")?"pending":"submitted"} label={a.action}/></td>
+            <td style={{padding:"10px 12px",fontSize:12.5,fontWeight:600,borderBottom:`1px solid ${T.line}`}}>{a.targetName||"—"}</td>
+            <td style={{padding:"10px 12px",fontSize:12,color:T.sub,borderBottom:`1px solid ${T.line}`}}>{a.detail||"—"}</td>
+          </tr>))}</tbody>
+        </table>}
+      </Card>
+    </div>);
+  };
+
+  const Trash=()=>{
+    const tUsers=data.trashedUsers||[];const tListings=data.trashedListings||[];
+    const daysLeft=(d)=>{const gone=Math.floor((Date.now()-new Date(d).getTime())/86400000);return Math.max(0,30-gone);};
+    return(<div>
+      <PageHead isMobile={isMobile} title="Trash" sub="Deleted items are recoverable for 30 days, then permanently purged"/>
+      <Card style={{marginBottom:16}}>
+        <SectionTitle sub={`${tUsers.length} deleted client(s)`}>Deleted Clients</SectionTitle>
+        {tUsers.length===0?<Empty icon="✓" title="No deleted clients" sub="Deleted clients appear here for recovery."/>:
+          tUsers.map(c=>(<div key={c.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 6px",borderBottom:`1px solid ${T.line}`,flexWrap:"wrap",gap:10}}>
+            <div><b style={{fontSize:13.5}}>{c.businessName||c.name}</b> <span style={{fontSize:12,color:T.sub}}>· {c.email}</span><div style={{fontSize:11,color:daysLeft(c.deletedAt)<7?T.red:T.faint,marginTop:2}}>{daysLeft(c.deletedAt)} days until permanent deletion</div></div>
+            <div style={{display:"flex",gap:8}}>
+              <Btn variant="green" size="sm" onClick={()=>R(async()=>{await api.restoreUser(c.id);await audit("client.restore",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name});},"Client restored")}>↺ Restore</Btn>
+              <Btn variant="danger" size="sm" onClick={()=>setConfirm({title:"Permanently delete?",msg:`This will permanently remove ${c.businessName||c.name} and all their data. This cannot be undone.`,danger:true,yes:"Delete forever",onYes:()=>R(async()=>{await api.purgeUser(c.id);await audit("client.purge",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name});},"Permanently deleted")})}>Delete forever</Btn>
+            </div>
+          </div>))}
+      </Card>
+      <Card>
+        <SectionTitle sub={`${tListings.length} deleted listing(s)`}>Deleted Listings</SectionTitle>
+        {tListings.length===0?<Empty icon="✓" title="No deleted listings" sub="Deleted listings appear here for recovery."/>:
+          tListings.map(l=>{const cn=[...clients,...tUsers].find(c=>c.id===l.clientId)?.businessName||"?";
+          return(<div key={l.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 6px",borderBottom:`1px solid ${T.line}`,flexWrap:"wrap",gap:10}}>
+            <div><b style={{fontSize:13.5}}>{l.directory}</b> <span style={{fontSize:12,color:T.sub}}>· {cn}</span><div style={{fontSize:11,color:daysLeft(l.deletedAt)<7?T.red:T.faint,marginTop:2}}>{daysLeft(l.deletedAt)} days until permanent deletion</div></div>
+            <div style={{display:"flex",gap:8}}>
+              <Btn variant="green" size="sm" onClick={()=>R(async()=>{await api.restoreListing(l.id);await audit("listing.restore",{targetType:"listing",targetId:l.id,targetName:l.directory});},"Listing restored")}>↺ Restore</Btn>
+              <Btn variant="danger" size="sm" onClick={()=>setConfirm({title:"Permanently delete?",msg:`Permanently remove ${l.directory}? This cannot be undone.`,danger:true,yes:"Delete forever",onYes:()=>R(async()=>{await api.purgeListing(l.id);await audit("listing.purge",{targetType:"listing",targetId:l.id,targetName:l.directory});},"Permanently deleted")})}>Delete forever</Btn>
+            </div>
+          </div>);})}
+      </Card>
+    </div>);
+  };
+
   const Settings=()=>{
     const s={essentials:"",growth:"",gmb:"",pubKey:"",secretKey:"",webhookSecret:"",...(settings?.stripe||{})};
     const[f,setF]=useState(s);
@@ -1507,6 +1821,8 @@ function AdminDashboard({user,data,reload,onLogout}){
     {page==="gmb"&&<GmbAdmin/>}
     {page==="team"&&<Team/>}
     {page==="activity"&&<Activity/>}
+    {page==="audit"&&<AuditTrail/>}
+    {page==="trash"&&<Trash/>}
     {page==="settings"&&<Settings/>}
   </Shell>
   {modal?.type==="clientForm"&&<ClientFormModal client={modal.client} onClose={()=>setModal(null)}/>}
