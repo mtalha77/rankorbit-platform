@@ -222,7 +222,7 @@ const api={
   },
   async googleLogin(){
     if(!supa)return{error:"Google sign-in needs the live database. It's disabled in demo mode."};
-    const{error}=await supa.auth.signInWithOAuth({provider:"google",options:{redirectTo:window.location.origin}});
+    const{error}=await supa.auth.signInWithOAuth({provider:"google",options:{redirectTo:window.location.origin+"/login"}});
     if(error)return{error:error.message};
     return{redirecting:true};
   },
@@ -2354,6 +2354,21 @@ export default function App(){
   const[data,setData]=useState(null);
   const reload=useCallback(async()=>{const d=await api.loadAll();setData(d);},[]);
   useEffect(()=>{(async()=>{await api.init();const existing=await api.currentUser();if(existing)setCurrentUser(existing);await reload();setReady(true);})();},[reload]);
+  // Catch OAuth (Google) sign-in the moment Supabase parses the callback hash.
+  useEffect(()=>{
+    if(!supa)return;
+    const{data:{subscription}}=supa.auth.onAuthStateChange(async(event,session)=>{
+      if((event==="SIGNED_IN"||event==="INITIAL_SESSION")&&session){
+        const{data:prof}=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
+        if(prof){setCurrentUser(prof);await reload();
+          // Clean the OAuth hash from the URL so refreshes are tidy.
+          if(window.location.hash.includes("access_token"))window.history.replaceState(null,"",window.location.pathname);
+        }
+      }
+      if(event==="SIGNED_OUT")setCurrentUser(null);
+    });
+    return()=>subscription?.unsubscribe();
+  },[reload]);
   const onLogin=async(u)=>{setCurrentUser(u);await reload();};
   const onLogout=async()=>{await api.logout();setCurrentUser(null);};
   if(!ready)return(<><GlobalStyle/><Loading/></>);
