@@ -396,12 +396,34 @@ const Btn=({children,onClick,variant="primary",size="md",style={}})=>{
   const s={sm:{padding:"6px 14px",fontSize:12.5},md:{padding:"10px 20px",fontSize:13.5},lg:{padding:"13px 30px",fontSize:15}};
   return(<button onClick={onClick} style={{borderRadius:11,fontWeight:700,cursor:"pointer",fontFamily:FONT_B,...v[variant],...s[size],...style}}>{children}</button>);
 };
-const Input=({label,value,onChange,placeholder,type="text",style={}})=>(
-  <div style={{marginBottom:14,...style}}>
-    {label&&<label style={{fontSize:11.5,color:T.sub,fontWeight:700,display:"block",marginBottom:6,letterSpacing:".4px"}}>{label.toUpperCase()}</label>}
-    <input type={type} value={value??""} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={{width:"100%",padding:"11px 15px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:11,color:T.ink,fontSize:13.5,boxSizing:"border-box",fontFamily:FONT_B}}/>
-  </div>
-);
+// Input with optional validation. validate="email" | "usphone". Shows inline error, blocks bad input.
+const Input=({label,value,onChange,placeholder,type="text",style={},validate,required,error:extError})=>{
+  const[touched,setTouched]=useState(false);
+  const fmtPhone=(raw)=>{
+    const d=raw.replace(/\D/g,"").slice(0,11);
+    const n=d.length===11&&d[0]==="1"?d.slice(1):d;
+    if(n.length<=3)return n.length?`(${n}`:"";
+    if(n.length<=6)return `(${n.slice(0,3)}) ${n.slice(3)}`;
+    return `(${n.slice(0,3)}) ${n.slice(3,6)}-${n.slice(6,10)}`;
+  };
+  const handle=(v)=>{
+    if(validate==="usphone")onChange(fmtPhone(v));
+    else onChange(v);
+  };
+  let err="";
+  if(touched&&value){
+    if(validate==="email"&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))err="Enter a valid email address";
+    if(validate==="usphone"&&value.replace(/\D/g,"").length<10)err="Enter a valid US/Canada number";
+  }
+  if(touched&&required&&!value)err=`${label||"This field"} is required`;
+  err=err||extError||"";
+  return(<div style={{marginBottom:14,...style}}>
+    {label&&<label style={{fontSize:11.5,color:T.sub,fontWeight:700,display:"block",marginBottom:6,letterSpacing:".4px"}}>{label.toUpperCase()}{required&&<span style={{color:T.red}}> *</span>}</label>}
+    <input type={validate==="email"?"email":type} inputMode={validate==="usphone"?"tel":undefined} value={value??""} onChange={e=>handle(e.target.value)} onBlur={()=>setTouched(true)} placeholder={placeholder}
+      style={{width:"100%",padding:"11px 15px",background:T.surface,border:`1.5px solid ${err?T.red:T.line}`,borderRadius:11,color:T.ink,fontSize:13.5,boxSizing:"border-box",fontFamily:FONT_B}}/>
+    {err&&<div style={{fontSize:11,color:T.red,marginTop:5,fontWeight:600}}>{err}</div>}
+  </div>);
+};
 const Select=({label,value,onChange,options})=>(
   <div style={{marginBottom:14}}>
     {label&&<label style={{fontSize:11.5,color:T.sub,fontWeight:700,display:"block",marginBottom:6,letterSpacing:".4px"}}>{label.toUpperCase()}</label>}
@@ -560,6 +582,11 @@ const PLANS={essentials:{name:"Essentials",price:49,quota:"10 listings/mo",color
   gmb:{name:"GMB Pro",price:249,quota:"20 listings + GMB",color:T.violet,soft:T.violetSoft,features:["Everything in Growth","Google Business Profile management","Get found in AI searches (ChatGPT, Gemini, AI Overviews)","Monthly GMB posts & Q&A","Engagement analytics (views, calls)","Dedicated BDM support"]}};
 const BIZ_FIELDS=[["name","Full Name"],["businessName","Business Name"],["email","Email"],["phone","Phone"],["address","Address"],["city","City"],["state","State"],["zip","ZIP"],["website","Website"]];
 const CATEGORIES=["Home Services","Medical / Health","Legal","Restaurant / Food","Auto Services","Beauty & Salon","Real Estate","Other"];
+// US states + Canadian provinces (restricts address region to US/Canada).
+const US_CA_STATES=[
+  {code:"AL",name:"Alabama"},{code:"AK",name:"Alaska"},{code:"AZ",name:"Arizona"},{code:"AR",name:"Arkansas"},{code:"CA",name:"California"},{code:"CO",name:"Colorado"},{code:"CT",name:"Connecticut"},{code:"DE",name:"Delaware"},{code:"FL",name:"Florida"},{code:"GA",name:"Georgia"},{code:"HI",name:"Hawaii"},{code:"ID",name:"Idaho"},{code:"IL",name:"Illinois"},{code:"IN",name:"Indiana"},{code:"IA",name:"Iowa"},{code:"KS",name:"Kansas"},{code:"KY",name:"Kentucky"},{code:"LA",name:"Louisiana"},{code:"ME",name:"Maine"},{code:"MD",name:"Maryland"},{code:"MA",name:"Massachusetts"},{code:"MI",name:"Michigan"},{code:"MN",name:"Minnesota"},{code:"MS",name:"Mississippi"},{code:"MO",name:"Missouri"},{code:"MT",name:"Montana"},{code:"NE",name:"Nebraska"},{code:"NV",name:"Nevada"},{code:"NH",name:"New Hampshire"},{code:"NJ",name:"New Jersey"},{code:"NM",name:"New Mexico"},{code:"NY",name:"New York"},{code:"NC",name:"North Carolina"},{code:"ND",name:"North Dakota"},{code:"OH",name:"Ohio"},{code:"OK",name:"Oklahoma"},{code:"OR",name:"Oregon"},{code:"PA",name:"Pennsylvania"},{code:"RI",name:"Rhode Island"},{code:"SC",name:"South Carolina"},{code:"SD",name:"South Dakota"},{code:"TN",name:"Tennessee"},{code:"TX",name:"Texas"},{code:"UT",name:"Utah"},{code:"VT",name:"Vermont"},{code:"VA",name:"Virginia"},{code:"WA",name:"Washington"},{code:"WV",name:"West Virginia"},{code:"WI",name:"Wisconsin"},{code:"WY",name:"Wyoming"},{code:"DC",name:"Washington DC"},
+  {code:"AB",name:"Alberta"},{code:"BC",name:"British Columbia"},{code:"MB",name:"Manitoba"},{code:"NB",name:"New Brunswick"},{code:"NL",name:"Newfoundland"},{code:"NS",name:"Nova Scotia"},{code:"ON",name:"Ontario"},{code:"PE",name:"Prince Edward Is."},{code:"QC",name:"Quebec"},{code:"SK",name:"Saskatchewan"},{code:"NT",name:"Northwest Terr."},{code:"NU",name:"Nunavut"},{code:"YT",name:"Yukon"}
+];
 const today=()=>new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"});
 const todayFull=()=>new Date().toLocaleDateString("en-US",{year:"numeric",month:"short",day:"numeric"});
 const nextMonthFirst=()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth()+1,1).toISOString();};
@@ -641,9 +668,9 @@ function AuthScreen({onLogin,portal="client"}){
           {mode==="signup"&&!isStaff&&(<>
             <Input label="Full Name" value={name} onChange={setName} placeholder="Mike Johnson"/>
             <Input label="Business Name" value={businessName} onChange={setBusinessName} placeholder="Mike's Plumbing"/>
-            <Input label="Phone (optional)" value={phone} onChange={setPhone} placeholder="(555) 200-0000"/>
+            <Input label="Phone (optional)" value={phone} onChange={setPhone} placeholder="(555) 200-0000" validate="usphone"/>
           </>)}
-          <Input label="Email" value={email} onChange={setEmail} placeholder="you@business.com"/>
+          <Input label="Email" value={email} onChange={setEmail} placeholder="you@business.com" validate="email"/>
           {mode!=="forgot"&&<Input label="Password" type="password" value={password} onChange={setPassword} placeholder="••••••••"/>}
           {mode==="signup"&&!isStaff&&password&&(()=>{
             const sc=passwordScore(password);const cols=[T.red,T.red,T.amber,T.blue,T.green];const lbl=["Very weak","Weak","Fair","Good","Strong"];
@@ -1457,14 +1484,14 @@ function AdminDashboard({user,data,reload,onLogout}){
     const editing=!!client;
     return(<Modal open onClose={onClose} title={editing?"Edit Client":"Add New Client"} width={560}>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-        <Input label="Full Name" value={f.name} onChange={v=>set("name",v)} placeholder="Mike Johnson"/>
-        <Input label="Business Name" value={f.businessName} onChange={v=>set("businessName",v)} placeholder="Mike's Plumbing"/>
-        <Input label="Email" value={f.email} onChange={v=>set("email",v)} placeholder="mike@business.com" type="email"/>
-        <Input label="Phone" value={f.phone} onChange={v=>set("phone",v)} placeholder="(555) 200-0000"/>
+        <Input label="Full Name" value={f.name} onChange={v=>set("name",v)} placeholder="Mike Johnson" required/>
+        <Input label="Business Name" value={f.businessName} onChange={v=>set("businessName",v)} placeholder="Mike's Plumbing" required/>
+        <Input label="Email" value={f.email} onChange={v=>set("email",v)} placeholder="mike@business.com" validate="email" required/>
+        <Input label="Phone" value={f.phone} onChange={v=>set("phone",v)} placeholder="(555) 200-0000" validate="usphone"/>
         <Input label="City" value={f.city} onChange={v=>set("city",v)} placeholder="Austin"/>
-        <Input label="State" value={f.state} onChange={v=>set("state",v)} placeholder="TX"/>
+        <Select label="State / Province" value={f.state} onChange={v=>set("state",v)} options={[{value:"",label:"Select…"},...US_CA_STATES.map(s=>({value:s.code,label:`${s.code} — ${s.name}`}))]}/>
       </div>
-      <Input label="Address" value={f.address} onChange={v=>set("address",v)} placeholder="123 Main St"/>
+      <Input label="Street Address" value={f.address} onChange={v=>set("address",v)} placeholder="123 Main St"/>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
         <Select label="Plan" value={f.plan} onChange={v=>set("plan",v)} options={[{value:"",label:"No plan yet"},...Object.entries(PLANS).map(([id,p])=>({value:id,label:`${p.name} $${p.price}/mo`}))]}/>
         <Select label="Category" value={f.category} onChange={v=>set("category",v)} options={CATEGORIES.map(o=>({value:o,label:o}))}/>
@@ -1847,22 +1874,54 @@ function AdminDashboard({user,data,reload,onLogout}){
     </Card>
   </div>);
 
-  const Activity=()=>(<div>
-    <PageHead isMobile={isMobile} title="Activity Log" sub="Every platform event, newest first"/>
-    <Card>
-      {activity.length===0?<Empty icon="📜" title="No activity yet" sub="Platform events appear here."/>:
-        activity.map((a,i)=>(<div key={a.id} className="hoverRow" style={{display:"flex",gap:13,padding:"11px 8px",borderRadius:10,borderBottom:i<activity.length-1?`1px solid ${T.line}`:"none",alignItems:"flex-start"}}>
-          <div style={{width:34,height:34,borderRadius:11,background:T.surface2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{actIcon(a.type)}</div>
-          <div style={{flex:1}}>
-            <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:4}}>
-              <div style={{fontSize:13,fontWeight:600}}>{a.desc}</div>
-              <div style={{fontSize:11,color:T.faint}}>{a.date}</div>
+  const Activity=()=>{
+    const[search,setSearch]=useState("");
+    const[typeF,setTypeF]=useState("all");
+    const[byF,setByF]=useState("all");
+    const[timeF,setTimeF]=useState("all");
+    const types=[...new Set(activity.map(a=>a.type))];
+    const people=[...new Set(activity.map(a=>a.by).filter(Boolean))];
+    const inWindow=(dateStr)=>{
+      if(timeF==="all")return true;
+      const d=new Date(dateStr);if(isNaN(d))return true;
+      const days=(Date.now()-d.getTime())/86400000;
+      return timeF==="7"?days<=7:timeF==="30"?days<=30:timeF==="90"?days<=90:true;
+    };
+    let filtered=activity.filter(a=>{
+      if(typeF!=="all"&&a.type!==typeF)return false;
+      if(byF!=="all"&&a.by!==byF)return false;
+      if(!inWindow(a.date))return false;
+      if(search){const cn=clients.find(c=>c.id===a.clientId)?.businessName||"";if(!`${a.desc} ${a.by} ${cn}`.toLowerCase().includes(search.toLowerCase()))return false;}
+      return true;
+    });
+    const cols=[
+      {key:"date",label:"Date"},{key:"type",label:"Type"},{key:"desc",label:"Event"},
+      {label:"Client",get:a=>clients.find(c=>c.id===a.clientId)?.businessName||"–"},{key:"by",label:"By"},
+    ];
+    return(<div>
+      <PageHead isMobile={isMobile} title="Activity Log" sub="Every platform event, newest first"/>
+      <ListToolbar search={search} setSearch={setSearch} placeholder="🔍  Search event, person, client…"
+        filters={[
+          {value:typeF,set:setTypeF,options:[{value:"all",label:"All types"},...types.map(t=>({value:t,label:t.replace(/_/g," ")}))]},
+          {value:byF,set:setByF,options:[{value:"all",label:"All people"},...people.map(p=>({value:p,label:p}))]},
+          {value:timeF,set:setTimeF,options:[{value:"all",label:"All time"},{value:"7",label:"Last 7 days"},{value:"30",label:"Last 30 days"},{value:"90",label:"Last 90 days"}]},
+        ]}
+        rows={filtered} cols={cols} exportName="rankorbit-activity" exportTitle="Activity Log"/>
+      <Card>
+        {filtered.length===0?<Empty icon="📜" title="No matching activity" sub="Try a different search or filter."/>:
+          filtered.map((a,i)=>(<div key={a.id} className="hoverRow" style={{display:"flex",gap:13,padding:"11px 8px",borderRadius:10,borderBottom:i<filtered.length-1?`1px solid ${T.line}`:"none",alignItems:"flex-start"}}>
+            <div style={{width:34,height:34,borderRadius:11,background:T.surface2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{actIcon(a.type)}</div>
+            <div style={{flex:1}}>
+              <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:4}}>
+                <div style={{fontSize:13,fontWeight:600}}>{a.desc}</div>
+                <div style={{fontSize:11,color:T.faint}}>{a.date}</div>
+              </div>
+              <div style={{fontSize:11.5,color:T.faint,marginTop:2}}>{clients.find(c=>c.id===a.clientId)?.businessName||"–"} · by {a.by}</div>
             </div>
-            <div style={{fontSize:11.5,color:T.faint,marginTop:2}}>{clients.find(c=>c.id===a.clientId)?.businessName||"–"} · by {a.by}</div>
-          </div>
-        </div>))}
-    </Card>
-  </div>);
+          </div>))}
+      </Card>
+    </div>);
+  };
 
   const AuditTrail=()=>{
     const[search,setSearch]=useState("");
@@ -2359,16 +2418,30 @@ export default function App(){
   const[ready,setReady]=useState(false);
   const[currentUser,setCurrentUser]=useState(null);
   const[data,setData]=useState(null);
+  const loadedForRef=useState({id:null})[0]; // guards against redundant reloads
   const reload=useCallback(async()=>{const d=await api.loadAll();setData(d);},[]);
-  useEffect(()=>{(async()=>{await api.init();const existing=await api.currentUser();if(existing)setCurrentUser(existing);await reload();setReady(true);})();},[reload]);
+  // Single source of truth for "a user is active": load their profile + data once.
+  const applyUser=useCallback(async(prof)=>{
+    if(!prof){return;}
+    if(loadedForRef.id===prof.id){setCurrentUser(prof);return;} // already loaded, no reload
+    loadedForRef.id=prof.id;
+    setCurrentUser(prof);
+    await reload();
+  },[reload,loadedForRef]);
+  useEffect(()=>{(async()=>{
+    await api.init();
+    const existing=await api.currentUser();
+    if(existing){await applyUser(existing);}else{await reload();}
+    setReady(true);
+  })();},[reload,applyUser]);
   // Catch OAuth (Google) sign-in the moment Supabase parses the callback hash.
   useEffect(()=>{
     if(!supa)return;
     const{data:{subscription}}=supa.auth.onAuthStateChange(async(event,session)=>{
       if((event==="SIGNED_IN"||event==="INITIAL_SESSION")&&session){
+        if(loadedForRef.id===session.user.id)return; // dedupe: same user, ignore repeat events
         let{data:prof}=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
-        // OAuth (Google) users may arrive before the DB trigger creates their profile.
-        // If it's missing, create it now as a client so they always land in the app.
+        // OAuth users may arrive before the DB trigger creates their profile: create it now.
         if(!prof){
           const m=session.user.user_metadata||{};
           const name=m.full_name||m.name||session.user.email?.split("@")[0]||"there";
@@ -2376,16 +2449,15 @@ export default function App(){
           const r=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
           prof=r.data;
         }
-        if(prof){setCurrentUser(prof);await reload();
-          if(window.location.hash.includes("access_token"))window.history.replaceState(null,"",window.location.pathname);
-        }
+        await applyUser(prof);
+        if(window.location.hash.includes("access_token"))window.history.replaceState(null,"",window.location.pathname);
       }
-      if(event==="SIGNED_OUT")setCurrentUser(null);
+      if(event==="SIGNED_OUT"){loadedForRef.id=null;setCurrentUser(null);}
     });
     return()=>subscription?.unsubscribe();
-  },[reload]);
-  const onLogin=async(u)=>{setCurrentUser(u);await reload();};
-  const onLogout=async()=>{await api.logout();setCurrentUser(null);};
+  },[applyUser,loadedForRef]);
+  const onLogin=async(u)=>{await applyUser(u);};
+  const onLogout=async()=>{loadedForRef.id=null;await api.logout();setCurrentUser(null);};
   if(!ready)return(<><GlobalStyle/><Loading/></>);
   const shared={user:currentUser,data,reload,onLogin,onLogout};
   return(<><GlobalStyle/>
