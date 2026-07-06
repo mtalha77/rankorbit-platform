@@ -415,8 +415,7 @@ const Input=({label,value,onChange,placeholder,type="text",style={},validate,req
     if(validate==="email"&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))err="Enter a valid email address";
     if(validate==="usphone"&&value.replace(/\D/g,"").length<10)err="Enter a valid US/Canada number";
   }
-  if(touched&&required&&!value)err=`${label||"This field"} is required`;
-  err=err||extError||"";
+  err=extError||err||"";
   return(<div style={{marginBottom:14,...style}}>
     {label&&<label style={{fontSize:11.5,color:T.sub,fontWeight:700,display:"block",marginBottom:6,letterSpacing:".4px"}}>{label.toUpperCase()}{required&&<span style={{color:T.red}}> *</span>}</label>}
     <input type={validate==="email"?"email":type} inputMode={validate==="usphone"?"tel":undefined} value={value??""} onChange={e=>handle(e.target.value)} onBlur={()=>setTouched(true)} placeholder={placeholder}
@@ -1202,25 +1201,32 @@ function ClientDashboard({user,data,reload,onLogout}){
 
   // Required business-details form shown before plan selection (captures data upfront).
   const ProfileGate=({user,onSaved})=>{
-    const[f,setF]=useState({businessName:user.businessName||"",phone:user.phone||"",address:user.address||"",city:user.city||"",state:user.state||"",category:user.category||"Home Services"});
+    const[f,setF]=useState({businessName:user.businessName||"",phone:user.phone||"",address:user.address||"",city:user.city||"",state:user.state||"",category:user.category||"Home Services",website:user.website||"",gbpId:user.gbpId||""});
     const set=(k,v)=>setF(x=>({...x,[k]:v}));
     const[saving,setSaving]=useState(false);
+    const[tried,setTried]=useState(false);
     const ok=f.businessName&&f.phone.replace(/\D/g,"").length>=10&&f.address&&f.city&&f.state;
-    const save=async()=>{setSaving(true);await api.upsertProfile({...user,...f});await onSaved();setSaving(false);toast("Business profile saved");};
+    const save=async()=>{if(!ok){setTried(true);return;}setSaving(true);await api.upsertProfile({...user,...f});await onSaved();setSaving(false);toast("Business profile saved");};
+    const req=(k)=>tried&&!f[k]?`Required`:"";
     return(<Card style={{marginBottom:20,background:`linear-gradient(135deg,${T.brandSoft},#fff)`,maxWidth:640}}>
       <SectionTitle sub="Tell us about your business so we can list it correctly everywhere. Takes one minute, then choose your plan.">First, complete your business profile</SectionTitle>
-      <Input label="Business Name" value={f.businessName} onChange={v=>set("businessName",v)} placeholder="Mike's Plumbing" required/>
+      <Input label="Business Name" value={f.businessName} onChange={v=>set("businessName",v)} placeholder="Mike's Plumbing" error={req("businessName")}/>
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12}}>
-        <Input label="Phone" value={f.phone} onChange={v=>set("phone",v)} placeholder="(555) 200-0000" validate="usphone" required/>
+        <Input label="Phone" value={f.phone} onChange={v=>set("phone",v)} placeholder="(555) 200-0000" validate="usphone" error={tried&&f.phone.replace(/\D/g,"").length<10?"Valid US/Canada number required":""}/>
         <Select label="Category" value={f.category} onChange={v=>set("category",v)} options={CATEGORIES.map(o=>({value:o,label:o}))}/>
       </div>
-      <Input label="Street Address" value={f.address} onChange={v=>set("address",v)} placeholder="123 Main St" required/>
+      <Input label="Street Address" value={f.address} onChange={v=>set("address",v)} placeholder="123 Main St" error={req("address")}/>
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12}}>
-        <Input label="City" value={f.city} onChange={v=>set("city",v)} placeholder="Austin" required/>
+        <Input label="City" value={f.city} onChange={v=>set("city",v)} placeholder="Austin" error={req("city")}/>
         <Select label="State / Province" value={f.state} onChange={v=>set("state",v)} options={[{value:"",label:"Select…"},...US_CA_STATES.map(s=>({value:s.code,label:`${s.code} — ${s.name}`}))]}/>
       </div>
-      <Btn style={{marginTop:6}} onClick={save} disabled={!ok||saving}>{saving?"Saving…":"Save & continue to plans →"}</Btn>
-      {!ok&&<div style={{fontSize:11.5,color:T.faint,marginTop:8}}>All fields except category are required to continue.</div>}
+      {tried&&!f.state&&<div style={{fontSize:11,color:T.red,marginTop:-8,marginBottom:10,fontWeight:600}}>State / Province is required</div>}
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12}}>
+        <Input label="Website (optional)" value={f.website} onChange={v=>set("website",v)} placeholder="mikesplumbing.com"/>
+        <Input label="Google Business Profile link (optional)" value={f.gbpId} onChange={v=>set("gbpId",v)} placeholder="Paste your GMB link"/>
+      </div>
+      <Btn style={{marginTop:6}} onClick={save} disabled={saving}>{saving?"Saving…":"Save & continue to plans →"}</Btn>
+      {tried&&!ok&&<div style={{fontSize:11.5,color:T.red,marginTop:8,fontWeight:600}}>Please fill all required fields (marked *) to continue.</div>}
     </Card>);
   };
 
