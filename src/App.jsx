@@ -755,8 +755,12 @@ function ClientDashboard({user,data,reload,onLogout}){
     const stripe=settings?.stripe||{};
     const goStripe=(planId)=>{
       const link=stripe[planId];
-      if(link&&link.startsWith("http"))window.open(link,"_blank");
-      else toast("Payment link not set up yet — your account manager will send it","info");
+      if(link&&link.startsWith("http")){
+        // Tag the checkout with this client's id + plan so the webhook can auto-activate the right account.
+        const sep=link.includes("?")?"&":"?";
+        const url=`${link}${sep}client_reference_id=${encodeURIComponent(user.id)}&prefilled_email=${encodeURIComponent(user.email||"")}`;
+        window.open(url,"_blank");
+      }else toast("Payment link not set up yet — your account manager will send it","info");
     };
     return(<div>
       <PageHead isMobile={isMobile} title="Plan & Billing" sub="Everything about what you pay and what you get"/>
@@ -1371,20 +1375,34 @@ function AdminDashboard({user,data,reload,onLogout}){
   </div>);
 
   const Settings=()=>{
-    const s=settings?.stripe||{essentials:"",growth:"",gmb:"",pubKey:""};
+    const s={essentials:"",growth:"",gmb:"",pubKey:"",secretKey:"",webhookSecret:"",...(settings?.stripe||{})};
     const[f,setF]=useState(s);
     const set=(k,v)=>setF(x=>({...x,[k]:v}));
+    const webhookUrl=(typeof window!=="undefined"?window.location.origin:"https://rankorbit-platform.vercel.app")+"/api/stripe-webhook";
+    const stripeLive=!!(s.secretKey&&s.webhookSecret&&s.essentials);
     return(<div>
       <PageHead isMobile={isMobile} title="Settings" sub="Payment links and platform configuration"/>
       <Card style={{marginBottom:16}}>
-        <SectionTitle sub="Paste your Stripe Payment Link for each plan. Client Subscribe/Upgrade buttons open these.">Stripe Payment Links</SectionTitle>
-        <div style={{padding:"12px 14px",background:T.blueSoft,borderRadius:11,marginBottom:16,fontSize:12,color:T.blue,lineHeight:1.55}}>
-          <b>How:</b> Stripe Dashboard → Payment Links → create one recurring link per plan → paste the URLs below. Clients check out securely; you activate their plan after payment (auto-activation via webhook is the next phase).
+        <SectionTitle sub="Paste one recurring Payment Link per plan. Client Subscribe/Upgrade buttons open these with the client tagged, so the webhook can auto-activate their plan after payment.">Stripe Payment Links</SectionTitle>
+        <div style={{padding:"14px 16px",background:T.blueSoft,borderRadius:12,marginBottom:18,fontSize:12.5,color:T.blue,lineHeight:1.7}}>
+          <div style={{fontWeight:800,marginBottom:6}}>Setup — one time, ~10 min:</div>
+          <div><b>1.</b> Stripe Dashboard → <b>Payment Links</b> → New link → pick your recurring product ($49 / $89 / $249). Create all 3, paste URLs below.</div>
+          <div><b>2.</b> Stripe → <b>Developers → Webhooks → Add endpoint</b>. Endpoint URL:</div>
+          <div style={{margin:"6px 0",padding:"8px 11px",background:"#fff",borderRadius:8,fontFamily:"monospace",fontSize:11.5,color:T.ink,wordBreak:"break-all",userSelect:"all"}}>{webhookUrl}</div>
+          <div><b>3.</b> Select event <b>checkout.session.completed</b> → Add endpoint → copy the <b>Signing secret</b> (whsec_…) into the field below.</div>
+          <div><b>4.</b> Copy your <b>Secret key</b> (sk_live_… from Developers → API keys) below. Save. Payments now auto-activate plans.</div>
         </div>
-        <Input label="Essentials ($49/mo) link" value={f.essentials} onChange={v=>set("essentials",v)} placeholder="https://buy.stripe.com/..."/>
-        <Input label="Growth ($89/mo) link" value={f.growth} onChange={v=>set("growth",v)} placeholder="https://buy.stripe.com/..."/>
-        <Input label="GMB Pro ($249/mo) link" value={f.gmb} onChange={v=>set("gmb",v)} placeholder="https://buy.stripe.com/..."/>
+        <Input label="Essentials ($49/mo) payment link" value={f.essentials} onChange={v=>set("essentials",v)} placeholder="https://buy.stripe.com/..."/>
+        <Input label="Growth ($89/mo) payment link" value={f.growth} onChange={v=>set("growth",v)} placeholder="https://buy.stripe.com/..."/>
+        <Input label="GMB Pro ($249/mo) payment link" value={f.gmb} onChange={v=>set("gmb",v)} placeholder="https://buy.stripe.com/..."/>
+        <div style={{height:1,background:T.line,margin:"6px 0 16px"}}/>
+        <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:12}}>AUTO-ACTIVATION KEYS (server-side)</div>
+        <Input label="Stripe Secret Key" value={f.secretKey} onChange={v=>set("secretKey",v)} placeholder="sk_live_..."/>
+        <Input label="Webhook Signing Secret" value={f.webhookSecret} onChange={v=>set("webhookSecret",v)} placeholder="whsec_..."/>
         <Input label="Stripe Publishable Key (optional)" value={f.pubKey} onChange={v=>set("pubKey",v)} placeholder="pk_live_..."/>
+        <div style={{padding:"11px 14px",background:T.amberSoft,borderRadius:11,marginBottom:16,fontSize:11.5,color:T.amber,lineHeight:1.55}}>
+          <b>Important:</b> also add these as Vercel environment variables so the webhook function can write to the database: <code>STRIPE_SECRET_KEY</code>, <code>STRIPE_WEBHOOK_SECRET</code>, and <code>SUPABASE_SERVICE_ROLE_KEY</code> (from Supabase → Settings → API). Saving here stores them for reference; the function reads them from Vercel env.
+        </div>
         <Btn onClick={()=>R(async()=>api.saveSettings({...settings,stripe:f}),"Stripe settings saved")}>Save Stripe Settings</Btn>
       </Card>
       <Card>
@@ -1392,6 +1410,10 @@ function AdminDashboard({user,data,reload,onLogout}){
         <div style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${T.line}`}}>
           <span style={{fontSize:13,color:T.sub}}>Database mode</span>
           <Badge type={api.mode==="supabase"?"connected":"manual"} label={api.mode==="supabase"?"Supabase (live)":"Local (demo)"}/>
+        </div>
+        <div style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${T.line}`}}>
+          <span style={{fontSize:13,color:T.sub}}>Stripe auto-activation</span>
+          <Badge type={stripeLive?"connected":"manual"} label={stripeLive?"Configured":"Keys not set"}/>
         </div>
         <div style={{display:"flex",justifyContent:"space-between",padding:"10px 0"}}>
           <span style={{fontSize:13,color:T.sub}}>Live GA4 / GBP auto-sync</span>
