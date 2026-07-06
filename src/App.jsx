@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { createClient } from "@supabase/supabase-js";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
@@ -115,10 +116,40 @@ const SEED = {
 // ─── API LAYER — Supabase Auth + profiles, with local demo fallback ──────────
 const SUPA_URL=import.meta.env.VITE_SUPABASE_URL||"";
 const SUPA_KEY=import.meta.env.VITE_SUPABASE_ANON_KEY||"";
-const supa=(SUPA_URL&&SUPA_KEY)?createClient(SUPA_URL,SUPA_KEY):null;
+// Supabase client. persistSession=true keeps the session in storage across reloads.
+// "Remember me" swaps the storage: localStorage (30-day durable) vs sessionStorage (tab-only).
+const authStorage = (typeof window!=="undefined" && window.localStorage.getItem("ro_remember")==="0")
+  ? window.sessionStorage : (typeof window!=="undefined" ? window.localStorage : undefined);
+const supa=(SUPA_URL&&SUPA_KEY)?createClient(SUPA_URL,SUPA_KEY,{
+  auth:{ persistSession:true, autoRefreshToken:true, storage:authStorage, storageKey:"ro_auth" }
+}):null;
 const LS=(k)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch{return null;}};
 const LSet=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}};
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random());
+
+// Password policy for a paid B2B tool: min 10 chars, upper+lower+number+symbol.
+function passwordIssues(pw){
+  const issues=[];
+  if(!pw||pw.length<10)issues.push("at least 10 characters");
+  if(!/[A-Z]/.test(pw))issues.push("an uppercase letter");
+  if(!/[a-z]/.test(pw))issues.push("a lowercase letter");
+  if(!/[0-9]/.test(pw))issues.push("a number");
+  if(!/[^A-Za-z0-9]/.test(pw))issues.push("a symbol");
+  return issues;
+}
+function passwordScore(pw){
+  if(!pw)return 0;
+  let s=0;
+  if(pw.length>=10)s++; if(pw.length>=14)s++;
+  if(/[A-Z]/.test(pw)&&/[a-z]/.test(pw))s++;
+  if(/[0-9]/.test(pw))s++;
+  if(/[^A-Za-z0-9]/.test(pw))s++;
+  return Math.min(s,4); // 0-4
+}
+// STAFF roles can never be created via public signup — enforced here AND by DB trigger.
+const STAFF_ROLES=["super_admin","manager","agent"];
+// Master switch: flip to false at go-live to hide all demo quick-fill buttons.
+const SHOW_DEMOS=(import.meta.env.VITE_SHOW_DEMOS!=="false");
 
 const api={
   mode: supa?"supabase":"local",
@@ -138,10 +169,20 @@ const api={
     const{data}=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
     return data||null;
   },
+  // remember=true → durable localStorage session; false → tab-only sessionStorage.
+  setRemember(remember){
+    try{ window.localStorage.setItem("ro_remember", remember?"1":"0"); }catch{}
+  },
   async login(email,password){
     if(supa){
       const{data,error}=await supa.auth.signInWithPassword({email,password});
-      if(error)return{error:error.message.includes("Invalid")?"Invalid email or password.":error.message};
+      if(error){
+        if(error.message.includes("Email not confirmed"))
+          return{error:"Please verify your email first. Check your inbox for the confirmation link."};
+        if(error.status===429||/rate/i.test(error.message))
+          return{error:"Too many attempts. Please wait a minute and try again."};
+        return{error:error.message.includes("Invalid")?"Invalid email or password.":error.message};
+      }
       const{data:prof}=await supa.from("profiles").select("*").eq("id",data.user.id).maybeSingle();
       if(prof?.status==="suspended"){await supa.auth.signOut();return{error:"This account is suspended. Contact your account manager."};}
       return{user:prof};
@@ -152,13 +193,17 @@ const api={
     return{user:u};
   },
   async signup({email,password,name,businessName,phone}){
+    // Enforce password policy before hitting the network.
+    const issues=passwordIssues(password);
+    if(issues.length)return{error:"Password needs "+issues.join(", ")+"."};
     if(supa){
-      const{data,error}=await supa.auth.signUp({email,password,options:{data:{name}}});
+      // role is NEVER accepted from the client — the DB trigger hardcodes 'client'.
+      const{data,error}=await supa.auth.signUp({email,password,options:{data:{name},emailRedirectTo:window.location.origin+"/login"}});
       if(error)return{error:error.message};
-      // profile row auto-created by trigger; enrich it
       if(data.user){
         await supa.from("profiles").update({name,businessName,phone,avatar:(name||email)[0].toUpperCase()}).eq("id",data.user.id);
       }
+      // Email verification is required — Supabase returns no session until confirmed.
       if(!data.session)return{needsConfirm:true};
       const{data:prof}=await supa.from("profiles").select("*").eq("id",data.user.id).maybeSingle();
       return{user:prof};
@@ -373,29 +418,40 @@ const today=()=>new Date().toLocaleDateString("en-US",{month:"short",day:"numeri
 const todayFull=()=>new Date().toLocaleDateString("en-US",{year:"numeric",month:"short",day:"numeric"});
 
 // ─── AUTH ────────────────────────────────────────────────────────────────────
-function AuthScreen({onLogin}){
+function AuthScreen({onLogin,portal="client"}){
+  // portal="staff" → /admin (login only, no public signup). portal="client" → /login (+signup).
+  const isStaff=portal==="staff";
   const[mode,setMode]=useState("login"); // login | signup | forgot
   const[email,setEmail]=useState("");
   const[password,setPassword]=useState("");
   const[name,setName]=useState("");
   const[businessName,setBusinessName]=useState("");
   const[phone,setPhone]=useState("");
+  const[remember,setRemember]=useState(true);
   const[error,setError]=useState("");
   const[info,setInfo]=useState("");
   const[busy,setBusy]=useState(false);
   const login=async()=>{
+    api.setRemember(remember);
     setBusy(true);const r=await api.login(email,password);setBusy(false);
-    if(r.error)setError(r.error);else{setError("");onLogin(r.user);}
+    if(r.error){setError(r.error);return;}
+    // Role-guard: staff portal rejects clients; client portal rejects staff.
+    const role=r.user?.role;
+    if(isStaff && !STAFF_ROLES.includes(role)){await api.logout();setError("This is the staff portal. Clients sign in at /login.");return;}
+    if(!isStaff && STAFF_ROLES.includes(role)){await api.logout();setError("Staff accounts sign in at /admin.");return;}
+    setError("");onLogin(r.user);
   };
   const signup=async()=>{
     if(!email||!password||!name){setError("Name, email and password are required.");return;}
-    if(password.length<6){setError("Password must be at least 6 characters.");return;}
+    const issues=passwordIssues(password);
+    if(issues.length){setError("Password needs "+issues.join(", ")+".");return;}
+    api.setRemember(remember);
     setBusy(true);const r=await api.signup({email,password,name,businessName,phone});setBusy(false);
     if(r.error)setError(r.error);
-    else if(r.needsConfirm){setError("");setInfo("Check your email to confirm your account, then sign in.");setMode("login");}
+    else if(r.needsConfirm){setError("");setInfo("Almost there! Check your email and click the verification link, then sign in.");setMode("login");}
     else{setError("");onLogin(r.user);}
   };
-  const google=async()=>{setBusy(true);const r=await api.googleLogin();setBusy(false);if(r.error)setError(r.error);};
+  const google=async()=>{api.setRemember(remember);setBusy(true);const r=await api.googleLogin();setBusy(false);if(r.error)setError(r.error);};
   const forgot=async()=>{
     if(!email){setError("Enter your email first.");return;}
     setBusy(true);const r=await api.resetPassword(email);setBusy(false);
@@ -432,21 +488,32 @@ function AuthScreen({onLogin}){
           <MiniOrbit size={40}/><div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800}}>Rank <span style={{color:T.brand}}>Orbit</span></div>
         </div>)}
         <Card style={{padding:28,boxShadow:SHADOW_LG}}>
-          <div style={{fontFamily:FONT_D,fontSize:18,fontWeight:800,marginBottom:4}}>{mode==="login"?"Sign in":mode==="signup"?"Create your account":"Reset password"}</div>
-          <div style={{fontSize:13,color:T.sub,marginBottom:20}}>{mode==="login"?"Welcome back. Enter your details.":mode==="signup"?"Start getting listed everywhere.":"We'll email you a reset link."}</div>
+          <div style={{fontFamily:FONT_D,fontSize:18,fontWeight:800,marginBottom:4}}>{isStaff?"Staff sign in":mode==="login"?"Sign in":mode==="signup"?"Create your account":"Reset password"}</div>
+          <div style={{fontSize:13,color:T.sub,marginBottom:20}}>{isStaff?"Admin, manager & agent access.":mode==="login"?"Welcome back. Enter your details.":mode==="signup"?"Start getting listed everywhere.":"We'll email you a reset link."}</div>
           {info&&<div style={{fontSize:12.5,color:T.green,marginBottom:12,background:T.greenSoft,padding:"8px 12px",borderRadius:9}}>{info}</div>}
-          {mode==="signup"&&(<>
+          {mode==="signup"&&!isStaff&&(<>
             <Input label="Full Name" value={name} onChange={setName} placeholder="Mike Johnson"/>
             <Input label="Business Name" value={businessName} onChange={setBusinessName} placeholder="Mike's Plumbing"/>
             <Input label="Phone (optional)" value={phone} onChange={setPhone} placeholder="(555) 200-0000"/>
           </>)}
           <Input label="Email" value={email} onChange={setEmail} placeholder="you@business.com"/>
           {mode!=="forgot"&&<Input label="Password" type="password" value={password} onChange={setPassword} placeholder="••••••••"/>}
+          {mode==="signup"&&!isStaff&&password&&(()=>{
+            const sc=passwordScore(password);const cols=[T.red,T.red,T.amber,T.blue,T.green];const lbl=["Very weak","Weak","Fair","Good","Strong"];
+            return(<div style={{marginTop:-6,marginBottom:12}}>
+              <div style={{display:"flex",gap:4,marginBottom:5}}>{[0,1,2,3].map(i=><div key={i} style={{flex:1,height:4,borderRadius:2,background:i<sc?cols[sc]:T.line,transition:"background .2s"}}/>)}</div>
+              <div style={{fontSize:11,color:cols[sc],fontWeight:700}}>{lbl[sc]} · needs 10+ chars, upper, lower, number, symbol</div>
+            </div>);
+          })()}
+          {mode!=="forgot"&&(<label style={{display:"flex",alignItems:"center",gap:8,marginBottom:14,cursor:"pointer",fontSize:12.5,color:T.sub}}>
+            <input type="checkbox" checked={remember} onChange={e=>setRemember(e.target.checked)} style={{width:15,height:15,accentColor:T.brand}}/>
+            Keep me signed in for 30 days
+          </label>)}
           {error&&<div style={{fontSize:12.5,color:T.red,marginBottom:12,background:T.redSoft,padding:"8px 12px",borderRadius:9}}>{error}</div>}
           {mode==="login"&&<Btn onClick={login} style={{width:"100%"}} size="lg">{busy?"Signing in…":"Sign In →"}</Btn>}
           {mode==="signup"&&<Btn onClick={signup} style={{width:"100%"}} size="lg">{busy?"Creating…":"Create Account →"}</Btn>}
           {mode==="forgot"&&<Btn onClick={forgot} style={{width:"100%"}} size="lg">{busy?"Sending…":"Send Reset Link"}</Btn>}
-          {mode!=="forgot"&&(<>
+          {mode!=="forgot"&&!isStaff&&(<>
             <div style={{display:"flex",alignItems:"center",gap:12,margin:"16px 0"}}>
               <div style={{flex:1,height:1,background:T.line}}/><span style={{fontSize:11,color:T.faint}}>or</span><div style={{flex:1,height:1,background:T.line}}/>
             </div>
@@ -455,21 +522,30 @@ function AuthScreen({onLogin}){
               Continue with Google
             </button>
           </>)}
-          <div style={{marginTop:16,textAlign:"center",fontSize:12.5,color:T.sub}}>
+          {!isStaff&&(<div style={{marginTop:16,textAlign:"center",fontSize:12.5,color:T.sub}}>
             {mode==="login"&&(<>New here? <span onClick={()=>{setMode("signup");setError("");setInfo("");}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>Create an account</span> · <span onClick={()=>{setMode("forgot");setError("");setInfo("");}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>Forgot?</span></>)}
             {mode==="signup"&&(<>Have an account? <span onClick={()=>{setMode("login");setError("");}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>Sign in</span></>)}
             {mode==="forgot"&&(<span onClick={()=>{setMode("login");setError("");}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>← Back to sign in</span>)}
-          </div>
-          {mode==="login"&&(<div style={{marginTop:20,paddingTop:18,borderTop:`1px solid ${T.line}`}}>
-            <div style={{fontSize:10.5,color:T.faint,fontWeight:800,letterSpacing:".8px",marginBottom:8}}>STAFF DEMO</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:7,marginBottom:14}}>
-              {staff.map(d=>(<button key={d.l} onClick={()=>{setEmail(d.e);setPassword(d.p);}} style={{padding:"9px 4px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:10,color:d.c,fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:FONT_B,lineHeight:1.5}}>{d.l}<br/><span style={{fontSize:9.5,color:T.faint,fontWeight:500}}>{d.s}</span></button>))}
-            </div>
-            <div style={{fontSize:10.5,color:T.faint,fontWeight:800,letterSpacing:".8px",marginBottom:8}}>CLIENT DEMO</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:7}}>
-              {clients.map(d=>(<button key={d.l} onClick={()=>{setEmail(d.e);setPassword(d.p);}} style={{padding:"9px 4px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:10,color:d.c,fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:FONT_B,lineHeight:1.5}}>{d.l}<br/><span style={{fontSize:9.5,color:T.faint,fontWeight:500}}>{d.s}</span></button>))}
-            </div>
-            <div style={{marginTop:12,fontSize:11,color:T.faint,textAlign:"center"}}>Click any account to prefill, then Sign In</div>
+          </div>)}
+          {isStaff&&mode==="login"&&(<div style={{marginTop:14,textAlign:"center",fontSize:12,color:T.faint}}>
+            <span onClick={()=>{setMode("forgot");setError("");}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>Forgot password?</span>
+          </div>)}
+          {isStaff&&mode==="forgot"&&(<div style={{marginTop:14,textAlign:"center",fontSize:12}}>
+            <span onClick={()=>{setMode("login");setError("");}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>← Back to sign in</span>
+          </div>)}
+          {mode==="login"&&SHOW_DEMOS&&(<div style={{marginTop:20,paddingTop:18,borderTop:`1px solid ${T.line}`}}>
+            {isStaff?(<>
+              <div style={{fontSize:10.5,color:T.faint,fontWeight:800,letterSpacing:".8px",marginBottom:8}}>STAFF DEMO</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:7}}>
+                {staff.map(d=>(<button key={d.l} onClick={()=>{setEmail(d.e);setPassword(d.p);}} style={{padding:"9px 4px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:10,color:d.c,fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:FONT_B,lineHeight:1.5}}>{d.l}<br/><span style={{fontSize:9.5,color:T.faint,fontWeight:500}}>{d.s}</span></button>))}
+              </div>
+            </>):(<>
+              <div style={{fontSize:10.5,color:T.faint,fontWeight:800,letterSpacing:".8px",marginBottom:8}}>CLIENT DEMO</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:7}}>
+                {clients.map(d=>(<button key={d.l} onClick={()=>{setEmail(d.e);setPassword(d.p);}} style={{padding:"9px 4px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:10,color:d.c,fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:FONT_B,lineHeight:1.5}}>{d.l}<br/><span style={{fontSize:9.5,color:T.faint,fontWeight:500}}>{d.s}</span></button>))}
+              </div>
+            </>)}
+            <div style={{marginTop:12,fontSize:11,color:T.faint,textAlign:"center"}}>Demo accounts — removed before go-live</div>
           </div>)}
         </Card>
       </div>
@@ -1445,6 +1521,30 @@ function AdminDashboard({user,data,reload,onLogout}){
 }
 
 // ─── ROOT ────────────────────────────────────────────────────────────────────
+const Loading=({label="Loading platform…"})=>(
+  <div style={{height:"100vh",background:T.bg,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,fontFamily:FONT_B}}>
+    <Orbit size={90} speed={6}/><div style={{fontSize:13,color:T.sub,fontWeight:600}}>{label}</div>
+  </div>
+);
+
+// Client portal at /login. Redirects staff who land here to /admin.
+function ClientPortal({user,data,reload,onLogin,onLogout}){
+  const nav=useNavigate();
+  if(user&&STAFF_ROLES.includes(user.role))return <Navigate to="/admin" replace/>;
+  if(!user)return <AuthScreen portal="client" onLogin={async(u)=>{await onLogin(u);}}/>;
+  if(!data)return <Loading label="Loading your dashboard…"/>;
+  return <ClientDashboard user={user} data={data} reload={reload} onLogout={async()=>{await onLogout();nav("/login");}}/>;
+}
+
+// Staff portal at /admin. Redirects clients who land here to /login.
+function StaffPortal({user,data,reload,onLogin,onLogout}){
+  const nav=useNavigate();
+  if(user&&!STAFF_ROLES.includes(user.role))return <Navigate to="/login" replace/>;
+  if(!user)return <AuthScreen portal="staff" onLogin={async(u)=>{await onLogin(u);}}/>;
+  if(!data)return <Loading label="Loading admin…"/>;
+  return <AdminDashboard user={user} data={data} reload={reload} onLogout={async()=>{await onLogout();nav("/admin");}}/>;
+}
+
 export default function App(){
   const[ready,setReady]=useState(false);
   const[currentUser,setCurrentUser]=useState(null);
@@ -1453,14 +1553,15 @@ export default function App(){
   useEffect(()=>{(async()=>{await api.init();const existing=await api.currentUser();if(existing)setCurrentUser(existing);await reload();setReady(true);})();},[reload]);
   const onLogin=async(u)=>{setCurrentUser(u);await reload();};
   const onLogout=async()=>{await api.logout();setCurrentUser(null);};
-  if(!ready)return(<div style={{height:"100vh",background:T.bg,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,fontFamily:FONT_B}}>
-    <GlobalStyle/><Orbit size={90} speed={6}/>
-    <div style={{fontSize:13,color:T.sub,fontWeight:600}}>Loading platform…</div>
-  </div>);
+  if(!ready)return(<><GlobalStyle/><Loading/></>);
+  const shared={user:currentUser,data,reload,onLogin,onLogout};
   return(<><GlobalStyle/>
-    {!currentUser?<AuthScreen onLogin={onLogin}/>:
-      !data?<div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}><Orbit size={80}/></div>:
-      currentUser.role==="client"?<ClientDashboard user={currentUser} data={data} reload={reload} onLogout={onLogout}/>:
-      <AdminDashboard user={currentUser} data={data} reload={reload} onLogout={onLogout}/>}
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<ClientPortal {...shared}/>}/>
+        <Route path="/admin" element={<StaffPortal {...shared}/>}/>
+        <Route path="*" element={<Navigate to="/login" replace/>}/>
+      </Routes>
+    </BrowserRouter>
   </>);
 }
