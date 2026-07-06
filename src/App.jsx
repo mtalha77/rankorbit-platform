@@ -32,6 +32,13 @@ function GlobalStyle(){
     @keyframes toastIn{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}
     @keyframes growBar{from{width:0}}
     @keyframes pulseDot{0%,100%{box-shadow:0 0 0 0 rgba(15,164,122,.35)}50%{box-shadow:0 0 0 6px rgba(15,164,122,0)}}
+    @keyframes revealUp{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:none}}
+    @keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+    @keyframes countUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+    .reveal{opacity:0}
+    .reveal.in{animation:revealUp .7s cubic-bezier(.22,.8,.36,1) both}
+    .lift{transition:transform .3s cubic-bezier(.22,.8,.36,1),box-shadow .3s}
+    .lift:hover{transform:translateY(-6px)}
     .fadeUp{animation:fadeUp .45s cubic-bezier(.22,.8,.36,1) both}
     .pop{animation:pop .35s cubic-bezier(.22,.8,.36,1) both}
     .hoverCard{transition:transform .22s cubic-bezier(.22,.8,.36,1),box-shadow .22s}
@@ -84,17 +91,17 @@ const SEED = {
     {id:"l6",clientId:"u4",directory:"Hotfrog",status:"live",submitted:"Apr 1",liveDate:"Apr 4",napMatch:"match",liveLink:"https://hotfrog.com",da:62,notes:""},
     {id:"l7",clientId:"u4",directory:"Storeboard",status:"live",submitted:"Apr 2",liveDate:"Apr 7",napMatch:"match",liveLink:"https://storeboard.com",da:55,notes:""},
     {id:"l8",clientId:"u4",directory:"Proven Expert",status:"live",submitted:"Apr 3",liveDate:"Apr 9",napMatch:"match",liveLink:"https://provenexpert.com",da:58,notes:""},
-    {id:"l9",clientId:"u4",directory:"Apple Business Connect",status:"pending",submitted:"Jul 1",liveDate:"—",napMatch:"—",liveLink:"",da:96,notes:"Awaiting Apple verification"},
-    {id:"l10",clientId:"u4",directory:"Bing Places",status:"pending",submitted:"Jul 1",liveDate:"—",napMatch:"—",liveLink:"",da:94,notes:""},
+    {id:"l9",clientId:"u4",directory:"Apple Business Connect",status:"pending",submitted:"Jul 1",liveDate:"–",napMatch:"–",liveLink:"",da:96,notes:"Awaiting Apple verification"},
+    {id:"l10",clientId:"u4",directory:"Bing Places",status:"pending",submitted:"Jul 1",liveDate:"–",napMatch:"–",liveLink:"",da:94,notes:""},
     {id:"l11",clientId:"u5",directory:"Google Business Profile",status:"live",submitted:"Mar 15",liveDate:"Mar 16",napMatch:"match",liveLink:"https://business.google.com",da:99,notes:""},
     {id:"l12",clientId:"u5",directory:"Healthgrades",status:"live",submitted:"Mar 16",liveDate:"Mar 20",napMatch:"match",liveLink:"https://healthgrades.com",da:82,notes:""},
     {id:"l13",clientId:"u5",directory:"Zocdoc",status:"live",submitted:"Mar 17",liveDate:"Mar 22",napMatch:"match",liveLink:"https://zocdoc.com",da:78,notes:""},
     {id:"l14",clientId:"u5",directory:"Yellow Pages",status:"live",submitted:"Mar 18",liveDate:"Mar 25",napMatch:"mismatch",liveLink:"https://yellowpages.com",da:92,notes:"Address format issue"},
-    {id:"l15",clientId:"u5",directory:"Vitals",status:"pending",submitted:"Jul 2",liveDate:"—",napMatch:"—",liveLink:"",da:70,notes:""},
+    {id:"l15",clientId:"u5",directory:"Vitals",status:"pending",submitted:"Jul 2",liveDate:"–",napMatch:"–",liveLink:"",da:70,notes:""},
     {id:"l16",clientId:"u6",directory:"Google Business Profile",status:"live",submitted:"Apr 1",liveDate:"Apr 2",napMatch:"match",liveLink:"https://business.google.com",da:99,notes:""},
     {id:"l17",clientId:"u6",directory:"Yellow Pages",status:"live",submitted:"Apr 2",liveDate:"Apr 6",napMatch:"match",liveLink:"https://yellowpages.com",da:92,notes:""},
     {id:"l18",clientId:"u6",directory:"Yelp",status:"flagged",submitted:"Apr 3",liveDate:"Apr 8",napMatch:"mismatch",liveLink:"https://yelp.com",da:90,notes:"Unauthorized edit detected"},
-    {id:"l19",clientId:"u6",directory:"Manta",status:"rejected",submitted:"May 1",liveDate:"—",napMatch:"—",liveLink:"",da:74,notes:"Duplicate listing found"},
+    {id:"l19",clientId:"u6",directory:"Manta",status:"rejected",submitted:"May 1",liveDate:"–",napMatch:"–",liveLink:"",da:74,notes:"Duplicate listing found"},
   ],
   gmb:{u5:{views:1240,calls:47,directions:83,source:"manual",
     trend:[{m:"Mar",v:680,c:28,d:51},{m:"Apr",v:820,c:34,d:63},{m:"May",v:1050,c:42,d:74},{m:"Jun",v:1240,c:47,d:83}],
@@ -105,15 +112,15 @@ const SEED = {
   activity:[
     {id:"a1",clientId:"u4",type:"listing_live",desc:"Yellow Pages listing went live",date:"Jul 4, 2025",by:"Ali (Agent)"},
     {id:"a2",clientId:"u4",type:"nap_fix",desc:"Phone corrected on MerchantCircle",date:"Jun 24, 2025",by:"Ali (Agent)"},
-    {id:"a3",clientId:"u4",type:"edit_blocked",desc:"Unauthorized edit blocked on Yelp — hours change reverted",date:"Jun 22, 2025",by:"System"},
+    {id:"a3",clientId:"u4",type:"edit_blocked",desc:"Unauthorized edit blocked on Yelp, hours change reverted",date:"Jun 22, 2025",by:"System"},
     {id:"a4",clientId:"u5",type:"listing_live",desc:"Healthgrades listing went live",date:"Jun 18, 2025",by:"Ali (Agent)"},
-    {id:"a5",clientId:"u6",type:"flagged",desc:"Yelp listing flagged — unauthorized edit detected",date:"Jun 20, 2025",by:"System"},
-    {id:"a6",clientId:"u6",type:"rejected",desc:"Manta listing rejected — duplicate found",date:"May 10, 2025",by:"Ali (Agent)"},
+    {id:"a5",clientId:"u6",type:"flagged",desc:"Yelp listing flagged, unauthorized edit detected",date:"Jun 20, 2025",by:"System"},
+    {id:"a6",clientId:"u6",type:"rejected",desc:"Manta listing rejected, duplicate found",date:"May 10, 2025",by:"Ali (Agent)"},
   ],
   settings:{stripe:{essentials:"",growth:"",gmb:"",pubKey:""}},
 };
 
-// ─── API LAYER — Supabase Auth + profiles, with local demo fallback ──────────
+// ─── API LAYER, Supabase Auth + profiles, with local demo fallback ──────────
 const SUPA_URL=import.meta.env.VITE_SUPABASE_URL||"";
 const SUPA_KEY=import.meta.env.VITE_SUPABASE_ANON_KEY||"";
 // Supabase client. persistSession=true keeps the session in storage across reloads.
@@ -146,7 +153,7 @@ function passwordScore(pw){
   if(/[^A-Za-z0-9]/.test(pw))s++;
   return Math.min(s,4); // 0-4
 }
-// STAFF roles can never be created via public signup — enforced here AND by DB trigger.
+// STAFF roles can never be created via public signup, enforced here AND by DB trigger.
 const STAFF_ROLES=["super_admin","manager","agent"];
 // Master switch: flip to false at go-live to hide all demo quick-fill buttons.
 const SHOW_DEMOS=(import.meta.env.VITE_SHOW_DEMOS!=="false");
@@ -197,13 +204,13 @@ const api={
     const issues=passwordIssues(password);
     if(issues.length)return{error:"Password needs "+issues.join(", ")+"."};
     if(supa){
-      // role is NEVER accepted from the client — the DB trigger hardcodes 'client'.
+      // role is NEVER accepted from the client, the DB trigger hardcodes 'client'.
       const{data,error}=await supa.auth.signUp({email,password,options:{data:{name},emailRedirectTo:window.location.origin+"/login"}});
       if(error)return{error:error.message};
       if(data.user){
         await supa.from("profiles").update({name,businessName,phone,avatar:(name||email)[0].toUpperCase()}).eq("id",data.user.id);
       }
-      // Email verification is required — Supabase returns no session until confirmed.
+      // Email verification is required, Supabase returns no session until confirmed.
       if(!data.session)return{needsConfirm:true};
       const{data:prof}=await supa.from("profiles").select("*").eq("id",data.user.id).maybeSingle();
       return{user:prof};
@@ -332,6 +339,18 @@ function useCounter(target,dur=900){
     raf=requestAnimationFrame(step);return()=>cancelAnimationFrame(raf);
   },[target,dur]);
   return val;
+}
+// Scroll-reveal: adds .in when the element scrolls into view (Bold landing animations).
+function Reveal({children,delay=0,style={},as="div"}){
+  const ref=useState(null);
+  const[el,setEl]=useState(null);
+  useEffect(()=>{
+    if(!el)return;
+    const io=new IntersectionObserver((entries)=>{entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add("in");io.unobserve(e.target);}});},{threshold:.12});
+    io.observe(el);return()=>io.disconnect();
+  },[el]);
+  const Tag=as;
+  return<Tag ref={setEl} className="reveal" style={{animationDelay:`${delay}ms`,...style}}>{children}</Tag>;
 }
 function useToast(){
   const[toasts,setToasts]=useState([]);
@@ -465,7 +484,7 @@ async function exportXLSX(rows,cols,name){
     XLSX.writeFile(wb,`${name}.xlsx`);
   }catch(e){exportCSV(rows,cols,name);} // graceful fallback
 }
-// PDF via a print window — reliable, no heavy dep, user picks "Save as PDF".
+// PDF via a print window, reliable, no heavy dep, user picks "Save as PDF".
 function exportPDF(rows,cols,name,title){
   const m=rowsToMatrix(rows,cols);
   const head=m[0].map(h=>`<th>${h}</th>`).join("");
@@ -478,7 +497,7 @@ function exportPDF(rows,cols,name,title){
     td{border-bottom:1px solid #eee;padding:6px 9px}
     tr:nth-child(even) td{background:#F6F7FB}
   </style></head><body>
-    <h1>Rank Orbit — ${title||name}</h1>
+    <h1>Rank Orbit, ${title||name}</h1>
     <div class="meta">${rows.length} rows · exported ${new Date().toLocaleString()}</div>
     <table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
     <script>window.onload=()=>{window.print();}<\/script>
@@ -666,7 +685,7 @@ function AuthScreen({onLogin,portal="client"}){
                 {clients.map(d=>(<button key={d.l} onClick={()=>{setEmail(d.e);setPassword(d.p);}} style={{padding:"9px 4px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:10,color:d.c,fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:FONT_B,lineHeight:1.5}}>{d.l}<br/><span style={{fontSize:9.5,color:T.faint,fontWeight:500}}>{d.s}</span></button>))}
               </div>
             </>)}
-            <div style={{marginTop:12,fontSize:11,color:T.faint,textAlign:"center"}}>Demo accounts — removed before go-live</div>
+            <div style={{marginTop:12,fontSize:11,color:T.faint,textAlign:"center"}}>Demo accounts, removed before go-live</div>
           </div>)}
         </Card>
       </div>
@@ -805,19 +824,26 @@ function ClientDashboard({user,data,reload,onLogout}){
 
   const recentNotifs=myAct.slice(0,6);
   const[notifOpen,setNotifOpen]=useState(false);
+  const[notifSeen,setNotifSeen]=useState(()=>{try{return localStorage.getItem("ro_notif_seen_"+user.id)===String(myAct.length);}catch{return false;}});
+  const unread=notifSeen?0:recentNotifs.length;
+  const markSeen=()=>{try{localStorage.setItem("ro_notif_seen_"+user.id,String(myAct.length));}catch{}setNotifSeen(true);};
+  // Route each activity type to the section where the client can act on it.
+  const notifTarget=(t)=>({listing_live:"listings",nap_fix:"listings",edit_blocked:"listings",flagged:"listings",rejected:"listings",submitted:"listings",gmb_update:"gmb",analytics:"analytics"}[t]||"listings");
+  const openNotif=(a)=>{setNotifOpen(false);setPage(notifTarget(a.type));};
   const NotifBell=()=>(
     <div style={{position:"relative"}}>
-      <button onClick={()=>setNotifOpen(o=>!o)} style={{position:"relative",width:38,height:38,borderRadius:11,background:T.surface,border:`1.5px solid ${T.line}`,cursor:"pointer",fontSize:16}}>🔔
-        {recentNotifs.length>0&&<span style={{position:"absolute",top:-4,right:-4,background:T.red,color:"#fff",borderRadius:10,fontSize:9.5,fontWeight:800,minWidth:16,height:16,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 4px"}}>{recentNotifs.length}</span>}
+      <button onClick={()=>{setNotifOpen(o=>!o);if(!notifOpen)markSeen();}} aria-label="Notifications" style={{position:"relative",width:42,height:42,borderRadius:12,background:notifOpen?T.brandSoft:T.surface,border:`1.5px solid ${notifOpen?T.brand:T.line}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .15s"}}>
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={notifOpen?T.brand:T.sub} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        {unread>0&&<span style={{position:"absolute",top:-3,right:-3,background:T.red,color:"#fff",borderRadius:10,fontSize:10,fontWeight:800,minWidth:17,height:17,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 4px",border:"2px solid #fff"}}>{unread}</span>}
       </button>
       {notifOpen&&(<><div style={{position:"fixed",inset:0,zIndex:80}} onClick={()=>setNotifOpen(false)}/>
-        <div className="pop" style={{position:"absolute",top:46,right:0,width:300,background:T.surface,borderRadius:14,boxShadow:SHADOW_LG,border:`1px solid ${T.line}`,zIndex:90,overflow:"hidden"}}>
-          <div style={{padding:"12px 15px",borderBottom:`1px solid ${T.line}`,fontSize:13,fontWeight:800,fontFamily:FONT_D}}>Notifications</div>
-          <div style={{maxHeight:300,overflowY:"auto"}}>
-            {recentNotifs.length===0?<div style={{padding:"22px 15px",textAlign:"center",fontSize:12.5,color:T.faint}}>You're all caught up ✨</div>:
-              recentNotifs.map(a=>(<div key={a.id} style={{display:"flex",gap:10,padding:"11px 15px",borderBottom:`1px solid ${T.line}`,alignItems:"flex-start"}}>
-                <span style={{fontSize:15}}>{actIcon(a.type)}</span>
-                <div><div style={{fontSize:12.5,fontWeight:600,lineHeight:1.4}}>{a.desc}</div><div style={{fontSize:10.5,color:T.faint,marginTop:2}}>{a.date}</div></div>
+        <div className="pop" style={{position:"absolute",top:50,right:0,width:isMobile?280:320,background:T.surface,borderRadius:16,boxShadow:SHADOW_LG,border:`1px solid ${T.line}`,zIndex:90,overflow:"hidden"}}>
+          <div style={{padding:"14px 16px",borderBottom:`1px solid ${T.line}`,fontSize:14.5,fontWeight:800,fontFamily:FONT_D}}>Notifications</div>
+          <div style={{maxHeight:320,overflowY:"auto"}}>
+            {recentNotifs.length===0?<div style={{padding:"26px 16px",textAlign:"center",fontSize:13,color:T.faint}}>You're all caught up.</div>:
+              recentNotifs.map(a=>(<div key={a.id} onClick={()=>openNotif(a)} className="hoverRow" style={{display:"flex",gap:11,padding:"13px 16px",borderBottom:`1px solid ${T.line}`,alignItems:"flex-start",cursor:"pointer"}}>
+                <span style={{fontSize:16,marginTop:1}}>{actIcon(a.type)}</span>
+                <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,lineHeight:1.45,color:T.ink}}>{a.desc}</div><div style={{fontSize:11,color:T.faint,marginTop:3,display:"flex",justifyContent:"space-between"}}><span>{a.date}</span><span style={{color:T.brand,fontWeight:700}}>View</span></div></div>
               </div>))}
           </div>
         </div></>)}
@@ -849,7 +875,7 @@ function ClientDashboard({user,data,reload,onLogout}){
         <div style={{flex:1,minWidth:150}}>
           <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".8px",marginBottom:5}}>YOUR VISIBILITY SCORE</div>
           <div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800,color:visColor,marginBottom:6}}>{visLabel}</div>
-          <div style={{fontSize:12.5,color:T.sub,lineHeight:1.55}}>One number for your online health — it blends how many directories you're on, how consistent your info is, and how many listings are live. It climbs as we work.</div>
+          <div style={{fontSize:12.5,color:T.sub,lineHeight:1.55}}>One number for your online health, it blends how many directories you're on, how consistent your info is, and how many listings are live. It climbs as we work.</div>
         </div>
       </Card>
       {!onboardComplete&&(<Card className="fadeUp" style={{animationDelay:"80ms"}}>
@@ -912,7 +938,7 @@ function ClientDashboard({user,data,reload,onLogout}){
     </div>
     <Card className="fadeUp" style={{animationDelay:"280ms"}}>
       <SectionTitle sub="Every action we take on your account, logged with dates">Recent Activity</SectionTitle>
-      {myAct.length===0?<Empty icon="🛰️" title="Work starting" sub="Your first listings are being prepared — check back soon."/>:
+      {myAct.length===0?<Empty icon="🛰️" title="Work starting" sub="Your first listings are being prepared, check back soon."/>:
         myAct.slice(0,5).map((a,i)=>(<div key={a.id} className="hoverRow" style={{display:"flex",gap:13,padding:"11px 8px",borderRadius:10,borderBottom:i<Math.min(myAct.length,5)-1?`1px solid ${T.line}`:"none",alignItems:"flex-start"}}>
           <div style={{width:34,height:34,borderRadius:11,background:T.surface2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{actIcon(a.type)}</div>
           <div><div style={{fontSize:13.5,fontWeight:600}}>{a.desc}</div><div style={{fontSize:11.5,color:T.faint,marginTop:2}}>{a.date} · {a.by}</div></div>
@@ -942,9 +968,9 @@ function ClientDashboard({user,data,reload,onLogout}){
               <span style={{fontSize:12,fontWeight:800,color:d.da>=80?T.green:d.da>=60?T.amber:T.sub}}>{d.da}</span>
             </div>
           </td>
-          <td style={{padding:"12px",fontSize:12.5,color:d.liveDate==="—"?T.faint:T.ink,fontWeight:600,borderBottom:`1px solid ${T.line}`}}>{d.liveDate}</td>
-          <td style={{padding:"12px",borderBottom:`1px solid ${T.line}`}}>{d.napMatch==="—"?<span style={{fontSize:12,color:T.faint}}>—</span>:<Badge type={d.napMatch}/>}</td>
-          <td style={{padding:"12px",borderBottom:`1px solid ${T.line}`}}>{d.liveLink?<a href={d.liveLink} target="_blank" rel="noreferrer" style={{color:T.brand,fontSize:12.5,fontWeight:700,textDecoration:"none"}}>View ↗</a>:<span style={{color:T.faint,fontSize:12}}>—</span>}</td>
+          <td style={{padding:"12px",fontSize:12.5,color:d.liveDate==="–"?T.faint:T.ink,fontWeight:600,borderBottom:`1px solid ${T.line}`}}>{d.liveDate}</td>
+          <td style={{padding:"12px",borderBottom:`1px solid ${T.line}`}}>{d.napMatch==="–"?<span style={{fontSize:12,color:T.faint}}>–</span>:<Badge type={d.napMatch}/>}</td>
+          <td style={{padding:"12px",borderBottom:`1px solid ${T.line}`}}>{d.liveLink?<a href={d.liveLink} target="_blank" rel="noreferrer" style={{color:T.brand,fontSize:12.5,fontWeight:700,textDecoration:"none"}}>View ↗</a>:<span style={{color:T.faint,fontSize:12}}>–</span>}</td>
         </tr>))}</tbody>
       </table>}
     </Card>
@@ -987,7 +1013,7 @@ function ClientDashboard({user,data,reload,onLogout}){
         <div style={{display:"flex",justifyContent:"center",marginBottom:18}}><Orbit size={100} speed={10}/></div>
         <div style={{fontFamily:FONT_D,fontSize:21,fontWeight:800,marginBottom:8}}>Put your Google profile on autopilot</div>
         <div style={{fontSize:13.5,color:T.sub,maxWidth:420,margin:"0 auto 24px",lineHeight:1.6}}>We publish posts, answer Q&A, keep your profile complete, and show you exactly how many calls and visits Google sends you every month.</div>
-        <Btn size="lg" onClick={()=>setPage("billing")}>Upgrade to GMB Pro — $249/mo</Btn>
+        <Btn size="lg" onClick={()=>setPage("billing")}>Upgrade to GMB Pro, $249/mo</Btn>
         <div style={{fontSize:11.5,color:T.faint,marginTop:12}}>Includes everything in Growth · Cancel anytime</div>
       </Card>
     </div>);
@@ -1044,7 +1070,7 @@ function ClientDashboard({user,data,reload,onLogout}){
         const sep=link.includes("?")?"&":"?";
         const url=`${link}${sep}client_reference_id=${encodeURIComponent(user.id)}&prefilled_email=${encodeURIComponent(user.email||"")}`;
         window.open(url,"_blank");
-      }else toast("Payment link not set up yet — your account manager will send it","info");
+      }else toast("Payment link not set up yet, your account manager will send it","info");
     };
     return(<div>
       <PageHead isMobile={isMobile} title="Plan & Billing" sub="Everything about what you pay and what you get"/>
@@ -1069,17 +1095,17 @@ function ClientDashboard({user,data,reload,onLogout}){
             <div style={{fontSize:11,fontWeight:800,color:T.amber,letterSpacing:".8px",marginBottom:8}}>SUBSCRIPTION ENDING</div>
             <div style={{fontFamily:FONT_D,fontSize:19,fontWeight:800,color:T.amber}}>Cancels on renewal</div>
             <div style={{fontSize:13,color:T.sub,marginTop:6,lineHeight:1.5}}>You keep full access until <b>{user.currentPeriodEnd?new Date(user.currentPeriodEnd).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}):"the end of your billing period"}</b>. You won't be charged again.</div>
-            <Btn variant="green" size="sm" style={{width:"100%",marginTop:12}} onClick={()=>R(async()=>{await api.upsertProfile({...user,cancelAtPeriodEnd:false,canceledAt:null});},"Subscription resumed — you're all set")}>Resume subscription</Btn>
+            <Btn variant="green" size="sm" style={{width:"100%",marginTop:12}} onClick={()=>R(async()=>{await api.upsertProfile({...user,cancelAtPeriodEnd:false,canceledAt:null});},"Subscription resumed, you're all set")}>Resume subscription</Btn>
           </>):(<>
             <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".8px",marginBottom:8}}>NEXT CHARGE</div>
             <div style={{fontFamily:FONT_D,fontSize:24,fontWeight:800,color:T.brand}}>${plan.price}.00</div>
             <div style={{fontSize:13,color:T.sub,marginTop:3}}>on the 1st of next month</div>
-            <div style={{fontSize:11.5,color:T.faint,marginTop:8,lineHeight:1.5}}>Renews automatically. Cancel before your renewal date to avoid the next charge — you keep access until the period ends.</div>
+            <div style={{fontSize:11.5,color:T.faint,marginTop:8,lineHeight:1.5}}>Renews automatically. Cancel before your renewal date to avoid the next charge, you keep access until the period ends.</div>
             <button onClick={()=>setConfirm({title:"Cancel subscription?",msg:`Your ${plan.name} plan will stay active until the end of your current billing period, then cancel. You won't be charged again. No refunds for the current period (see Terms).`,danger:true,yes:"Cancel at period end",onYes:()=>R(async()=>{await api.upsertProfile({...user,cancelAtPeriodEnd:true,canceledAt:new Date().toISOString(),currentPeriodEnd:user.currentPeriodEnd||nextMonthFirst()});},"Subscription set to cancel at period end")})} style={{marginTop:12,background:"none",border:"none",color:T.faint,fontSize:11.5,fontWeight:700,cursor:"pointer",textDecoration:"underline",fontFamily:FONT_B,padding:0}}>Cancel subscription</button>
           </>)}
         </Card>
       </div>)}
-      <SectionTitle sub="Pick a plan to start, or upgrade anytime — secure checkout via Stripe">{user.plan?"Change Plan":"Choose Your Plan"}</SectionTitle>
+      <SectionTitle sub="Pick a plan to start, or upgrade anytime, secure checkout via Stripe">{user.plan?"Change Plan":"Choose Your Plan"}</SectionTitle>
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:14}}>
         {Object.entries(PLANSV).map(([id,p],i)=>{
           const current=id===user.plan;
@@ -1119,7 +1145,7 @@ function ClientDashboard({user,data,reload,onLogout}){
         </div>
       </Card>)}
       <Card style={{marginTop:16}}>
-        <SectionTitle sub="Download everything we hold about your account — profile, listings, and activity.">Your Data</SectionTitle>
+        <SectionTitle sub="Download everything we hold about your account, profile, listings, and activity.">Your Data</SectionTitle>
         <Btn variant="ghost" size="sm" onClick={()=>{
           const mine={profile:user,listings:my,activity:myAct,exportedAt:new Date().toISOString()};
           downloadBlob(JSON.stringify(mine,null,2),`rankorbit-my-data-${Date.now()}.json`,"application/json");
@@ -1216,7 +1242,7 @@ function ClientDashboard({user,data,reload,onLogout}){
           <H>4. Cancellation</H>
           <P>You may cancel at any time from your billing dashboard. Cancellation takes effect at the end of your current billing period: you retain full access until that date, and you will not be charged for the following period. To avoid the next charge, you must cancel before your renewal date.</P>
           <H>5. No Refunds</H>
-          <P><b>All fees are non-refundable.</b> Due to the nature of the Services — which involve immediate allocation of work, third-party submissions, and labor performed on your behalf — any amount you have already paid is not refundable, in whole or in part, including for partial billing periods, unused quota, or after cancellation. This clause applies to the fullest extent permitted by law.</P>
+          <P><b>All fees are non-refundable.</b> Due to the nature of the Services, which involve immediate allocation of work, third-party submissions, and labor performed on your behalf, any amount you have already paid is not refundable, in whole or in part, including for partial billing periods, unused quota, or after cancellation. This clause applies to the fullest extent permitted by law.</P>
           <H>6. Client Responsibilities</H>
           <P>You agree to provide accurate business information and to hold the necessary rights to the data you submit. You are responsible for maintaining the confidentiality of your account credentials. Results such as search rankings and visibility depend on third-party platforms and are not guaranteed.</P>
           <H>7. Third-Party Platforms</H>
@@ -1264,7 +1290,7 @@ function ClientDashboard({user,data,reload,onLogout}){
     {page==="call"&&<CallPage/>}
     {page==="legal"&&<LegalPage/>}
   </Shell>
-  {/* Floating Help button — reopens the user manual anytime */}
+  {/* Floating Help button, reopens the user manual anytime */}
   <button onClick={()=>setShowManual(true)} title="How to use your dashboard" style={{position:"fixed",bottom:isMobile?18:24,right:isMobile?18:24,zIndex:900,background:`linear-gradient(135deg,${T.brand},${T.violet})`,color:"#fff",border:"none",borderRadius:isMobile?"50%":24,width:isMobile?52:"auto",height:52,padding:isMobile?0:"0 20px",boxShadow:SHADOW_LG,cursor:"pointer",fontFamily:FONT_B,fontSize:14,fontWeight:800,display:"flex",alignItems:"center",gap:8}}>
     <span style={{fontSize:18}}>?</span>{!isMobile&&<span>Help</span>}
   </button>
@@ -1277,11 +1303,11 @@ function UserManual({user,plan,onClose,goTo}){
   const sections=[
     {icon:"🏠",name:"Home",page:"home",body:"Your starting point. See how many listings are live, pending, or need your attention, plus your overall visibility score. Check here first each time."},
     {icon:"📋",name:"Listings",page:"listings",body:"Every directory we're working on for you, its current status (live, pending, flagged), and a link to view the live listing. Anything marked \"action needed\" means we need something from you to continue."},
-    {icon:"📍",name:"GMB Management",page:"gmb",body:plan?.name==="GMB Pro"?"Your Google Business Profile stats — views, calls, directions — plus the posts and Q&A we manage for you.":"Available on the GMB Pro plan. Upgrade any time to unlock full Google Business Profile management."},
-    {icon:"📈",name:"Analytics",page:"analytics",body:"Your growth over time in simple charts — how your live listings and visibility have improved month over month."},
-    {icon:"💳",name:"Plan & Billing",page:"billing",body:"Your current plan, next charge, invoice history with your card, and secure card management. Cancel here anytime — you keep access until your period ends. You can also download all your data."},
+    {icon:"📍",name:"GMB Management",page:"gmb",body:plan?.name==="GMB Pro"?"Your Google Business Profile stats, views, calls, directions, plus the posts and Q&A we manage for you.":"Available on the GMB Pro plan. Upgrade any time to unlock full Google Business Profile management."},
+    {icon:"📈",name:"Analytics",page:"analytics",body:"Your growth over time in simple charts, how your live listings and visibility have improved month over month."},
+    {icon:"💳",name:"Plan & Billing",page:"billing",body:"Your current plan, next charge, invoice history with your card, and secure card management. Cancel here anytime, you keep access until your period ends. You can also download all your data."},
     {icon:"📞",name:"Book a Call",page:"call",body:"Grab a 30-minute slot with your dedicated Business Development Manager whenever you want to talk strategy or ask questions."},
-    {icon:"📄",name:"Terms & Privacy",page:"legal",body:"Our Terms of Service and Privacy Policy — including how billing, cancellation, and your data are handled."},
+    {icon:"📄",name:"Terms & Privacy",page:"legal",body:"Our Terms of Service and Privacy Policy, including how billing, cancellation, and your data are handled."},
   ];
   return(<Modal open onClose={onClose} title="👋 Welcome to your dashboard" width={620}>
     <div style={{fontSize:13.5,color:T.sub,lineHeight:1.6,marginBottom:18}}>
@@ -1298,7 +1324,7 @@ function UserManual({user,plan,onClose,goTo}){
         </div>))}
     </div>
     <div style={{marginTop:18,padding:"13px 15px",background:T.greenSoft,borderRadius:12,fontSize:12.5,color:T.green,lineHeight:1.55}}>
-      <b>Tip:</b> Look for the amber <b>"action needed"</b> flags — those are the only times we need something from you. Everything else, we handle.
+      <b>Tip:</b> Look for the amber <b>"action needed"</b> flags, those are the only times we need something from you. Everything else, we handle.
     </div>
     <div style={{display:"flex",justifyContent:"flex-end",marginTop:18}}>
       <Btn onClick={onClose}>Got it, let's go →</Btn>
@@ -1373,20 +1399,20 @@ function AdminDashboard({user,data,reload,onLogout}){
       <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
         <Btn onClick={()=>R(async()=>{
-          await api.upsertListing({id:uid(),clientId,directory:f.directory,status:"submitted",submitted:today(),liveDate:"—",napMatch:"—",liveLink:"",da:parseInt(f.da)||0,notes:f.notes,actionNeeded:f.actionNeeded,actionNote:f.actionNote});
+          await api.upsertListing({id:uid(),clientId,directory:f.directory,status:"submitted",submitted:today(),liveDate:"–",napMatch:"–",liveLink:"",da:parseInt(f.da)||0,notes:f.notes,actionNeeded:f.actionNeeded,actionNote:f.actionNote});
           await addActivity(clientId,"submitted",`${f.directory} submitted`);
         },`${f.directory} added`).then(onClose)}>Add Listing</Btn>
       </div>
     </Modal>);
   };
   const UpdateListingModal=({listing,clientId,onClose})=>{
-    const[f,setF]=useState({status:listing.status,liveLink:listing.liveLink||"",liveDate:listing.liveDate||"",napMatch:listing.napMatch||"—",notes:listing.notes||"",actionNeeded:!!listing.actionNeeded,actionNote:listing.actionNote||""});
+    const[f,setF]=useState({status:listing.status,liveLink:listing.liveLink||"",liveDate:listing.liveDate||"",napMatch:listing.napMatch||"–",notes:listing.notes||"",actionNeeded:!!listing.actionNeeded,actionNote:listing.actionNote||""});
     const set=(k,v)=>setF(x=>({...x,[k]:v}));
     return(<Modal open onClose={onClose} title={`Update · ${listing.directory}`}>
       <Select label="Status" value={f.status} onChange={v=>set("status",v)} options={["submitted","pending","live","rejected","flagged"].map(s=>({value:s,label:s[0].toUpperCase()+s.slice(1)}))}/>
       <Input label="Live Listing URL" value={f.liveLink} onChange={v=>set("liveLink",v)} placeholder="https://directory.com/business"/>
       <Input label="Live Date" value={f.liveDate} onChange={v=>set("liveDate",v)} placeholder="e.g. Jul 5"/>
-      <Select label="NAP Match" value={f.napMatch} onChange={v=>set("napMatch",v)} options={[{value:"—",label:"— Pending"},{value:"match",label:"✓ Match"},{value:"mismatch",label:"Mismatch"},{value:"fixed",label:"Fixed"}]}/>
+      <Select label="NAP Match" value={f.napMatch} onChange={v=>set("napMatch",v)} options={[{value:"–",label:"– Pending"},{value:"match",label:"✓ Match"},{value:"mismatch",label:"Mismatch"},{value:"fixed",label:"Fixed"}]}/>
       <div style={{marginBottom:12}}>
         <label style={{fontSize:11.5,color:T.sub,fontWeight:700,display:"block",marginBottom:6,letterSpacing:".4px"}}>NOTES (CLIENT CAN READ)</label>
         <textarea value={f.notes} onChange={e=>set("notes",e.target.value)} placeholder="Progress notes, context, anything the client should know…" style={{width:"100%",padding:"11px 15px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:11,color:T.ink,fontSize:13.5,boxSizing:"border-box",fontFamily:FONT_B,resize:"vertical",minHeight:70}}/>
@@ -1401,7 +1427,7 @@ function AdminDashboard({user,data,reload,onLogout}){
         <div style={{display:"flex",gap:8}}>
           <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
           <Btn onClick={()=>R(async()=>{
-            await api.upsertListing({...listing,status:f.status,liveLink:f.liveLink,liveDate:f.status==="live"?(f.liveDate&&f.liveDate!=="—"?f.liveDate:today()):listing.liveDate,napMatch:f.napMatch,notes:f.notes,actionNeeded:f.actionNeeded,actionNote:f.actionNote});
+            await api.upsertListing({...listing,status:f.status,liveLink:f.liveLink,liveDate:f.status==="live"?(f.liveDate&&f.liveDate!=="–"?f.liveDate:today()):listing.liveDate,napMatch:f.napMatch,notes:f.notes,actionNeeded:f.actionNeeded,actionNote:f.actionNote});
             await audit("listing.edit",{targetType:"listing",targetId:listing.id,targetName:listing.directory,detail:`status→${f.status}`});
             await notifyManagersIfAgent("edited",listing);
             if(f.status==="live"&&listing.status!=="live")await addActivity(clientId,"listing_live",`${listing.directory} listing went live`);
@@ -1473,7 +1499,7 @@ function AdminDashboard({user,data,reload,onLogout}){
         <Input label="Calls" value={f.calls} onChange={v=>set("calls",v)} type="number"/>
         <Input label="Directions" value={f.directions} onChange={v=>set("directions",v)} type="number"/>
       </div>
-      <Input label="Add GMB Post (optional)" value={f.postTitle} onChange={v=>set("postTitle",v)} placeholder="e.g. Summer Special — 10% Off"/>
+      <Input label="Add GMB Post (optional)" value={f.postTitle} onChange={v=>set("postTitle",v)} placeholder="e.g. Summer Special, 10% Off"/>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
         <Input label="Q&A Question (optional)" value={f.qaQ} onChange={v=>set("qaQ",v)} placeholder="Customer question"/>
         <Input label="Answer" value={f.qaA} onChange={v=>set("qaA",v)} placeholder="Your reply"/>
@@ -1636,7 +1662,7 @@ function AdminDashboard({user,data,reload,onLogout}){
                 <div style={{width:46,height:46,borderRadius:14,background:`linear-gradient(135deg,${PLANS[c.plan]?.color||T.faint},${T.violet})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,fontWeight:800,color:"#fff",flexShrink:0}}>{c.avatar}</div>
                 <div>
                   <div style={{fontSize:14.5,fontWeight:800,fontFamily:FONT_D,display:"flex",alignItems:"center",gap:8}}>{c.businessName||c.name}{c.status==="suspended"&&<Badge type="suspended"/>}</div>
-                  <div style={{fontSize:12,color:T.sub}}>{c.name} · {c.city||"—"}{c.state?", "+c.state:""} · {c.category||"—"}</div>
+                  <div style={{fontSize:12,color:T.sub}}>{c.name} · {c.city||"–"}{c.state?", "+c.state:""} · {c.category||"–"}</div>
                 </div>
               </div>
               <div style={{display:"flex",gap:isMobile?12:18,alignItems:"center",flexWrap:"wrap"}}>
@@ -1677,7 +1703,7 @@ function AdminDashboard({user,data,reload,onLogout}){
       </div>}
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16,marginBottom:18}}>
         <Card><SectionTitle>Business Info</SectionTitle>
-          {[["Owner",c.name],["Email",c.email],["Phone",c.phone],["Address",`${c.address||"—"}${c.city?", "+c.city:""}${c.state?", "+c.state:""}`],["Website",c.website||"—"],["Category",c.category||"—"],["GA4 ID",c.gaId||"Not connected"],["GBP ID",c.gbpId||"Not connected"]].map(([k,v])=>(
+          {[["Owner",c.name],["Email",c.email],["Phone",c.phone],["Address",`${c.address||"–"}${c.city?", "+c.city:""}${c.state?", "+c.state:""}`],["Website",c.website||"–"],["Category",c.category||"–"],["GA4 ID",c.gaId||"Not connected"],["GBP ID",c.gbpId||"Not connected"]].map(([k,v])=>(
             <div key={k} style={{display:"flex",justifyContent:"space-between",gap:12,padding:"8px 0",borderBottom:`1px solid ${T.line}`}}>
               <span style={{fontSize:12.5,color:T.faint,fontWeight:700}}>{k}</span><span style={{fontSize:12.5,fontWeight:600,textAlign:"right",wordBreak:"break-word"}}>{v}</span>
             </div>))}
@@ -1702,7 +1728,7 @@ function AdminDashboard({user,data,reload,onLogout}){
               <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
                 <span style={{fontSize:13.5,fontWeight:800}}>{d.directory}</span>
                 <Badge type={d.status}/>
-                {d.napMatch&&d.napMatch!=="—"&&<Badge type={d.napMatch}/>}
+                {d.napMatch&&d.napMatch!=="–"&&<Badge type={d.napMatch}/>}
                 {d.da>0&&<span style={{fontSize:11,fontWeight:800,color:d.da>=80?T.green:d.da>=60?T.amber:T.faint}}>DA {d.da}</span>}
                 {d.liveLink&&<a href={d.liveLink} target="_blank" rel="noreferrer" style={{color:T.brand,fontSize:12,fontWeight:700,textDecoration:"none"}}>View ↗</a>}
               </div>
@@ -1751,10 +1777,10 @@ function AdminDashboard({user,data,reload,onLogout}){
             <td style={{padding:"11px 12px",fontSize:12,color:T.sub,fontWeight:600,borderBottom:`1px solid ${T.line}`}}>{d._name}</td>
             <td style={{padding:"11px 12px",fontSize:13,fontWeight:700,borderBottom:`1px solid ${T.line}`}}>{d.directory}</td>
             <td style={{padding:"11px 12px",borderBottom:`1px solid ${T.line}`}}><Badge type={d.status}/></td>
-            <td style={{padding:"11px 12px",fontSize:12.5,fontWeight:800,color:d.da>=80?T.green:d.da>=60?T.amber:T.sub,borderBottom:`1px solid ${T.line}`}}>{d.da||"—"}</td>
-            <td style={{padding:"11px 12px",fontSize:12,color:d.liveDate==="—"?T.faint:T.green,fontWeight:700,borderBottom:`1px solid ${T.line}`}}>{d.liveDate}</td>
-            <td style={{padding:"11px 12px",borderBottom:`1px solid ${T.line}`}}>{d.napMatch==="—"?<span style={{fontSize:11,color:T.faint}}>—</span>:<Badge type={d.napMatch}/>}</td>
-            <td style={{padding:"11px 12px",borderBottom:`1px solid ${T.line}`}}>{d.actionNeeded?<span title={d.actionNote} style={{fontSize:14}}>⚠️</span>:<span style={{fontSize:11,color:T.faint}}>—</span>}</td>
+            <td style={{padding:"11px 12px",fontSize:12.5,fontWeight:800,color:d.da>=80?T.green:d.da>=60?T.amber:T.sub,borderBottom:`1px solid ${T.line}`}}>{d.da||"–"}</td>
+            <td style={{padding:"11px 12px",fontSize:12,color:d.liveDate==="–"?T.faint:T.green,fontWeight:700,borderBottom:`1px solid ${T.line}`}}>{d.liveDate}</td>
+            <td style={{padding:"11px 12px",borderBottom:`1px solid ${T.line}`}}>{d.napMatch==="–"?<span style={{fontSize:11,color:T.faint}}>–</span>:<Badge type={d.napMatch}/>}</td>
+            <td style={{padding:"11px 12px",borderBottom:`1px solid ${T.line}`}}>{d.actionNeeded?<span title={d.actionNote} style={{fontSize:14}}>⚠️</span>:<span style={{fontSize:11,color:T.faint}}>–</span>}</td>
             <td style={{padding:"11px 12px",borderBottom:`1px solid ${T.line}`}}><Btn variant="soft" size="sm" onClick={()=>{setSelClient(d.clientId);setPage("clientDetail");}}>Open</Btn></td>
           </tr>))}</tbody>
         </table>}
@@ -1803,7 +1829,7 @@ function AdminDashboard({user,data,reload,onLogout}){
     </Card>))}
     <Card style={{background:T.surface2,boxShadow:"none",border:`1px dashed ${T.line}`}}>
       <div style={{fontSize:11,fontWeight:800,color:T.faint,marginBottom:10,letterSpacing:".6px"}}>ROLE PERMISSIONS</div>
-      {[["Super Admin",T.brand,"Full access — clients, listings, GMB, team, revenue, settings"],["Manager",T.amber,"Clients, listings, GMB. No team, revenue, or settings."],["Agent",T.blue,"View clients and update listing statuses/notes only."]].map(([r,c,p])=>(
+      {[["Super Admin",T.brand,"Full access, clients, listings, GMB, team, revenue, settings"],["Manager",T.amber,"Clients, listings, GMB. No team, revenue, or settings."],["Agent",T.blue,"View clients and update listing statuses/notes only."]].map(([r,c,p])=>(
         <div key={r} style={{display:"flex",gap:9,marginBottom:8,alignItems:"flex-start"}}><span style={{width:8,height:8,borderRadius:3,background:c,marginTop:5,flexShrink:0}}/><div style={{fontSize:12.5}}><b style={{color:c}}>{r}:</b> <span style={{color:T.sub}}>{p}</span></div></div>))}
     </Card>
   </div>);
@@ -1819,7 +1845,7 @@ function AdminDashboard({user,data,reload,onLogout}){
               <div style={{fontSize:13,fontWeight:600}}>{a.desc}</div>
               <div style={{fontSize:11,color:T.faint}}>{a.date}</div>
             </div>
-            <div style={{fontSize:11.5,color:T.faint,marginTop:2}}>{clients.find(c=>c.id===a.clientId)?.businessName||"—"} · by {a.by}</div>
+            <div style={{fontSize:11.5,color:T.faint,marginTop:2}}>{clients.find(c=>c.id===a.clientId)?.businessName||"–"} · by {a.by}</div>
           </div>
         </div>))}
     </Card>
@@ -1839,7 +1865,7 @@ function AdminDashboard({user,data,reload,onLogout}){
       {key:"action",label:"Action"},{key:"targetName",label:"Target"},{key:"detail",label:"Detail"},
     ];
     return(<div>
-      <PageHead isMobile={isMobile} title="Audit Trail" sub="Every sensitive staff action — who did what, and when"/>
+      <PageHead isMobile={isMobile} title="Audit Trail" sub="Every sensitive staff action, who did what, and when"/>
       <ListToolbar search={search} setSearch={setSearch} placeholder="🔍  Search staff, action, target…"
         filters={[{value:actionF,set:setActionF,options:[{value:"all",label:"All actions"},...actions.map(a=>({value:a,label:a}))]}]}
         rows={filtered} cols={cols} exportName="rankorbit-audit" exportTitle="Audit Trail"/>
@@ -1851,8 +1877,8 @@ function AdminDashboard({user,data,reload,onLogout}){
             <td style={{padding:"10px 12px",fontSize:11.5,color:T.faint,borderBottom:`1px solid ${T.line}`,whiteSpace:"nowrap"}}>{new Date(a.createdAt).toLocaleString()}</td>
             <td style={{padding:"10px 12px",fontSize:12.5,borderBottom:`1px solid ${T.line}`}}><b>{a.actorName}</b><br/><span style={{fontSize:10.5,color:T.faint}}>{a.actorRole}</span></td>
             <td style={{padding:"10px 12px",borderBottom:`1px solid ${T.line}`}}><Badge type={a.action.includes("delete")?"rejected":a.action.includes("suspend")?"pending":"submitted"} label={a.action}/></td>
-            <td style={{padding:"10px 12px",fontSize:12.5,fontWeight:600,borderBottom:`1px solid ${T.line}`}}>{a.targetName||"—"}</td>
-            <td style={{padding:"10px 12px",fontSize:12,color:T.sub,borderBottom:`1px solid ${T.line}`}}>{a.detail||"—"}</td>
+            <td style={{padding:"10px 12px",fontSize:12.5,fontWeight:600,borderBottom:`1px solid ${T.line}`}}>{a.targetName||"–"}</td>
+            <td style={{padding:"10px 12px",fontSize:12,color:T.sub,borderBottom:`1px solid ${T.line}`}}>{a.detail||"–"}</td>
           </tr>))}</tbody>
         </table>}
       </Card>
@@ -1917,7 +1943,7 @@ function AdminDashboard({user,data,reload,onLogout}){
       <PageHead isMobile={isMobile} title="Settings" sub="Control panel, payments, and platform configuration"/>
 
       <Card style={{marginBottom:16}}>
-        <SectionTitle sub="Change these anytime — no developer needed. Saved to your database and applied across the platform.">Control Panel</SectionTitle>
+        <SectionTitle sub="Change these anytime, no developer needed. Saved to your database and applied across the platform.">Control Panel</SectionTitle>
         <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16}}>
           <div>
             <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:10}}>NOTIFICATION EMAILS</div>
@@ -1931,7 +1957,7 @@ function AdminDashboard({user,data,reload,onLogout}){
               <Input label="Growth" type="number" value={c.priceGrowth} onChange={v=>setCfg("priceGrowth",v)}/>
               <Input label="GMB Pro" type="number" value={c.priceGmb} onChange={v=>setCfg("priceGmb",v)}/>
             </div>
-            <div style={{fontSize:11,color:T.faint,lineHeight:1.5,marginTop:2}}>Note: these update what clients see. Your actual Stripe charge is set by the Payment Link — keep them in sync.</div>
+            <div style={{fontSize:11,color:T.faint,lineHeight:1.5,marginTop:2}}>Note: these update what clients see. Your actual Stripe charge is set by the Payment Link, keep them in sync.</div>
           </div>
         </div>
         <div style={{marginTop:16}}>
@@ -1949,7 +1975,7 @@ function AdminDashboard({user,data,reload,onLogout}){
       <Card style={{marginBottom:16}}>
         <SectionTitle sub="Paste one recurring Payment Link per plan. Client Subscribe/Upgrade buttons open these with the client tagged, so the webhook can auto-activate their plan after payment.">Stripe Payment Links</SectionTitle>
         <div style={{padding:"14px 16px",background:T.blueSoft,borderRadius:12,marginBottom:18,fontSize:12.5,color:T.blue,lineHeight:1.7}}>
-          <div style={{fontWeight:800,marginBottom:6}}>Setup — one time, ~10 min:</div>
+          <div style={{fontWeight:800,marginBottom:6}}>Setup, one time, ~10 min:</div>
           <div><b>1.</b> Stripe Dashboard → <b>Payment Links</b> → New link → pick your recurring product ($49 / $89 / $249). Create all 3, paste URLs below.</div>
           <div><b>2.</b> Stripe → <b>Developers → Webhooks → Add endpoint</b>. Endpoint URL:</div>
           <div style={{margin:"6px 0",padding:"8px 11px",background:"#fff",borderRadius:8,fontFamily:"monospace",fontSize:11.5,color:T.ink,wordBreak:"break-all",userSelect:"all"}}>{webhookUrl}</div>
@@ -2021,122 +2047,250 @@ const Loading=({label="Loading platform…"})=>(
 // ─── MARKETING LANDING PAGE (public, at /) ───────────────────────────────────
 function LandingPage(){
   const nav=useNavigate();
-  const w=useWindowSize();const isMobile=w<820;
+  const w=useWindowSize();const isMobile=w<768;const isTab=w>=768&&w<1024;
   const go=()=>nav("/login");
-  const Feature=({icon,title,body})=>(
-    <div className="fadeUp" style={{background:T.surface,border:`1px solid ${T.line}`,borderRadius:16,padding:22,boxShadow:SHADOW}}>
-      <div style={{width:44,height:44,borderRadius:13,background:T.brandSoft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:21,marginBottom:12}}>{icon}</div>
-      <div style={{fontFamily:FONT_D,fontSize:15.5,fontWeight:800,marginBottom:6}}>{title}</div>
-      <div style={{fontSize:13,color:T.sub,lineHeight:1.6}}>{body}</div>
-    </div>
+  const pad=isMobile?"0 20px":isTab?"0 32px":"0 40px";
+  const maxW=1160;
+
+  // Bold section heading
+  const Eyebrow=({children,color=T.brand})=>(
+    <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"7px 15px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:30,fontSize:12.5,fontWeight:800,letterSpacing:".4px",color,marginBottom:18,boxShadow:SHADOW}}>{children}</div>
   );
-  const Step=({n,title,body})=>(
-    <div style={{display:"flex",gap:14,alignItems:"flex-start"}}>
-      <div style={{width:34,height:34,borderRadius:"50%",background:`linear-gradient(135deg,${T.brand},${T.violet})`,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:15,flexShrink:0,fontFamily:FONT_D}}>{n}</div>
-      <div><div style={{fontSize:14.5,fontWeight:800,fontFamily:FONT_D,marginBottom:3}}>{title}</div><div style={{fontSize:13,color:T.sub,lineHeight:1.6}}>{body}</div></div>
-    </div>
-  );
-  return(<div style={{minHeight:"100vh",background:T.bg,fontFamily:FONT_B,color:T.ink}}>
-    {/* Nav */}
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:isMobile?"16px 20px":"20px 40px",maxWidth:1180,margin:"0 auto"}}>
-      <div style={{display:"flex",alignItems:"center",gap:11}}>
-        <MiniOrbit size={38}/>
-        <div style={{fontFamily:FONT_D,fontSize:20,fontWeight:800,letterSpacing:"-.5px"}}>Rank <span style={{color:T.brand}}>Orbit</span></div>
-      </div>
-      <div style={{display:"flex",gap:10,alignItems:"center"}}>
-        <button onClick={go} style={{background:"none",border:"none",color:T.sub,fontSize:13.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>Sign in</button>
-        <Btn size="sm" onClick={go}>Get started →</Btn>
+  const Ico=({d,c=T.brand,s=24})=>(<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{d}</svg>);
+  const CountStat=({value,suffix,label})=>{
+    const[el,setEl]=useState(null);const[go2,setGo2]=useState(false);
+    useEffect(()=>{if(!el)return;const io=new IntersectionObserver(e=>{e.forEach(x=>{if(x.isIntersecting){setGo2(true);io.disconnect();}});},{threshold:.4});io.observe(el);return()=>io.disconnect();},[el]);
+    const v=useCounter(go2?value:0,1400);
+    return(<div ref={setEl} style={{textAlign:"center"}}>
+      <div style={{fontFamily:FONT_D,fontSize:isMobile?34:46,fontWeight:800,color:"#fff",letterSpacing:"-1.5px",lineHeight:1}}>{v}{suffix}</div>
+      <div style={{fontSize:isMobile?12.5:13.5,color:"rgba(255,255,255,.7)",fontWeight:600,marginTop:8}}>{label}</div>
+    </div>);
+  };
+
+  return(<div style={{minHeight:"100vh",background:T.bg,fontFamily:FONT_B,color:T.ink,overflowX:"hidden"}}>
+    {/* ── Sticky Nav ── */}
+    <div style={{position:"sticky",top:0,zIndex:100,background:"rgba(255,255,255,.82)",backdropFilter:"blur(12px)",borderBottom:`1px solid ${T.line}`}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:isMobile?"13px 20px":"15px 40px",maxWidth:maxW,margin:"0 auto"}}>
+        <div style={{display:"flex",alignItems:"center",gap:11}}>
+          <MiniOrbit size={36}/>
+          <div style={{fontFamily:FONT_D,fontSize:21,fontWeight:800,letterSpacing:"-.6px"}}>Rank <span style={{color:T.brand}}>Orbit</span></div>
+        </div>
+        <div style={{display:"flex",gap:isMobile?8:14,alignItems:"center"}}>
+          {!isMobile&&<button onClick={go} style={{background:"none",border:"none",color:T.sub,fontSize:14.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>Sign in</button>}
+          <Btn size={isMobile?"sm":"md"} onClick={go}>Get started</Btn>
+        </div>
       </div>
     </div>
 
-    {/* Hero */}
-    <div style={{position:"relative",overflow:"hidden"}}>
-      <div style={{position:"absolute",top:-120,left:"-6%",width:420,height:420,borderRadius:"50%",background:T.brandSoft,filter:"blur(70px)",animation:"blob 16s ease-in-out infinite"}}/>
-      <div style={{position:"absolute",top:40,right:"-6%",width:360,height:360,borderRadius:"50%",background:T.greenSoft,filter:"blur(70px)",animation:"blob 20s ease-in-out infinite reverse"}}/>
-      <div style={{position:"relative",maxWidth:1180,margin:"0 auto",padding:isMobile?"40px 20px 30px":"70px 40px 50px",display:"flex",gap:40,alignItems:"center",flexDirection:isMobile?"column":"row"}}>
-        <div style={{flex:1}}>
-          <div style={{display:"inline-flex",alignItems:"center",gap:7,padding:"6px 13px",background:T.surface,border:`1px solid ${T.line}`,borderRadius:20,fontSize:12,fontWeight:700,color:T.brand,marginBottom:18,boxShadow:SHADOW}}>
-            <span style={{width:7,height:7,borderRadius:"50%",background:T.green}}/> Trusted by local businesses
-          </div>
-          <div style={{fontFamily:FONT_D,fontSize:isMobile?32:46,fontWeight:800,lineHeight:1.1,letterSpacing:"-1.5px",marginBottom:16}}>
-            Get your business <span style={{color:T.brand}}>listed & protected</span> everywhere customers search.
-          </div>
-          <div style={{fontSize:isMobile?15:17,color:T.sub,lineHeight:1.6,marginBottom:26,maxWidth:520}}>
-            Rank Orbit puts your business on the directories that matter, keeps your name, address and phone consistent everywhere, and reverses unauthorized edits — all from one simple dashboard.
-          </div>
-          <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
-            <Btn size="lg" onClick={go}>Start now →</Btn>
+    {/* ── Hero ── */}
+    <div style={{position:"relative"}}>
+      <div style={{position:"absolute",top:-140,left:"-8%",width:460,height:460,borderRadius:"50%",background:T.brandSoft,filter:"blur(80px)",opacity:.7,animation:"blob 18s ease-in-out infinite"}}/>
+      <div style={{position:"absolute",top:80,right:"-8%",width:400,height:400,borderRadius:"50%",background:T.greenSoft,filter:"blur(80px)",opacity:.6,animation:"blob 22s ease-in-out infinite reverse"}}/>
+      <div style={{position:"relative",maxWidth:maxW,margin:"0 auto",padding:isMobile?"44px 20px 34px":"72px 40px 54px",textAlign:"center"}}>
+        <Reveal><Eyebrow><span style={{width:8,height:8,borderRadius:"50%",background:T.green,animation:"pulseDot 2s infinite"}}/>Built for local service businesses</Eyebrow></Reveal>
+        <Reveal delay={80}>
+          <h1 style={{fontFamily:FONT_D,fontSize:isMobile?38:isTab?54:66,fontWeight:800,lineHeight:1.04,letterSpacing:isMobile?"-1.5px":"-2.5px",margin:"0 0 20px",maxWidth:900,marginLeft:"auto",marginRight:"auto"}}>
+            When customers search,<br/>make sure they find <span style={{color:T.brand,position:"relative"}}>you</span>.
+          </h1>
+        </Reveal>
+        <Reveal delay={160}>
+          <p style={{fontSize:isMobile?16.5:20,color:T.sub,lineHeight:1.6,maxWidth:600,margin:"0 auto 30px",fontWeight:450}}>
+            We get your business onto every map, directory and listing that matters, keep your details correct everywhere, and fix bad edits before they cost you calls. You just watch the customers come in.
+          </p>
+        </Reveal>
+        <Reveal delay={240}>
+          <div style={{display:"flex",gap:13,justifyContent:"center",flexWrap:"wrap"}}>
+            <Btn size="lg" onClick={go}>Get found now</Btn>
             <Btn size="lg" variant="ghost" onClick={()=>document.getElementById("how")?.scrollIntoView({behavior:"smooth"})}>See how it works</Btn>
           </div>
-          <div style={{marginTop:20,fontSize:12.5,color:T.faint}}>No setup fees · Cancel anytime · Live dashboard from day one</div>
-        </div>
-        <div style={{flex:1,width:"100%"}}>
-          <div className="pop" style={{background:T.surface,borderRadius:20,padding:20,boxShadow:SHADOW_LG,border:`1px solid ${T.line}`}}>
-            <div style={{display:"flex",gap:8,marginBottom:14}}>{[T.red,T.amber,T.green].map(c=><div key={c} style={{width:11,height:11,borderRadius:"50%",background:c}}/>)}</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
-              {[["Live","42",T.green],["Pending","6",T.amber],["NAP","96%",T.brand]].map(([l,v,c])=>(
-                <div key={l} style={{background:T.surface2,borderRadius:12,padding:"13px 10px",textAlign:"center"}}>
-                  <div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800,color:c}}>{v}</div>
-                  <div style={{fontSize:10,color:T.faint,fontWeight:700,letterSpacing:".5px",marginTop:2}}>{l.toUpperCase()}</div>
+          <div style={{marginTop:18,fontSize:13.5,color:T.faint,fontWeight:600}}>No setup fees. Cancel anytime. Live dashboard from day one.</div>
+        </Reveal>
+
+        {/* Hero dashboard preview */}
+        <Reveal delay={340}>
+          <div className="lift" style={{marginTop:isMobile?38:52,maxWidth:820,marginLeft:"auto",marginRight:"auto",background:T.surface,borderRadius:isMobile?18:24,padding:isMobile?16:26,boxShadow:"0 30px 80px -20px rgba(23,23,50,.28)",border:`1px solid ${T.line}`,textAlign:"left"}}>
+            <div style={{display:"flex",gap:8,marginBottom:18}}>{[T.red,T.amber,T.green].map(c=><div key={c} style={{width:12,height:12,borderRadius:"50%",background:c}}/>)}</div>
+            <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:12,marginBottom:18}}>
+              {[["Listings live","42",T.green],["Pending","6",T.amber],["NAP match","96%",T.brand],["Edits reverted","8",T.violet]].map(([l,v,c])=>(
+                <div key={l} style={{background:T.surface2,borderRadius:14,padding:"16px 12px"}}>
+                  <div style={{fontFamily:FONT_D,fontSize:26,fontWeight:800,color:c,letterSpacing:"-1px"}}>{v}</div>
+                  <div style={{fontSize:11,color:T.faint,fontWeight:700,marginTop:4}}>{l}</div>
                 </div>))}
             </div>
-            <div style={{height:8,background:T.surface2,borderRadius:6,overflow:"hidden",marginBottom:8}}><div style={{width:"84%",height:"100%",background:`linear-gradient(90deg,${T.brand},${T.green})`}}/></div>
-            <div style={{fontSize:11.5,color:T.sub}}>Visibility score climbing — 84% this month</div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9}}>
+              <span style={{fontSize:13,fontWeight:700,color:T.sub}}>Visibility score</span>
+              <span style={{fontSize:13,fontWeight:800,color:T.green}}>84 / 100</span>
+            </div>
+            <div style={{height:10,background:T.surface2,borderRadius:6,overflow:"hidden"}}><div style={{width:"84%",height:"100%",background:`linear-gradient(90deg,${T.brand},${T.green})`,borderRadius:6}}/></div>
+          </div>
+        </Reveal>
+      </div>
+    </div>
+
+    {/* ── Stat band ── */}
+    <div style={{background:`linear-gradient(135deg,${T.ink},#2B2B58)`,padding:isMobile?"36px 20px":"52px 40px",marginTop:isMobile?20:40}}>
+      <div style={{maxWidth:maxW,margin:"0 auto",display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:isMobile?26:20}}>
+        <CountStat value={60} suffix="+" label="Directories we manage"/>
+        <CountStat value={96} suffix="%" label="Average NAP accuracy"/>
+        <CountStat value={30} suffix="+" label="New listings a month"/>
+        <CountStat value={24} suffix="/7" label="Edit protection"/>
+      </div>
+    </div>
+
+    {/* ── Problem → benefit ── */}
+    <div style={{maxWidth:maxW,margin:"0 auto",padding:isMobile?"48px 20px":"80px 40px"}}>
+      <div style={{textAlign:"center",marginBottom:isMobile?32:52}}>
+        <Reveal><Eyebrow color={T.green}>Why it matters</Eyebrow></Reveal>
+        <Reveal delay={80}><h2 style={{fontFamily:FONT_D,fontSize:isMobile?28:42,fontWeight:800,letterSpacing:"-1.2px",margin:"0 0 14px",lineHeight:1.1}}>Wrong info online means<br/>lost customers. Full stop.</h2></Reveal>
+        <Reveal delay={140}><p style={{fontSize:isMobile?15.5:17,color:T.sub,maxWidth:560,margin:"0 auto",lineHeight:1.6}}>Most local businesses have wrong phone numbers, old addresses, or missing listings scattered across the web. Every one is a customer who couldn't reach you. We fix that.</p></Reveal>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:isMobile?16:22}}>
+        {[
+          {t:"Get listed everywhere",b:"We put your business on the maps, directories and apps your customers actually use, and add new ones every month. More places found means more calls.",ic:<><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.4 8 12 8 12s8-6.6 8-12a8 8 0 0 0-8-8z"/></>,c:T.brand,cs:T.brandSoft},
+          {t:"Kept correct everywhere",b:"Your name, address and phone stay identical across every platform. Search engines trust consistent businesses, and rank them higher.",ic:<><path d="M20 6 9 17l-5-5"/></>,c:T.green,cs:T.greenSoft},
+          {t:"Bad edits reversed",b:"When Google or Apple lets a stranger change your hours or address, we catch it and change it back. You stay in control of your own business.",ic:<><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></>,c:T.violet,cs:T.violetSoft},
+        ].map((f,i)=>(
+          <Reveal key={f.t} delay={i*100}>
+            <div className="lift" style={{background:T.surface,border:`1px solid ${T.line}`,borderRadius:20,padding:isMobile?24:28,height:"100%",boxShadow:SHADOW}}>
+              <div style={{width:52,height:52,borderRadius:15,background:f.cs,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:18}}><Ico d={f.ic} c={f.c} s={26}/></div>
+              <h3 style={{fontFamily:FONT_D,fontSize:19,fontWeight:800,margin:"0 0 10px",letterSpacing:"-.4px"}}>{f.t}</h3>
+              <p style={{fontSize:14.5,color:T.sub,lineHeight:1.65,margin:0}}>{f.b}</p>
+            </div>
+          </Reveal>))}
+      </div>
+    </div>
+
+    {/* ── How it works ── */}
+    <div id="how" style={{background:T.surface2,padding:isMobile?"48px 20px":"80px 40px"}}>
+      <div style={{maxWidth:maxW,margin:"0 auto"}}>
+        <div style={{textAlign:"center",marginBottom:isMobile?32:52}}>
+          <Reveal><Eyebrow>How it works</Eyebrow></Reveal>
+          <Reveal delay={80}><h2 style={{fontFamily:FONT_D,fontSize:isMobile?28:42,fontWeight:800,letterSpacing:"-1.2px",margin:"0 0 14px",lineHeight:1.1}}>Three steps. Then we handle it.</h2></Reveal>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:isMobile?20:26}}>
+          {[
+            {n:"1",t:"Tell us about your business",b:"Share your business name, address, phone and category once. That is all we need to start."},
+            {n:"2",t:"We get you listed",b:"We submit and verify your business across dozens of directories, and monitor them constantly."},
+            {n:"3",t:"You watch it grow",b:"Track live listings, your visibility score and new activity from one simple dashboard. We do the work."},
+          ].map((s,i)=>(
+            <Reveal key={s.n} delay={i*120}>
+              <div style={{position:"relative",background:T.surface,borderRadius:20,padding:isMobile?26:30,border:`1px solid ${T.line}`,boxShadow:SHADOW,height:"100%"}}>
+                <div style={{fontFamily:FONT_D,fontSize:56,fontWeight:800,color:T.brandSoft,lineHeight:.8,letterSpacing:"-3px",marginBottom:14}}>{s.n}</div>
+                <h3 style={{fontFamily:FONT_D,fontSize:19,fontWeight:800,margin:"0 0 10px",letterSpacing:"-.4px"}}>{s.t}</h3>
+                <p style={{fontSize:14.5,color:T.sub,lineHeight:1.65,margin:0}}>{s.b}</p>
+              </div>
+            </Reveal>))}
+        </div>
+      </div>
+    </div>
+
+    {/* ── Dashboard tour ── */}
+    <div style={{maxWidth:maxW,margin:"0 auto",padding:isMobile?"48px 20px":"80px 40px"}}>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:isMobile?28:56,alignItems:"center"}}>
+        <div>
+          <Reveal><Eyebrow color={T.violet}>Your dashboard</Eyebrow></Reveal>
+          <Reveal delay={80}><h2 style={{fontFamily:FONT_D,fontSize:isMobile?28:40,fontWeight:800,letterSpacing:"-1.2px",margin:"0 0 18px",lineHeight:1.1}}>Everything in plain English. No jargon.</h2></Reveal>
+          <Reveal delay={140}><p style={{fontSize:isMobile?15.5:17,color:T.sub,lineHeight:1.65,margin:"0 0 24px"}}>You are busy running your business. Your dashboard shows what matters in seconds, and flags the rare times we need something from you.</p></Reveal>
+          <div style={{display:"flex",flexDirection:"column",gap:14}}>
+            {[
+              ["See every listing at a glance","Live, pending and needs-attention, all on one screen."],
+              ["One visibility score","A single number for your online health that climbs as we work."],
+              ["Know what needs you","We flag the rare action needed, so nothing ever stalls."],
+            ].map(([t,b],i)=>(
+              <Reveal key={t} delay={180+i*80}>
+                <div style={{display:"flex",gap:13,alignItems:"flex-start"}}>
+                  <div style={{width:26,height:26,borderRadius:8,background:T.greenSoft,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:1}}><Ico d={<path d="M20 6 9 17l-5-5"/>} c={T.green} s={16}/></div>
+                  <div><div style={{fontSize:15.5,fontWeight:800,marginBottom:2}}>{t}</div><div style={{fontSize:14,color:T.sub,lineHeight:1.55}}>{b}</div></div>
+                </div>
+              </Reveal>))}
           </div>
         </div>
+        <Reveal delay={200}>
+          <div className="lift" style={{background:T.surface,borderRadius:22,padding:isMobile?18:24,boxShadow:"0 24px 60px -18px rgba(23,23,50,.24)",border:`1px solid ${T.line}`}}>
+            {[["Home","Live listings, score, what needs action"],["Listings","Every directory, its status and live link"],["Analytics","Your growth over time in simple charts"],["Plan & Billing","Plan, invoices, card and secure cancellation"],["Book a Call","Time with your dedicated manager, anytime"]].map(([t,b],idx,arr)=>(
+              <div key={t} style={{display:"flex",gap:13,padding:"13px 4px",borderBottom:idx<arr.length-1?`1px solid ${T.line}`:"none",alignItems:"center"}}>
+                <div style={{width:40,height:40,borderRadius:12,background:T.brandSoft,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Ico d={<><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></>} c={T.brand} s={18}/></div>
+                <div><div style={{fontSize:14.5,fontWeight:800}}>{t}</div><div style={{fontSize:12.5,color:T.faint}}>{b}</div></div>
+              </div>))}
+          </div>
+        </Reveal>
       </div>
     </div>
 
-    {/* Value props */}
-    <div style={{maxWidth:1180,margin:"0 auto",padding:isMobile?"20px":"30px 40px"}}>
-      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:16}}>
-        <Feature icon="🌐" title="Listed everywhere" body="We submit and manage your business across the directories customers actually use — new listings every month."/>
-        <Feature icon="🔄" title="NAP stays consistent" body="Your Name, Address & Phone kept identical across every platform, so search engines trust and rank you."/>
-        <Feature icon="🛡️" title="Edits caught & reverted" body="When Google or Apple auto-applies a bad 'suggested edit', we catch it and change it back. You stay in control."/>
-      </div>
-    </div>
-
-    {/* Dashboard explainer */}
-    <div id="how" style={{maxWidth:1180,margin:"0 auto",padding:isMobile?"30px 20px":"50px 40px"}}>
-      <div style={{textAlign:"center",marginBottom:34}}>
-        <div style={{fontFamily:FONT_D,fontSize:isMobile?26:34,fontWeight:800,letterSpacing:"-1px",marginBottom:10}}>One dashboard. Total visibility.</div>
-        <div style={{fontSize:15,color:T.sub,maxWidth:560,margin:"0 auto",lineHeight:1.6}}>Everything you need to see how your business is showing up online — in plain language, no jargon.</div>
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:isMobile?24:40,alignItems:"center"}}>
-        <div style={{display:"flex",flexDirection:"column",gap:20}}>
-          <Step n="1" title="See every listing at a glance" body="Your Home screen shows how many listings are live, pending, and need attention — updated as we work."/>
-          <Step n="2" title="Track your visibility score" body="A single number that shows your online health, climbing as we get you listed and keep everything consistent."/>
-          <Step n="3" title="Know what needs you" body="If a directory needs a verification code or action from you, we flag it clearly so nothing stalls."/>
-          <Step n="4" title="GMB & analytics (Pro)" body="On GMB Pro, see your Google Business Profile views, calls and directions — and we manage your posts and Q&A."/>
+    {/* ── Social proof ── */}
+    <div style={{background:T.surface2,padding:isMobile?"48px 20px":"72px 40px"}}>
+      <div style={{maxWidth:maxW,margin:"0 auto"}}>
+        <Reveal><div style={{textAlign:"center",marginBottom:isMobile?30:44}}><Eyebrow color={T.green}>Loved by local businesses</Eyebrow><h2 style={{fontFamily:FONT_D,fontSize:isMobile?26:38,fontWeight:800,letterSpacing:"-1.2px",margin:0,lineHeight:1.1}}>Owners who stopped worrying about listings</h2></div></Reveal>
+        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:isMobile?16:22}}>
+          {[
+            {q:"We were getting calls at an old number for months and had no idea. Rank Orbit fixed it everywhere in a week. The phone actually rings now.",n:"Mike D.",r:"Plumbing, Austin TX"},
+            {q:"I do not have time to manage dozens of websites. I check one dashboard and everything is just handled. That is worth every penny.",n:"Sarah M.",r:"Dental clinic, Houston TX"},
+            {q:"Someone changed our hours on Google and we lost a whole Saturday of walk-ins. Now that never happens. They catch it instantly.",n:"John D.",r:"Auto repair, Dallas TX"},
+          ].map((t,i)=>(
+            <Reveal key={t.n} delay={i*100}>
+              <div style={{background:T.surface,borderRadius:20,padding:isMobile?24:28,border:`1px solid ${T.line}`,boxShadow:SHADOW,height:"100%",display:"flex",flexDirection:"column"}}>
+                <div style={{display:"flex",gap:3,marginBottom:16}}>{[0,1,2,3,4].map(s=><Ico key={s} d={<path d="M12 2l3 6.5 7 .6-5.3 4.6 1.6 6.8L12 17l-6.1 3.6 1.6-6.8L2 9.1l7-.6z"/>} c={T.amber} s={17}/>)}</div>
+                <p style={{fontSize:15,color:T.ink,lineHeight:1.6,margin:"0 0 18px",fontWeight:500,flex:1}}>"{t.q}"</p>
+                <div style={{display:"flex",alignItems:"center",gap:11}}>
+                  <div style={{width:42,height:42,borderRadius:"50%",background:`linear-gradient(135deg,${T.brand},${T.violet})`,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT_D,fontWeight:800,fontSize:16}}>{t.n[0]}</div>
+                  <div><div style={{fontSize:14,fontWeight:800}}>{t.n}</div><div style={{fontSize:12.5,color:T.faint}}>{t.r}</div></div>
+                </div>
+              </div>
+            </Reveal>))}
         </div>
-        <div className="pop" style={{background:T.surface,borderRadius:20,padding:22,boxShadow:SHADOW_LG,border:`1px solid ${T.line}`}}>
-          {[["🏠","Home","Live/pending listings, visibility score, what needs action"],["📋","Listings","Every directory, its status, and live links"],["📈","Analytics","Your growth over time in simple charts"],["💳","Plan & Billing","Your plan, invoices, card, and secure cancellation"],["📞","Book a Call","Grab time with your dedicated manager anytime"]].map(([i,t,b],idx,arr)=>(
-            <div key={t} style={{display:"flex",gap:13,padding:"11px 4px",borderBottom:idx<arr.length-1?`1px solid ${T.line}`:"none",alignItems:"center"}}>
-              <div style={{width:36,height:36,borderRadius:11,background:T.surface2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,flexShrink:0}}>{i}</div>
-              <div><div style={{fontSize:13.5,fontWeight:800}}>{t}</div><div style={{fontSize:11.5,color:T.faint}}>{b}</div></div>
-            </div>))}
-        </div>
+        <Reveal delay={200}><div style={{textAlign:"center",marginTop:22,fontSize:12.5,color:T.faint,fontStyle:"italic"}}>Illustrative examples shown for demonstration.</div></Reveal>
       </div>
     </div>
 
-    {/* CTA band */}
-    <div style={{maxWidth:1180,margin:"0 auto",padding:isMobile?"20px":"20px 40px 60px"}}>
-      <div style={{background:`linear-gradient(135deg,${T.ink},#2A2A55)`,borderRadius:24,padding:isMobile?"34px 24px":"48px 54px",textAlign:"center",position:"relative",overflow:"hidden"}}>
-        <div style={{position:"absolute",top:-60,right:-40,width:220,height:220,borderRadius:"50%",background:"rgba(91,91,214,.3)",filter:"blur(50px)"}}/>
-        <div style={{position:"relative"}}>
-          <div style={{fontFamily:FONT_D,fontSize:isMobile?24:32,fontWeight:800,color:"#fff",letterSpacing:"-1px",marginBottom:12}}>Ready to be found everywhere?</div>
-          <div style={{fontSize:15,color:"#B8BBD4",marginBottom:24,maxWidth:480,margin:"0 auto 24px",lineHeight:1.6}}>Set up in minutes. Watch your listings go live and your visibility climb — all tracked in your dashboard.</div>
-          <Btn size="lg" onClick={go}>Get started →</Btn>
-        </div>
+    {/* ── Pricing teaser ── */}
+    <div style={{maxWidth:maxW,margin:"0 auto",padding:isMobile?"48px 20px":"80px 40px"}}>
+      <div style={{textAlign:"center",marginBottom:isMobile?30:44}}>
+        <Reveal><Eyebrow>Simple pricing</Eyebrow></Reveal>
+        <Reveal delay={80}><h2 style={{fontFamily:FONT_D,fontSize:isMobile?28:42,fontWeight:800,letterSpacing:"-1.2px",margin:"0 0 12px",lineHeight:1.1}}>One flat monthly price. No credits, no games.</h2></Reveal>
+        <Reveal delay={140}><p style={{fontSize:isMobile?15.5:17,color:T.sub,maxWidth:520,margin:"0 auto",lineHeight:1.6}}>Pick a plan and we get to work. Cancel anytime before your renewal.</p></Reveal>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:isMobile?16:22,maxWidth:960,margin:"0 auto"}}>
+        {[
+          {n:"Essentials",p:49,q:"10 listings a month",pop:false,f:["10 directory submissions monthly","NAP consistency management","Unauthorized edit protection","Live dashboard access"]},
+          {n:"Growth",p:89,q:"20 listings a month",pop:true,f:["20 directory submissions monthly","Everything in Essentials","Expanded directory coverage","Priority support"]},
+          {n:"GMB Pro",p:249,q:"20 listings + Google Profile",pop:false,f:["Everything in Growth","Google Business Profile management","Monthly posts & Q&A","Dedicated manager"]},
+        ].map((pl,i)=>(
+          <Reveal key={pl.n} delay={i*100}>
+            <div className="lift" style={{background:T.surface,borderRadius:20,padding:isMobile?26:30,border:pl.pop?`2px solid ${T.brand}`:`1px solid ${T.line}`,boxShadow:pl.pop?SHADOW_LG:SHADOW,position:"relative",height:"100%",display:"flex",flexDirection:"column"}}>
+              {pl.pop&&<div style={{position:"absolute",top:-12,left:"50%",transform:"translateX(-50%)",background:`linear-gradient(135deg,${T.brand},${T.violet})`,color:"#fff",fontSize:11,fontWeight:800,padding:"4px 16px",borderRadius:20,letterSpacing:".4px"}}>MOST POPULAR</div>}
+              <h3 style={{fontFamily:FONT_D,fontSize:19,fontWeight:800,margin:"0 0 4px"}}>{pl.n}</h3>
+              <div style={{margin:"6px 0 4px"}}><span style={{fontFamily:FONT_D,fontSize:44,fontWeight:800,letterSpacing:"-2px"}}>${pl.p}</span><span style={{fontSize:15,color:T.faint,fontWeight:600}}>/mo</span></div>
+              <div style={{fontSize:13.5,color:T.sub,fontWeight:700,marginBottom:18}}>{pl.q}</div>
+              <div style={{height:1,background:T.line,marginBottom:18}}/>
+              <div style={{flex:1}}>{pl.f.map(f=>(<div key={f} style={{display:"flex",gap:9,marginBottom:11,alignItems:"flex-start"}}><Ico d={<path d="M20 6 9 17l-5-5"/>} c={T.green} s={17}/><span style={{fontSize:13.5,color:T.sub,lineHeight:1.5}}>{f}</span></div>))}</div>
+              <Btn size="md" variant={pl.pop?"primary":"ghost"} style={{width:"100%",marginTop:18}} onClick={go}>Choose {pl.n}</Btn>
+            </div>
+          </Reveal>))}
       </div>
     </div>
 
-    {/* Footer */}
-    <div style={{borderTop:`1px solid ${T.line}`,padding:isMobile?"20px":"24px 40px"}}>
-      <div style={{maxWidth:1180,margin:"0 auto",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
-        <div style={{display:"flex",alignItems:"center",gap:9}}><MiniOrbit size={28}/><span style={{fontWeight:800,fontSize:14}}>Rank Orbit</span></div>
-        <div style={{fontSize:12,color:T.faint}}>© {new Date().getFullYear()} Rank Orbit · info@rankorbit.com</div>
-        <div style={{display:"flex",gap:16,fontSize:12.5}}>
+    {/* ── Final CTA ── */}
+    <div style={{maxWidth:maxW,margin:"0 auto",padding:isMobile?"20px 20px 56px":"20px 40px 80px"}}>
+      <Reveal>
+        <div style={{background:`linear-gradient(135deg,${T.brand},${T.violet})`,borderRadius:isMobile?24:32,padding:isMobile?"40px 26px":"64px 54px",textAlign:"center",position:"relative",overflow:"hidden"}}>
+          <div style={{position:"absolute",top:-80,right:-60,width:280,height:280,borderRadius:"50%",background:"rgba(255,255,255,.14)",filter:"blur(50px)"}}/>
+          <div style={{position:"absolute",bottom:-100,left:-40,width:260,height:260,borderRadius:"50%",background:"rgba(255,255,255,.1)",filter:"blur(50px)"}}/>
+          <div style={{position:"relative"}}>
+            <h2 style={{fontFamily:FONT_D,fontSize:isMobile?28:44,fontWeight:800,color:"#fff",letterSpacing:"-1.5px",margin:"0 0 14px",lineHeight:1.1}}>Ready to get found everywhere?</h2>
+            <p style={{fontSize:isMobile?16:18.5,color:"rgba(255,255,255,.9)",margin:"0 auto 28px",maxWidth:500,lineHeight:1.6}}>Set up in minutes. Watch your listings go live and the calls start coming. All tracked in one dashboard.</p>
+            <button onClick={go} style={{background:"#fff",color:T.brand,border:"none",borderRadius:14,padding:isMobile?"15px 32px":"17px 42px",fontSize:isMobile?16:18,fontWeight:800,cursor:"pointer",fontFamily:FONT_B,boxShadow:"0 12px 30px rgba(0,0,0,.2)"}}>Get started now</button>
+            <div style={{marginTop:16,fontSize:13.5,color:"rgba(255,255,255,.8)",fontWeight:600}}>No setup fees. Cancel anytime.</div>
+          </div>
+        </div>
+      </Reveal>
+    </div>
+
+    {/* ── Footer ── */}
+    <div style={{borderTop:`1px solid ${T.line}`,padding:isMobile?"26px 20px":"30px 40px"}}>
+      <div style={{maxWidth:maxW,margin:"0 auto",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:14}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}><MiniOrbit size={30}/><span style={{fontWeight:800,fontSize:15,fontFamily:FONT_D}}>Rank Orbit</span></div>
+        <div style={{fontSize:13,color:T.faint}}>© {new Date().getFullYear()} Rank Orbit. All rights reserved.</div>
+        <div style={{display:"flex",gap:18,fontSize:13.5}}>
           <button onClick={go} style={{background:"none",border:"none",color:T.sub,cursor:"pointer",fontFamily:FONT_B,fontWeight:700}}>Client login</button>
           <button onClick={()=>nav("/admin")} style={{background:"none",border:"none",color:T.sub,cursor:"pointer",fontFamily:FONT_B,fontWeight:700}}>Staff login</button>
         </div>
@@ -2145,7 +2299,6 @@ function LandingPage(){
   </div>);
 }
 
-// Client portal at /login. Logged-in clients see their dashboard; staff get bounced to /admin.
 function ClientPortal({user,data,reload,onLogin,onLogout}){
   const nav=useNavigate();
   if(user&&STAFF_ROLES.includes(user.role))return <Navigate to="/admin" replace/>;
