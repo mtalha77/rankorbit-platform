@@ -2084,8 +2084,8 @@ function LandingPage(){
 
     {/* ── Hero ── */}
     <div style={{position:"relative"}}>
-      <div style={{position:"absolute",top:-140,left:"-8%",width:460,height:460,borderRadius:"50%",background:T.brandSoft,filter:"blur(80px)",opacity:.7,animation:"blob 18s ease-in-out infinite"}}/>
-      <div style={{position:"absolute",top:80,right:"-8%",width:400,height:400,borderRadius:"50%",background:T.greenSoft,filter:"blur(80px)",opacity:.6,animation:"blob 22s ease-in-out infinite reverse"}}/>
+      <div style={{position:"absolute",top:-140,left:"-8%",width:460,height:460,borderRadius:"50%",background:T.brandSoft,filter:"blur(60px)",opacity:.7,animation:"blob 18s ease-in-out infinite"}}/>
+      <div style={{position:"absolute",top:80,right:"-8%",width:400,height:400,borderRadius:"50%",background:T.greenSoft,filter:"blur(60px)",opacity:.6,animation:"blob 22s ease-in-out infinite reverse"}}/>
       <div style={{position:"relative",maxWidth:maxW,margin:"0 auto",padding:isMobile?"44px 20px 34px":"72px 40px 54px",textAlign:"center"}}>
         <Reveal><Eyebrow><span style={{width:8,height:8,borderRadius:"50%",background:T.green,animation:"pulseDot 2s infinite"}}/>Built for local service businesses</Eyebrow></Reveal>
         <Reveal delay={80}>
