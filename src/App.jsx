@@ -784,13 +784,90 @@ function ClientDashboard({user,data,reload,onLogout}){
     <div style={{fontSize:12,color:T.sub,marginTop:3}}>Pick a plan on the Billing page to get started.</div>
   </div>);
 
+  // Single headline metric: blends coverage, NAP consistency, and live ratio into one 0-100 score.
+  const visScore=(()=>{
+    const coverage=Math.min(100,(live/60)*100);
+    const nap=user.napScore||0;
+    const liveRatio=my.length?(live/my.length)*100:0;
+    return Math.round(coverage*0.4+nap*0.4+liveRatio*0.2);
+  })();
+  const visLabel=visScore>=75?"Excellent":visScore>=50?"Good":visScore>=25?"Building":"Getting started";
+  const visColor=visScore>=75?T.green:visScore>=50?T.brand:visScore>=25?T.amber:T.faint;
+  // Onboarding checklist: guides brand-new clients through first setup steps.
+  const steps=[
+    {done:!!user.plan,label:"Choose your plan",action:()=>setPage("billing")},
+    {done:!!(user.businessName&&user.phone&&user.city),label:"Complete your business profile",action:()=>setPage("call")},
+    {done:my.length>0,label:"First listings submitted",action:()=>setPage("listings")},
+    {done:live>0,label:"First listing goes live",action:()=>setPage("listings")},
+  ];
+  const stepsDone=steps.filter(s=>s.done).length;
+  const onboardComplete=stepsDone===steps.length;
+
+  const recentNotifs=myAct.slice(0,6);
+  const[notifOpen,setNotifOpen]=useState(false);
+  const NotifBell=()=>(
+    <div style={{position:"relative"}}>
+      <button onClick={()=>setNotifOpen(o=>!o)} style={{position:"relative",width:38,height:38,borderRadius:11,background:T.surface,border:`1.5px solid ${T.line}`,cursor:"pointer",fontSize:16}}>🔔
+        {recentNotifs.length>0&&<span style={{position:"absolute",top:-4,right:-4,background:T.red,color:"#fff",borderRadius:10,fontSize:9.5,fontWeight:800,minWidth:16,height:16,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 4px"}}>{recentNotifs.length}</span>}
+      </button>
+      {notifOpen&&(<><div style={{position:"fixed",inset:0,zIndex:80}} onClick={()=>setNotifOpen(false)}/>
+        <div className="pop" style={{position:"absolute",top:46,right:0,width:300,background:T.surface,borderRadius:14,boxShadow:SHADOW_LG,border:`1px solid ${T.line}`,zIndex:90,overflow:"hidden"}}>
+          <div style={{padding:"12px 15px",borderBottom:`1px solid ${T.line}`,fontSize:13,fontWeight:800,fontFamily:FONT_D}}>Notifications</div>
+          <div style={{maxHeight:300,overflowY:"auto"}}>
+            {recentNotifs.length===0?<div style={{padding:"22px 15px",textAlign:"center",fontSize:12.5,color:T.faint}}>You're all caught up ✨</div>:
+              recentNotifs.map(a=>(<div key={a.id} style={{display:"flex",gap:10,padding:"11px 15px",borderBottom:`1px solid ${T.line}`,alignItems:"flex-start"}}>
+                <span style={{fontSize:15}}>{actIcon(a.type)}</span>
+                <div><div style={{fontSize:12.5,fontWeight:600,lineHeight:1.4}}>{a.desc}</div><div style={{fontSize:10.5,color:T.faint,marginTop:2}}>{a.date}</div></div>
+              </div>))}
+          </div>
+        </div></>)}
+    </div>
+  );
+
   const Home=()=>(<div>
     <PageHead isMobile={isMobile} title={`${greet}, ${(user.name||"there").split(" ")[0]} 👋`} sub={`Here's what we're doing for ${user.businessName||"your business"} right now`}
-      right={<Btn variant="soft" size="sm" onClick={()=>setPage("call")}>📞 Talk to your BDM</Btn>}/>
+      right={<div style={{display:"flex",gap:10,alignItems:"center"}}><NotifBell/><Btn variant="soft" size="sm" onClick={()=>setPage("call")}>📞 Talk to your BDM</Btn></div>}/>
     {!user.plan&&(<Card style={{marginBottom:18,background:`linear-gradient(135deg,${T.brandSoft},#fff)`,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
       <div><div style={{fontFamily:FONT_D,fontSize:16,fontWeight:800}}>Welcome to Rank Orbit 🚀</div><div style={{fontSize:13,color:T.sub,marginTop:3}}>Choose a plan to start getting listed, or your account manager will set you up after your call.</div></div>
       <Btn onClick={()=>setPage("billing")}>Choose a plan</Btn>
     </Card>)}
+    {/* Visibility Score hero + onboarding checklist */}
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":onboardComplete?"1fr":"1.3fr 1fr",gap:16,marginBottom:22}}>
+      <Card className="fadeUp" style={{background:`linear-gradient(135deg,${visColor}18,#fff)`,display:"flex",alignItems:"center",gap:22,flexWrap:"wrap"}}>
+        <div style={{position:"relative",width:118,height:118,flexShrink:0}}>
+          <svg width="118" height="118" viewBox="0 0 118 118">
+            <circle cx="59" cy="59" r="50" fill="none" stroke={T.line} strokeWidth="11"/>
+            <circle cx="59" cy="59" r="50" fill="none" stroke={visColor} strokeWidth="11" strokeLinecap="round"
+              strokeDasharray={`${2*Math.PI*50}`} strokeDashoffset={`${2*Math.PI*50*(1-visScore/100)}`}
+              transform="rotate(-90 59 59)" style={{transition:"stroke-dashoffset 1.2s cubic-bezier(.22,.8,.36,1)"}}/>
+          </svg>
+          <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+            <div style={{fontFamily:FONT_D,fontSize:32,fontWeight:800,color:visColor,lineHeight:1}}>{visScore}</div>
+            <div style={{fontSize:9.5,color:T.faint,fontWeight:700,letterSpacing:".5px"}}>/ 100</div>
+          </div>
+        </div>
+        <div style={{flex:1,minWidth:150}}>
+          <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".8px",marginBottom:5}}>YOUR VISIBILITY SCORE</div>
+          <div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800,color:visColor,marginBottom:6}}>{visLabel}</div>
+          <div style={{fontSize:12.5,color:T.sub,lineHeight:1.55}}>One number for your online health — it blends how many directories you're on, how consistent your info is, and how many listings are live. It climbs as we work.</div>
+        </div>
+      </Card>
+      {!onboardComplete&&(<Card className="fadeUp" style={{animationDelay:"80ms"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div style={{fontSize:13.5,fontWeight:800,fontFamily:FONT_D}}>Getting Started</div>
+          <div style={{fontSize:12,fontWeight:800,color:T.brand}}>{stepsDone}/{steps.length}</div>
+        </div>
+        <div style={{height:6,background:T.surface2,borderRadius:4,overflow:"hidden",marginBottom:14}}>
+          <div style={{width:`${(stepsDone/steps.length)*100}%`,height:"100%",background:`linear-gradient(90deg,${T.brand},${T.green})`,transition:"width .6s"}}/>
+        </div>
+        {steps.map((s,i)=>(
+          <div key={i} onClick={s.done?undefined:s.action} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",cursor:s.done?"default":"pointer",opacity:s.done?.7:1}}>
+            <div style={{width:20,height:20,borderRadius:"50%",flexShrink:0,background:s.done?T.green:T.surface2,border:s.done?"none":`1.5px solid ${T.line}`,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800}}>{s.done?"✓":i+1}</div>
+            <span style={{fontSize:13,color:s.done?T.faint:T.ink,fontWeight:s.done?500:700,textDecoration:s.done?"line-through":"none"}}>{s.label}</span>
+            {!s.done&&<span style={{marginLeft:"auto",fontSize:11,color:T.brand,fontWeight:700}}>→</span>}
+          </div>))}
+      </Card>)}
+    </div>
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:14,marginBottom:22}}>
       <StatCard label="Listings Live" value={live} sub={`${pending} pending approval`} icon="🟢" color={T.green} soft={T.greenSoft} trend={live>0?12:null} delay={0}/>
       <StatCard label="NAP Score" value={`${user.napScore||0}%`} sub="Info matches everywhere" icon="✅" delay={80}/>
