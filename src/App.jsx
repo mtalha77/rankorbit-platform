@@ -274,7 +274,16 @@ const api={
     LSet("ro3_audit",[row,...(LS("ro3_audit")||[])]);
   },
   async upsertProfile(u){
-    if(supa){const{error}=await supa.from("profiles").upsert(u);if(error)console.error(error);return;}
+    if(supa){
+      // Existing profiles → UPDATE (RLS allows self-update); new rows → INSERT.
+      // upsert() trips the INSERT policy for clients, so branch explicitly.
+      const{data:exists}=await supa.from("profiles").select("id").eq("id",u.id).maybeSingle();
+      const{error}=exists
+        ? await supa.from("profiles").update(u).eq("id",u.id)
+        : await supa.from("profiles").insert(u);
+      if(error){console.error("upsertProfile:",error.message);throw error;}
+      return;
+    }
     const us=LS("ro3_users")||[];const i=us.findIndex(x=>x.id===u.id);
     if(i>=0)us[i]=u;else us.push(u);LSet("ro3_users",us);
   },
