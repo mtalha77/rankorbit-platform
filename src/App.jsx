@@ -745,15 +745,24 @@ const PageHead=({title,sub,right,isMobile})=>(
 function ClientDashboard({user,data,reload,onLogout}){
   const[page,setPage]=useState("home");
   const[toast,Toasts]=useToast();
+  const[showManual,setShowManual]=useState(false);
   const w=useWindowSize();const isMobile=w<820;
+  // First-login user manual: show once, then remember (per-user, this browser).
+  useEffect(()=>{
+    try{const key="ro_manual_seen_"+user.id;if(!localStorage.getItem(key)){setShowManual(true);localStorage.setItem(key,"1");}}catch{}
+  },[user.id]);
   const my=data.listings[user.id]||[];
   const myGmb=data.gmb[user.id];
   const myAnalytics=data.analytics[user.id];
   const myAct=data.activity.filter(a=>a.clientId===user.id);
   const settings=data.settings;
+  const cfg=settings?.config||{};
+  // Client-visible prices honor the super-admin control-panel overrides, falling back to defaults.
+  const priceOf=(id)=>{const m={essentials:"priceEssentials",growth:"priceGrowth",gmb:"priceGmb"};const v=cfg[m[id]];return v!=null&&v!==""?Number(v):PLANS[id]?.price;};
+  const PLANSV=Object.fromEntries(Object.entries(PLANS).map(([id,p])=>[id,{...p,price:priceOf(id)}]));
   const live=my.filter(l=>l.status==="live").length;
   const pending=my.filter(l=>l.status==="pending").length;
-  const plan=PLANS[user.plan]||PLANS.essentials;
+  const plan=PLANSV[user.plan]||PLANSV.essentials;
   const hour=new Date().getHours();
   const greet=hour<12?"Good morning":hour<17?"Good afternoon":"Good evening";
   const nav=[
@@ -995,7 +1004,7 @@ function ClientDashboard({user,data,reload,onLogout}){
       </div>)}
       <SectionTitle sub="Pick a plan to start, or upgrade anytime — secure checkout via Stripe">{user.plan?"Change Plan":"Choose Your Plan"}</SectionTitle>
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:14}}>
-        {Object.entries(PLANS).map(([id,p],i)=>{
+        {Object.entries(PLANSV).map(([id,p],i)=>{
           const current=id===user.plan;
           return(<div key={id} className="fadeUp hoverCard" style={{animationDelay:`${i*90}ms`,background:T.surface,border:`2px solid ${current?p.color:T.line}`,borderRadius:18,padding:22,position:"relative",boxShadow:current?SHADOW_LG:SHADOW}}>
             {current&&<div style={{position:"absolute",top:-11,left:"50%",transform:"translateX(-50%)",background:p.color,color:"#fff",fontSize:10,fontWeight:800,padding:"3px 13px",borderRadius:20}}>CURRENT PLAN</div>}
@@ -1177,7 +1186,47 @@ function ClientDashboard({user,data,reload,onLogout}){
     {page==="billing"&&<Billing/>}
     {page==="call"&&<CallPage/>}
     {page==="legal"&&<LegalPage/>}
-  </Shell><Toasts/></>);
+  </Shell>
+  {/* Floating Help button — reopens the user manual anytime */}
+  <button onClick={()=>setShowManual(true)} title="How to use your dashboard" style={{position:"fixed",bottom:isMobile?18:24,right:isMobile?18:24,zIndex:900,background:`linear-gradient(135deg,${T.brand},${T.violet})`,color:"#fff",border:"none",borderRadius:isMobile?"50%":24,width:isMobile?52:"auto",height:52,padding:isMobile?0:"0 20px",boxShadow:SHADOW_LG,cursor:"pointer",fontFamily:FONT_B,fontSize:14,fontWeight:800,display:"flex",alignItems:"center",gap:8}}>
+    <span style={{fontSize:18}}>?</span>{!isMobile&&<span>Help</span>}
+  </button>
+  {showManual&&<UserManual user={user} plan={plan} onClose={()=>setShowManual(false)} goTo={(p)=>{setPage(p);setShowManual(false);}}/>}
+  <Toasts/></>);
+}
+
+// First-login user manual + Help-button guide. Explains each section in plain language.
+function UserManual({user,plan,onClose,goTo}){
+  const sections=[
+    {icon:"🏠",name:"Home",page:"home",body:"Your starting point. See how many listings are live, pending, or need your attention, plus your overall visibility score. Check here first each time."},
+    {icon:"📋",name:"Listings",page:"listings",body:"Every directory we're working on for you, its current status (live, pending, flagged), and a link to view the live listing. Anything marked \"action needed\" means we need something from you to continue."},
+    {icon:"📍",name:"GMB Management",page:"gmb",body:plan?.name==="GMB Pro"?"Your Google Business Profile stats — views, calls, directions — plus the posts and Q&A we manage for you.":"Available on the GMB Pro plan. Upgrade any time to unlock full Google Business Profile management."},
+    {icon:"📈",name:"Analytics",page:"analytics",body:"Your growth over time in simple charts — how your live listings and visibility have improved month over month."},
+    {icon:"💳",name:"Plan & Billing",page:"billing",body:"Your current plan, next charge, invoice history with your card, and secure card management. Cancel here anytime — you keep access until your period ends. You can also download all your data."},
+    {icon:"📞",name:"Book a Call",page:"call",body:"Grab a 30-minute slot with your dedicated Business Development Manager whenever you want to talk strategy or ask questions."},
+    {icon:"📄",name:"Terms & Privacy",page:"legal",body:"Our Terms of Service and Privacy Policy — including how billing, cancellation, and your data are handled."},
+  ];
+  return(<Modal open onClose={onClose} title="👋 Welcome to your dashboard" width={620}>
+    <div style={{fontSize:13.5,color:T.sub,lineHeight:1.6,marginBottom:18}}>
+      Hi {user.name?.split(" ")[0]||"there"}! Here's a quick tour of everything in your Rank Orbit dashboard and what each section does. You can reopen this anytime with the <b>Help</b> button.
+    </div>
+    <div style={{display:"flex",flexDirection:"column",gap:2}}>
+      {sections.map((s)=>(
+        <div key={s.name} onClick={()=>goTo(s.page)} className="hoverRow" style={{display:"flex",gap:14,padding:"13px 10px",borderRadius:12,cursor:"pointer",alignItems:"flex-start",borderBottom:`1px solid ${T.line}`}}>
+          <div style={{width:38,height:38,borderRadius:11,background:T.brandSoft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{s.icon}</div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:14,fontWeight:800,fontFamily:FONT_D,display:"flex",alignItems:"center",gap:7}}>{s.name}<span style={{fontSize:11,color:T.brand,fontWeight:700}}>Open →</span></div>
+            <div style={{fontSize:12.5,color:T.sub,lineHeight:1.55,marginTop:3}}>{s.body}</div>
+          </div>
+        </div>))}
+    </div>
+    <div style={{marginTop:18,padding:"13px 15px",background:T.greenSoft,borderRadius:12,fontSize:12.5,color:T.green,lineHeight:1.55}}>
+      <b>Tip:</b> Look for the amber <b>"action needed"</b> flags — those are the only times we need something from you. Everything else, we handle.
+    </div>
+    <div style={{display:"flex",justifyContent:"flex-end",marginTop:18}}>
+      <Btn onClick={onClose}>Got it, let's go →</Btn>
+    </div>
+  </Modal>);
 }
 
 // ─── ADMIN DASHBOARD ─────────────────────────────────────────────────────────
@@ -1765,13 +1814,61 @@ function AdminDashboard({user,data,reload,onLogout}){
   };
 
   const Settings=()=>{
-    const s={essentials:"",growth:"",gmb:"",pubKey:"",secretKey:"",webhookSecret:"",...(settings?.stripe||{})};
+    const s={essentials:"",growth:"",gmb:"",pubKey:"",secretKey:"",webhookSecret:"",portalLink:"",...(settings?.stripe||{})};
     const[f,setF]=useState(s);
     const set=(k,v)=>setF(x=>({...x,[k]:v}));
+    // Control-panel config: notification emails, report recipients, prices, toggles. UI-editable, DB-stored.
+    const cfg0={
+      notifyEmail:"info@rankorbit.com",
+      reportEmails:"info@rankorbit.com, rankorbit@gmail.com",
+      priceEssentials:PLANS.essentials.price, priceGrowth:PLANS.growth.price, priceGmb:PLANS.gmb.price,
+      notifySignup:true, notifyCancel:true, notifyPlanChange:true, notifyAgentEdit:true, monthlyReport:true,
+      allowSignups:true,
+      ...(settings?.config||{})
+    };
+    const[c,setC]=useState(cfg0);
+    const setCfg=(k,v)=>setC(x=>({...x,[k]:v}));
     const webhookUrl=(typeof window!=="undefined"?window.location.origin:"https://rankorbit-platform.vercel.app")+"/api/stripe-webhook";
     const stripeLive=!!(s.secretKey&&s.webhookSecret&&s.essentials);
+    const Toggle=({label,k,sub})=>(
+      <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"11px 0",borderBottom:`1px solid ${T.line}`,cursor:"pointer"}}>
+        <div><div style={{fontSize:13,fontWeight:600,color:T.ink}}>{label}</div>{sub&&<div style={{fontSize:11,color:T.faint,marginTop:2}}>{sub}</div>}</div>
+        <input type="checkbox" checked={!!c[k]} onChange={e=>setCfg(k,e.target.checked)} style={{width:17,height:17,accentColor:T.brand,flexShrink:0}}/>
+      </label>
+    );
     return(<div>
-      <PageHead isMobile={isMobile} title="Settings" sub="Payment links and platform configuration"/>
+      <PageHead isMobile={isMobile} title="Settings" sub="Control panel, payments, and platform configuration"/>
+
+      <Card style={{marginBottom:16}}>
+        <SectionTitle sub="Change these anytime — no developer needed. Saved to your database and applied across the platform.">Control Panel</SectionTitle>
+        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16}}>
+          <div>
+            <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:10}}>NOTIFICATION EMAILS</div>
+            <Input label="Event notifications to" value={c.notifyEmail} onChange={v=>setCfg("notifyEmail",v)} placeholder="info@rankorbit.com"/>
+            <Input label="Monthly report recipients (comma-separated)" value={c.reportEmails} onChange={v=>setCfg("reportEmails",v)} placeholder="info@rankorbit.com, rankorbit@gmail.com"/>
+          </div>
+          <div>
+            <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:10}}>PLAN PRICES ($ / month)</div>
+            <div style={{display:"flex",gap:8}}>
+              <Input label="Essentials" type="number" value={c.priceEssentials} onChange={v=>setCfg("priceEssentials",v)}/>
+              <Input label="Growth" type="number" value={c.priceGrowth} onChange={v=>setCfg("priceGrowth",v)}/>
+              <Input label="GMB Pro" type="number" value={c.priceGmb} onChange={v=>setCfg("priceGmb",v)}/>
+            </div>
+            <div style={{fontSize:11,color:T.faint,lineHeight:1.5,marginTop:2}}>Note: these update what clients see. Your actual Stripe charge is set by the Payment Link — keep them in sync.</div>
+          </div>
+        </div>
+        <div style={{marginTop:16}}>
+          <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:4}}>NOTIFICATIONS & TOGGLES</div>
+          <Toggle label="Email on new signup" k="notifySignup"/>
+          <Toggle label="Email on cancellation" k="notifyCancel"/>
+          <Toggle label="Email on plan change" k="notifyPlanChange"/>
+          <Toggle label="Alert managers when an agent edits/deletes a listing" k="notifyAgentEdit"/>
+          <Toggle label="Send monthly finance report" k="monthlyReport" sub="Signups, revenue, cancellations to report recipients"/>
+          <Toggle label="Allow public client signups" k="allowSignups" sub="Turn off to make the platform invite-only"/>
+        </div>
+        <Btn style={{marginTop:16}} onClick={()=>R(async()=>{await api.saveSettings({...settings,stripe:f,config:c});await audit("settings.update",{targetType:"settings",detail:"control panel"});},"Control panel saved")}>Save Control Panel</Btn>
+      </Card>
+
       <Card style={{marginBottom:16}}>
         <SectionTitle sub="Paste one recurring Payment Link per plan. Client Subscribe/Upgrade buttons open these with the client tagged, so the webhook can auto-activate their plan after payment.">Stripe Payment Links</SectionTitle>
         <div style={{padding:"14px 16px",background:T.blueSoft,borderRadius:12,marginBottom:18,fontSize:12.5,color:T.blue,lineHeight:1.7}}>
@@ -1844,12 +1941,140 @@ const Loading=({label="Loading platform…"})=>(
 );
 
 // Client portal at /login. Redirects staff who land here to /admin.
+// ─── MARKETING LANDING PAGE (public, at /) ───────────────────────────────────
+function LandingPage(){
+  const nav=useNavigate();
+  const w=useWindowSize();const isMobile=w<820;
+  const go=()=>nav("/login");
+  const Feature=({icon,title,body})=>(
+    <div className="fadeUp" style={{background:T.surface,border:`1px solid ${T.line}`,borderRadius:16,padding:22,boxShadow:SHADOW}}>
+      <div style={{width:44,height:44,borderRadius:13,background:T.brandSoft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:21,marginBottom:12}}>{icon}</div>
+      <div style={{fontFamily:FONT_D,fontSize:15.5,fontWeight:800,marginBottom:6}}>{title}</div>
+      <div style={{fontSize:13,color:T.sub,lineHeight:1.6}}>{body}</div>
+    </div>
+  );
+  const Step=({n,title,body})=>(
+    <div style={{display:"flex",gap:14,alignItems:"flex-start"}}>
+      <div style={{width:34,height:34,borderRadius:"50%",background:`linear-gradient(135deg,${T.brand},${T.violet})`,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:15,flexShrink:0,fontFamily:FONT_D}}>{n}</div>
+      <div><div style={{fontSize:14.5,fontWeight:800,fontFamily:FONT_D,marginBottom:3}}>{title}</div><div style={{fontSize:13,color:T.sub,lineHeight:1.6}}>{body}</div></div>
+    </div>
+  );
+  return(<div style={{minHeight:"100vh",background:T.bg,fontFamily:FONT_B,color:T.ink}}>
+    {/* Nav */}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:isMobile?"16px 20px":"20px 40px",maxWidth:1180,margin:"0 auto"}}>
+      <div style={{display:"flex",alignItems:"center",gap:11}}>
+        <MiniOrbit size={38}/>
+        <div style={{fontFamily:FONT_D,fontSize:20,fontWeight:800,letterSpacing:"-.5px"}}>Rank <span style={{color:T.brand}}>Orbit</span></div>
+      </div>
+      <div style={{display:"flex",gap:10,alignItems:"center"}}>
+        <button onClick={go} style={{background:"none",border:"none",color:T.sub,fontSize:13.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>Sign in</button>
+        <Btn size="sm" onClick={go}>Get started →</Btn>
+      </div>
+    </div>
+
+    {/* Hero */}
+    <div style={{position:"relative",overflow:"hidden"}}>
+      <div style={{position:"absolute",top:-120,left:"-6%",width:420,height:420,borderRadius:"50%",background:T.brandSoft,filter:"blur(70px)",animation:"blob 16s ease-in-out infinite"}}/>
+      <div style={{position:"absolute",top:40,right:"-6%",width:360,height:360,borderRadius:"50%",background:T.greenSoft,filter:"blur(70px)",animation:"blob 20s ease-in-out infinite reverse"}}/>
+      <div style={{position:"relative",maxWidth:1180,margin:"0 auto",padding:isMobile?"40px 20px 30px":"70px 40px 50px",display:"flex",gap:40,alignItems:"center",flexDirection:isMobile?"column":"row"}}>
+        <div style={{flex:1}}>
+          <div style={{display:"inline-flex",alignItems:"center",gap:7,padding:"6px 13px",background:T.surface,border:`1px solid ${T.line}`,borderRadius:20,fontSize:12,fontWeight:700,color:T.brand,marginBottom:18,boxShadow:SHADOW}}>
+            <span style={{width:7,height:7,borderRadius:"50%",background:T.green}}/> Trusted by local businesses
+          </div>
+          <div style={{fontFamily:FONT_D,fontSize:isMobile?32:46,fontWeight:800,lineHeight:1.1,letterSpacing:"-1.5px",marginBottom:16}}>
+            Get your business <span style={{color:T.brand}}>listed & protected</span> everywhere customers search.
+          </div>
+          <div style={{fontSize:isMobile?15:17,color:T.sub,lineHeight:1.6,marginBottom:26,maxWidth:520}}>
+            Rank Orbit puts your business on the directories that matter, keeps your name, address and phone consistent everywhere, and reverses unauthorized edits — all from one simple dashboard.
+          </div>
+          <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+            <Btn size="lg" onClick={go}>Start now →</Btn>
+            <Btn size="lg" variant="ghost" onClick={()=>document.getElementById("how")?.scrollIntoView({behavior:"smooth"})}>See how it works</Btn>
+          </div>
+          <div style={{marginTop:20,fontSize:12.5,color:T.faint}}>No setup fees · Cancel anytime · Live dashboard from day one</div>
+        </div>
+        <div style={{flex:1,width:"100%"}}>
+          <div className="pop" style={{background:T.surface,borderRadius:20,padding:20,boxShadow:SHADOW_LG,border:`1px solid ${T.line}`}}>
+            <div style={{display:"flex",gap:8,marginBottom:14}}>{[T.red,T.amber,T.green].map(c=><div key={c} style={{width:11,height:11,borderRadius:"50%",background:c}}/>)}</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
+              {[["Live","42",T.green],["Pending","6",T.amber],["NAP","96%",T.brand]].map(([l,v,c])=>(
+                <div key={l} style={{background:T.surface2,borderRadius:12,padding:"13px 10px",textAlign:"center"}}>
+                  <div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800,color:c}}>{v}</div>
+                  <div style={{fontSize:10,color:T.faint,fontWeight:700,letterSpacing:".5px",marginTop:2}}>{l.toUpperCase()}</div>
+                </div>))}
+            </div>
+            <div style={{height:8,background:T.surface2,borderRadius:6,overflow:"hidden",marginBottom:8}}><div style={{width:"84%",height:"100%",background:`linear-gradient(90deg,${T.brand},${T.green})`}}/></div>
+            <div style={{fontSize:11.5,color:T.sub}}>Visibility score climbing — 84% this month</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {/* Value props */}
+    <div style={{maxWidth:1180,margin:"0 auto",padding:isMobile?"20px":"30px 40px"}}>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:16}}>
+        <Feature icon="🌐" title="Listed everywhere" body="We submit and manage your business across the directories customers actually use — new listings every month."/>
+        <Feature icon="🔄" title="NAP stays consistent" body="Your Name, Address & Phone kept identical across every platform, so search engines trust and rank you."/>
+        <Feature icon="🛡️" title="Edits caught & reverted" body="When Google or Apple auto-applies a bad 'suggested edit', we catch it and change it back. You stay in control."/>
+      </div>
+    </div>
+
+    {/* Dashboard explainer */}
+    <div id="how" style={{maxWidth:1180,margin:"0 auto",padding:isMobile?"30px 20px":"50px 40px"}}>
+      <div style={{textAlign:"center",marginBottom:34}}>
+        <div style={{fontFamily:FONT_D,fontSize:isMobile?26:34,fontWeight:800,letterSpacing:"-1px",marginBottom:10}}>One dashboard. Total visibility.</div>
+        <div style={{fontSize:15,color:T.sub,maxWidth:560,margin:"0 auto",lineHeight:1.6}}>Everything you need to see how your business is showing up online — in plain language, no jargon.</div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:isMobile?24:40,alignItems:"center"}}>
+        <div style={{display:"flex",flexDirection:"column",gap:20}}>
+          <Step n="1" title="See every listing at a glance" body="Your Home screen shows how many listings are live, pending, and need attention — updated as we work."/>
+          <Step n="2" title="Track your visibility score" body="A single number that shows your online health, climbing as we get you listed and keep everything consistent."/>
+          <Step n="3" title="Know what needs you" body="If a directory needs a verification code or action from you, we flag it clearly so nothing stalls."/>
+          <Step n="4" title="GMB & analytics (Pro)" body="On GMB Pro, see your Google Business Profile views, calls and directions — and we manage your posts and Q&A."/>
+        </div>
+        <div className="pop" style={{background:T.surface,borderRadius:20,padding:22,boxShadow:SHADOW_LG,border:`1px solid ${T.line}`}}>
+          {[["🏠","Home","Live/pending listings, visibility score, what needs action"],["📋","Listings","Every directory, its status, and live links"],["📈","Analytics","Your growth over time in simple charts"],["💳","Plan & Billing","Your plan, invoices, card, and secure cancellation"],["📞","Book a Call","Grab time with your dedicated manager anytime"]].map(([i,t,b],idx,arr)=>(
+            <div key={t} style={{display:"flex",gap:13,padding:"11px 4px",borderBottom:idx<arr.length-1?`1px solid ${T.line}`:"none",alignItems:"center"}}>
+              <div style={{width:36,height:36,borderRadius:11,background:T.surface2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,flexShrink:0}}>{i}</div>
+              <div><div style={{fontSize:13.5,fontWeight:800}}>{t}</div><div style={{fontSize:11.5,color:T.faint}}>{b}</div></div>
+            </div>))}
+        </div>
+      </div>
+    </div>
+
+    {/* CTA band */}
+    <div style={{maxWidth:1180,margin:"0 auto",padding:isMobile?"20px":"20px 40px 60px"}}>
+      <div style={{background:`linear-gradient(135deg,${T.ink},#2A2A55)`,borderRadius:24,padding:isMobile?"34px 24px":"48px 54px",textAlign:"center",position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",top:-60,right:-40,width:220,height:220,borderRadius:"50%",background:"rgba(91,91,214,.3)",filter:"blur(50px)"}}/>
+        <div style={{position:"relative"}}>
+          <div style={{fontFamily:FONT_D,fontSize:isMobile?24:32,fontWeight:800,color:"#fff",letterSpacing:"-1px",marginBottom:12}}>Ready to be found everywhere?</div>
+          <div style={{fontSize:15,color:"#B8BBD4",marginBottom:24,maxWidth:480,margin:"0 auto 24px",lineHeight:1.6}}>Set up in minutes. Watch your listings go live and your visibility climb — all tracked in your dashboard.</div>
+          <Btn size="lg" onClick={go}>Get started →</Btn>
+        </div>
+      </div>
+    </div>
+
+    {/* Footer */}
+    <div style={{borderTop:`1px solid ${T.line}`,padding:isMobile?"20px":"24px 40px"}}>
+      <div style={{maxWidth:1180,margin:"0 auto",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
+        <div style={{display:"flex",alignItems:"center",gap:9}}><MiniOrbit size={28}/><span style={{fontWeight:800,fontSize:14}}>Rank Orbit</span></div>
+        <div style={{fontSize:12,color:T.faint}}>© {new Date().getFullYear()} Rank Orbit · info@rankorbit.com</div>
+        <div style={{display:"flex",gap:16,fontSize:12.5}}>
+          <button onClick={go} style={{background:"none",border:"none",color:T.sub,cursor:"pointer",fontFamily:FONT_B,fontWeight:700}}>Client login</button>
+          <button onClick={()=>nav("/admin")} style={{background:"none",border:"none",color:T.sub,cursor:"pointer",fontFamily:FONT_B,fontWeight:700}}>Staff login</button>
+        </div>
+      </div>
+    </div>
+  </div>);
+}
+
+// Client portal at /login. Logged-in clients see their dashboard; staff get bounced to /admin.
 function ClientPortal({user,data,reload,onLogin,onLogout}){
   const nav=useNavigate();
   if(user&&STAFF_ROLES.includes(user.role))return <Navigate to="/admin" replace/>;
   if(!user)return <AuthScreen portal="client" onLogin={async(u)=>{await onLogin(u);}}/>;
   if(!data)return <Loading label="Loading your dashboard…"/>;
-  return <ClientDashboard user={user} data={data} reload={reload} onLogout={async()=>{await onLogout();nav("/login");}}/>;
+  return <ClientDashboard user={user} data={data} reload={reload} onLogout={async()=>{await onLogout();nav("/");}}/>;
 }
 
 // Staff portal at /admin. Redirects clients who land here to /login.
@@ -1859,6 +2084,13 @@ function StaffPortal({user,data,reload,onLogin,onLogout}){
   if(!user)return <AuthScreen portal="staff" onLogin={async(u)=>{await onLogin(u);}}/>;
   if(!data)return <Loading label="Loading admin…"/>;
   return <AdminDashboard user={user} data={data} reload={reload} onLogout={async()=>{await onLogout();nav("/admin");}}/>;
+}
+
+// Landing at /. If already signed in, go straight to the right dashboard.
+function LandingRoute({user}){
+  if(user&&STAFF_ROLES.includes(user.role))return <Navigate to="/admin" replace/>;
+  if(user)return <Navigate to="/login" replace/>;
+  return <LandingPage/>;
 }
 
 export default function App(){
@@ -1874,9 +2106,10 @@ export default function App(){
   return(<><GlobalStyle/>
     <BrowserRouter>
       <Routes>
+        <Route path="/" element={<LandingRoute user={currentUser}/>}/>
         <Route path="/login" element={<ClientPortal {...shared}/>}/>
         <Route path="/admin" element={<StaffPortal {...shared}/>}/>
-        <Route path="*" element={<Navigate to="/login" replace/>}/>
+        <Route path="*" element={<Navigate to="/" replace/>}/>
       </Routes>
     </BrowserRouter>
   </>);
