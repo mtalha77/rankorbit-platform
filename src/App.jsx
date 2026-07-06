@@ -2366,9 +2366,17 @@ export default function App(){
     if(!supa)return;
     const{data:{subscription}}=supa.auth.onAuthStateChange(async(event,session)=>{
       if((event==="SIGNED_IN"||event==="INITIAL_SESSION")&&session){
-        const{data:prof}=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
+        let{data:prof}=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
+        // OAuth (Google) users may arrive before the DB trigger creates their profile.
+        // If it's missing, create it now as a client so they always land in the app.
+        if(!prof){
+          const m=session.user.user_metadata||{};
+          const name=m.full_name||m.name||session.user.email?.split("@")[0]||"there";
+          await supa.from("profiles").upsert({id:session.user.id,email:session.user.email,role:"client",name,avatar:name[0].toUpperCase(),status:"active"},{onConflict:"id"});
+          const r=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
+          prof=r.data;
+        }
         if(prof){setCurrentUser(prof);await reload();
-          // Clean the OAuth hash from the URL so refreshes are tidy.
           if(window.location.hash.includes("access_token"))window.history.replaceState(null,"",window.location.pathname);
         }
       }
