@@ -431,11 +431,11 @@ const StatCard=({label,value,sub,color=T.brand,soft=T.brandSoft,icon,trend,delay
   const suffix=isNum?String(value).replace(/^[\d,]+/,""):"";
   const count=useCounter(n);
   return(<Card hover className="fadeUp" style={{animationDelay:`${delay}ms`,position:"relative",overflow:"hidden"}}>
-    <div style={{width:42,height:42,borderRadius:13,background:soft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,marginBottom:12}}>{icon}</div>
-    <div style={{fontSize:11,fontWeight:700,color:T.faint,textTransform:"uppercase",letterSpacing:".8px",marginBottom:5}}>{label}</div>
-    <div style={{fontSize:32,fontWeight:800,color:T.ink,lineHeight:1,fontFamily:FONT_D}}>{isNum?count.toLocaleString()+suffix:value}</div>
-    {sub&&<div style={{fontSize:12,color:T.sub,marginTop:6}}>{sub}</div>}
-    {trend!=null&&<div style={{fontSize:12,color:trend>0?T.green:T.red,marginTop:4,fontWeight:700}}>{trend>0?"▲":"▼"} {Math.abs(trend)}% vs last month</div>}
+    <div style={{width:46,height:46,borderRadius:14,background:soft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,marginBottom:14}}>{icon}</div>
+    <div style={{fontSize:11.5,fontWeight:800,color:T.faint,textTransform:"uppercase",letterSpacing:".9px",marginBottom:6}}>{label}</div>
+    <div style={{fontSize:36,fontWeight:800,color:T.ink,lineHeight:1,fontFamily:FONT_D,letterSpacing:"-1px"}}>{isNum?count.toLocaleString()+suffix:value}</div>
+    {sub&&<div style={{fontSize:12.5,color:T.sub,marginTop:7}}>{sub}</div>}
+    {trend!=null&&<div style={{fontSize:12,color:trend>0?T.green:T.red,marginTop:5,fontWeight:700}}>{trend>0?"▲":"▼"} {Math.abs(trend)}% vs last month</div>}
     <div style={{position:"absolute",top:-30,right:-30,width:90,height:90,borderRadius:"50%",background:soft,opacity:.5}}/>
   </Card>);
 };
@@ -532,10 +532,10 @@ const ExportBtn=({label,onClick})=>(
 );
 
 const SectionTitle=({children,sub,right})=>(
-  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14,gap:8,flexWrap:"wrap"}}>
+  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16,gap:8,flexWrap:"wrap"}}>
     <div>
-      <div style={{fontSize:14.5,fontWeight:800,fontFamily:FONT_D,color:T.ink}}>{children}</div>
-      {sub&&<div style={{fontSize:12,color:T.sub,marginTop:2}}>{sub}</div>}
+      <div style={{fontSize:16.5,fontWeight:800,fontFamily:FONT_D,color:T.ink,letterSpacing:"-.3px"}}>{children}</div>
+      {sub&&<div style={{fontSize:13,color:T.sub,marginTop:3,lineHeight:1.45}}>{sub}</div>}
     </div>
     {right}
   </div>
@@ -548,9 +548,9 @@ const Empty=({icon,title,sub})=>(
   </div>
 );
 const actIcon=(t)=>({listing_live:"🟢",nap_fix:"🔧",edit_blocked:"🛡️",flagged:"🚩",rejected:"❌",gmb_update:"📍",submitted:"📤",analytics:"📈",client:"👤"}[t]||"⚡");
-const PLANS={essentials:{name:"Essentials",price:49,quota:"10 listings/mo",color:T.blue,soft:T.blueSoft,features:["10 directory submissions every month","NAP consistency management","Unauthorized edit protection","Listing monitoring & alerts","Client dashboard access"]},
-  growth:{name:"Growth",price:89,quota:"20 listings/mo",color:T.brand,soft:T.brandSoft,features:["20 directory submissions every month","Everything in Essentials","Expanded directory coverage","Priority support","Monthly coverage report"]},
-  gmb:{name:"GMB Pro",price:249,quota:"20 listings + GMB",color:T.violet,soft:T.violetSoft,features:["Everything in Growth","Google Business Profile management","Monthly GMB posts & Q&A","Engagement analytics (views, calls)","Dedicated BDM support"]}};
+const PLANS={essentials:{name:"Essentials",price:49,quota:"10 listings/mo",color:T.blue,soft:T.blueSoft,features:["10 directory submissions every month","NAP consistency management","Unauthorized edit protection","Helps you get found in AI searches","Listing monitoring & alerts","Client dashboard access"]},
+  growth:{name:"Growth",price:89,quota:"20 listings/mo",color:T.brand,soft:T.brandSoft,features:["20 directory submissions every month","Everything in Essentials","Helps you get found in AI searches","Expanded directory coverage","Priority support","Monthly coverage report"]},
+  gmb:{name:"GMB Pro",price:249,quota:"20 listings + GMB",color:T.violet,soft:T.violetSoft,features:["Everything in Growth","Google Business Profile management","Get found in AI searches (ChatGPT, Gemini, AI Overviews)","Monthly GMB posts & Q&A","Engagement analytics (views, calls)","Dedicated BDM support"]}};
 const BIZ_FIELDS=[["name","Full Name"],["businessName","Business Name"],["email","Email"],["phone","Phone"],["address","Address"],["city","City"],["state","State"],["zip","ZIP"],["website","Website"]];
 const CATEGORIES=["Home Services","Medical / Health","Legal","Restaurant / Food","Auto Services","Beauty & Salon","Real Estate","Other"];
 const today=()=>new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"});
@@ -751,10 +751,10 @@ function Shell({user,nav,page,setPage,onLogout,planBadge,badgeCounts={},children
   </div>);
 }
 const PageHead=({title,sub,right,isMobile})=>(
-  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:22,flexWrap:"wrap",gap:12}}>
+  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24,flexWrap:"wrap",gap:12}}>
     <div>
-      <div style={{fontFamily:FONT_D,fontSize:isMobile?20:24,fontWeight:800,letterSpacing:"-.4px"}}>{title}</div>
-      {sub&&<div style={{fontSize:13,color:T.sub,marginTop:4}}>{sub}</div>}
+      <div style={{fontFamily:FONT_D,fontSize:isMobile?24:30,fontWeight:800,letterSpacing:"-.8px",lineHeight:1.1}}>{title}</div>
+      {sub&&<div style={{fontSize:isMobile?13.5:15,color:T.sub,marginTop:5,lineHeight:1.5}}>{sub}</div>}
     </div>
     {right}
   </div>
@@ -1012,7 +1012,7 @@ function ClientDashboard({user,data,reload,onLogout}){
       <Card style={{textAlign:"center",padding:isMobile?32:56,boxShadow:SHADOW_LG}}>
         <div style={{display:"flex",justifyContent:"center",marginBottom:18}}><Orbit size={100} speed={10}/></div>
         <div style={{fontFamily:FONT_D,fontSize:21,fontWeight:800,marginBottom:8}}>Put your Google profile on autopilot</div>
-        <div style={{fontSize:13.5,color:T.sub,maxWidth:420,margin:"0 auto 24px",lineHeight:1.6}}>We publish posts, answer Q&A, keep your profile complete, and show you exactly how many calls and visits Google sends you every month.</div>
+        <div style={{fontSize:13.5,color:T.sub,maxWidth:440,margin:"0 auto 24px",lineHeight:1.6}}>We publish posts, answer Q&A, keep your profile complete, and get you found in AI searches like ChatGPT, Gemini and Google AI Overviews, plus show you exactly how many calls and visits Google sends you every month.</div>
         <Btn size="lg" onClick={()=>setPage("billing")}>Upgrade to GMB Pro, $249/mo</Btn>
         <div style={{fontSize:11.5,color:T.faint,marginTop:12}}>Includes everything in Growth · Cancel anytime</div>
       </Card>
@@ -1020,6 +1020,12 @@ function ClientDashboard({user,data,reload,onLogout}){
     const d=myGmb||{views:0,calls:0,directions:0,trend:[],posts:[],qa:[],completeness:{}};
     return(<div>
       <PageHead isMobile={isMobile} title="GMB Management" sub="Your Google Business Profile, actively managed" right={<Badge type={d.source==="connected"?"connected":"manual"}/>}/>
+      <Card style={{marginBottom:16,background:`linear-gradient(135deg,${T.violetSoft},#fff)`,display:"flex",gap:14,alignItems:"center"}}>
+        <div style={{width:44,height:44,borderRadius:13,background:"#fff",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:SHADOW}}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={T.violet} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+        </div>
+        <div><div style={{fontSize:14,fontWeight:800,fontFamily:FONT_D}}>Now visible in AI searches</div><div style={{fontSize:12.5,color:T.sub,lineHeight:1.5,marginTop:2}}>Your managed profile and consistent data help you appear in ChatGPT, Gemini and Google AI Overviews, not just traditional search.</div></div>
+      </Card>
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:14,marginBottom:20}}>
         <StatCard label="Profile Views" value={d.views} icon="👁️" color={T.green} soft={T.greenSoft} trend={18} delay={0}/>
         <StatCard label="Calls From Google" value={d.calls} icon="📞" trend={12} delay={80}/>
@@ -2137,6 +2143,26 @@ function LandingPage(){
       </div>
     </div>
 
+    {/* ── AI search band ── */}
+    <div style={{maxWidth:maxW,margin:"0 auto",padding:isMobile?"48px 20px 0":"80px 40px 0"}}>
+      <Reveal>
+        <div className="lift" style={{background:`linear-gradient(135deg,${T.violetSoft},${T.brandSoft})`,border:`1px solid ${T.line}`,borderRadius:isMobile?20:26,padding:isMobile?"30px 24px":"46px 48px",display:"grid",gridTemplateColumns:isMobile?"1fr":"1.3fr 1fr",gap:isMobile?24:40,alignItems:"center"}}>
+          <div>
+            <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"6px 14px",background:"#fff",borderRadius:30,fontSize:12.5,fontWeight:800,color:T.violet,marginBottom:16,boxShadow:SHADOW}}>New in 2026</div>
+            <h2 style={{fontFamily:FONT_D,fontSize:isMobile?26:38,fontWeight:800,letterSpacing:"-1.2px",margin:"0 0 14px",lineHeight:1.1}}>Now customers ask AI, not just Google.</h2>
+            <p style={{fontSize:isMobile?15.5:17.5,color:T.sub,lineHeight:1.65,margin:0}}>When someone asks ChatGPT, Gemini or Google's AI Overviews for "the best plumber near me," those answers come from the same listings and consistent business data we manage for you. Get listed right, and you show up in AI answers too, not just the old blue links.</p>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            {["Shows up in ChatGPT & Gemini answers","Feeds Google AI Overviews","Consistent data AI engines trust"].map(x=>(
+              <div key={x} style={{display:"flex",gap:12,alignItems:"center",background:"#fff",borderRadius:14,padding:"14px 16px",boxShadow:SHADOW}}>
+                <div style={{width:34,height:34,borderRadius:10,background:T.violetSoft,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Ico d={<><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></>} c={T.violet} s={17}/></div>
+                <span style={{fontSize:14.5,fontWeight:700,color:T.ink}}>{x}</span>
+              </div>))}
+          </div>
+        </div>
+      </Reveal>
+    </div>
+
     {/* ── Problem → benefit ── */}
     <div style={{maxWidth:maxW,margin:"0 auto",padding:isMobile?"48px 20px":"80px 40px"}}>
       <div style={{textAlign:"center",marginBottom:isMobile?32:52}}>
@@ -2146,7 +2172,7 @@ function LandingPage(){
       </div>
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:isMobile?16:22}}>
         {[
-          {t:"Get listed everywhere",b:"We put your business on the maps, directories and apps your customers actually use, and add new ones every month. More places found means more calls.",ic:<><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.4 8 12 8 12s8-6.6 8-12a8 8 0 0 0-8-8z"/></>,c:T.brand,cs:T.brandSoft},
+          {t:"Get listed everywhere",b:"We put your business on the maps, directories and apps your customers actually use, and add new ones every month. This also feeds the data AI search tools like ChatGPT and Google AI Overviews rely on, so you get found there too.",ic:<><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.4 8 12 8 12s8-6.6 8-12a8 8 0 0 0-8-8z"/></>,c:T.brand,cs:T.brandSoft},
           {t:"Kept correct everywhere",b:"Your name, address and phone stay identical across every platform. Search engines trust consistent businesses, and rank them higher.",ic:<><path d="M20 6 9 17l-5-5"/></>,c:T.green,cs:T.greenSoft},
           {t:"Bad edits reversed",b:"When Google or Apple lets a stranger change your hours or address, we catch it and change it back. You stay in control of your own business.",ic:<><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></>,c:T.violet,cs:T.violetSoft},
         ].map((f,i)=>(
@@ -2253,7 +2279,7 @@ function LandingPage(){
         {[
           {n:"Essentials",p:49,q:"10 listings a month",pop:false,f:["10 directory submissions monthly","NAP consistency management","Unauthorized edit protection","Live dashboard access"]},
           {n:"Growth",p:89,q:"20 listings a month",pop:true,f:["20 directory submissions monthly","Everything in Essentials","Expanded directory coverage","Priority support"]},
-          {n:"GMB Pro",p:249,q:"20 listings + Google Profile",pop:false,f:["Everything in Growth","Google Business Profile management","Monthly posts & Q&A","Dedicated manager"]},
+          {n:"GMB Pro",p:249,q:"20 listings + Google Profile",pop:false,f:["Everything in Growth","Google Business Profile management","Get found in AI searches (ChatGPT, Gemini, AI Overviews)","Monthly posts & Q&A","Dedicated manager"]},
         ].map((pl,i)=>(
           <Reveal key={pl.n} delay={i*100}>
             <div className="lift" style={{background:T.surface,borderRadius:20,padding:isMobile?26:30,border:pl.pop?`2px solid ${T.brand}`:`1px solid ${T.line}`,boxShadow:pl.pop?SHADOW_LG:SHADOW,position:"relative",height:"100%",display:"flex",flexDirection:"column"}}>
@@ -2292,7 +2318,6 @@ function LandingPage(){
         <div style={{fontSize:13,color:T.faint}}>© {new Date().getFullYear()} Rank Orbit. All rights reserved.</div>
         <div style={{display:"flex",gap:18,fontSize:13.5}}>
           <button onClick={go} style={{background:"none",border:"none",color:T.sub,cursor:"pointer",fontFamily:FONT_B,fontWeight:700}}>Client login</button>
-          <button onClick={()=>nav("/admin")} style={{background:"none",border:"none",color:T.sub,cursor:"pointer",fontFamily:FONT_B,fontWeight:700}}>Staff login</button>
         </div>
       </div>
     </div>
