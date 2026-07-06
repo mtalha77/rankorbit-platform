@@ -387,14 +387,14 @@ const Badge=({type,label})=>{
 const Card=({children,style={},hover=false,className=""})=>(
   <div className={`${hover?"hoverCard ":""}${className}`} style={{background:T.surface,border:`1px solid ${T.line}`,borderRadius:18,padding:22,boxShadow:SHADOW,...style}}>{children}</div>
 );
-const Btn=({children,onClick,variant="primary",size="md",style={}})=>{
+const Btn=({children,onClick,variant="primary",size="md",style={},disabled=false})=>{
   const v={primary:{background:`linear-gradient(135deg,${T.brand},${T.brandDark})`,color:"#fff",border:"none",boxShadow:`0 4px 14px ${T.brandGlow}`},
     ghost:{background:T.surface,color:T.sub,border:`1px solid ${T.line}`},
     soft:{background:T.brandSoft,color:T.brand,border:"none"},
     green:{background:`linear-gradient(135deg,${T.green},#0B8A67)`,color:"#fff",border:"none",boxShadow:"0 4px 14px rgba(15,164,122,.22)"},
     danger:{background:T.redSoft,color:T.red,border:"none"}};
   const s={sm:{padding:"6px 14px",fontSize:12.5},md:{padding:"10px 20px",fontSize:13.5},lg:{padding:"13px 30px",fontSize:15}};
-  return(<button onClick={onClick} style={{borderRadius:11,fontWeight:700,cursor:"pointer",fontFamily:FONT_B,...v[variant],...s[size],...style}}>{children}</button>);
+  return(<button onClick={disabled?undefined:onClick} disabled={disabled} style={{borderRadius:11,fontWeight:700,cursor:disabled?"not-allowed":"pointer",opacity:disabled?.5:1,fontFamily:FONT_B,...v[variant],...s[size],...style}}>{children}</button>);
 };
 // Input with optional validation. validate="email" | "usphone". Shows inline error, blocks bad input.
 const Input=({label,value,onChange,placeholder,type="text",style={},validate,required,error:extError})=>{
@@ -1112,8 +1112,12 @@ function ClientDashboard({user,data,reload,onLogout}){
         window.open(url,"_blank");
       }else toast("Payment link not set up yet, your account manager will send it","info");
     };
+    // Require core business details before a plan can be selected (captures data upfront, esp. Google signups).
+    const profileComplete=!!(user.businessName&&user.phone&&user.address&&user.city&&user.state&&user.category);
     return(<div>
       <PageHead isMobile={isMobile} title="Plan & Billing" sub="Everything about what you pay and what you get"/>
+      {!profileComplete&&!user.plan&&<ProfileGate user={user} onSaved={reload}/>}
+      {(profileComplete||user.plan)&&(<>
       {user.plan&&(<div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1.4fr 1fr",gap:16,marginBottom:20}}>
         <Card className="fadeUp" style={{position:"relative",overflow:"hidden"}}>
           <div style={{position:"absolute",top:-40,right:-40,width:160,height:160,borderRadius:"50%",background:plan.soft,opacity:.6}}/>
@@ -1192,7 +1196,32 @@ function ClientDashboard({user,data,reload,onLogout}){
           toast("Your data downloaded");
         }}>⤓ Download my data (JSON)</Btn>
       </Card>
+      </>)}
     </div>);
+  };
+
+  // Required business-details form shown before plan selection (captures data upfront).
+  const ProfileGate=({user,onSaved})=>{
+    const[f,setF]=useState({businessName:user.businessName||"",phone:user.phone||"",address:user.address||"",city:user.city||"",state:user.state||"",category:user.category||"Home Services"});
+    const set=(k,v)=>setF(x=>({...x,[k]:v}));
+    const[saving,setSaving]=useState(false);
+    const ok=f.businessName&&f.phone.replace(/\D/g,"").length>=10&&f.address&&f.city&&f.state;
+    const save=async()=>{setSaving(true);await api.upsertProfile({...user,...f});await onSaved();setSaving(false);toast("Business profile saved");};
+    return(<Card style={{marginBottom:20,background:`linear-gradient(135deg,${T.brandSoft},#fff)`,maxWidth:640}}>
+      <SectionTitle sub="Tell us about your business so we can list it correctly everywhere. Takes one minute, then choose your plan.">First, complete your business profile</SectionTitle>
+      <Input label="Business Name" value={f.businessName} onChange={v=>set("businessName",v)} placeholder="Mike's Plumbing" required/>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12}}>
+        <Input label="Phone" value={f.phone} onChange={v=>set("phone",v)} placeholder="(555) 200-0000" validate="usphone" required/>
+        <Select label="Category" value={f.category} onChange={v=>set("category",v)} options={CATEGORIES.map(o=>({value:o,label:o}))}/>
+      </div>
+      <Input label="Street Address" value={f.address} onChange={v=>set("address",v)} placeholder="123 Main St" required/>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12}}>
+        <Input label="City" value={f.city} onChange={v=>set("city",v)} placeholder="Austin" required/>
+        <Select label="State / Province" value={f.state} onChange={v=>set("state",v)} options={[{value:"",label:"Select…"},...US_CA_STATES.map(s=>({value:s.code,label:`${s.code} — ${s.name}`}))]}/>
+      </div>
+      <Btn style={{marginTop:6}} onClick={save} disabled={!ok||saving}>{saving?"Saving…":"Save & continue to plans →"}</Btn>
+      {!ok&&<div style={{fontSize:11.5,color:T.faint,marginTop:8}}>All fields except category are required to continue.</div>}
+    </Card>);
   };
 
   const CallPage=()=>{
