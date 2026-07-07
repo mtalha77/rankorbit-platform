@@ -591,6 +591,9 @@ const Empty=({icon,title,sub})=>(
   </div>
 );
 const actIcon=(t)=>({listing_live:"🟢",nap_fix:"🔧",edit_blocked:"🛡️",flagged:"🚩",rejected:"❌",gmb_update:"📍",submitted:"📤",analytics:"📈",client:"👤"}[t]||"⚡");
+// Client-facing anonymizer: clients never see staff names, only "Account Manager".
+// "System" stays as-is. Used everywhere the client can see a "by" attribution.
+const clientBy=(by)=>(!by||by==="System"?(by||""):"Account Manager");
 const PLANS={essentials:{name:"Essentials",price:49,quota:"10 listings/mo",color:T.blue,soft:T.blueSoft,features:["10 directory submissions every month","NAP consistency management","Unauthorized edit protection","Helps you get found in AI searches","Listing monitoring & alerts","Client dashboard access"]},
   growth:{name:"Growth",price:89,quota:"20 listings/mo",color:T.brand,soft:T.brandSoft,features:["20 directory submissions every month","Everything in Essentials","Helps you get found in AI searches","Expanded directory coverage","Priority support","Monthly coverage report"]},
   gmb:{name:"GMB Pro",price:249,quota:"20 listings + GMB",color:T.violet,soft:T.violetSoft,features:["Everything in Growth","Google Business Profile management","Get found in AI searches (ChatGPT, Gemini, AI Overviews)","Monthly GMB posts & Q&A","Engagement analytics (views, calls)","Dedicated BDM support"]}};
@@ -992,7 +995,7 @@ function ClientDashboard({user:userProp,data,reload,onLogout}){
       {myAct.length===0?<Empty icon="🛰️" title="Work starting" sub="Your first listings are being prepared, check back soon."/>:
         myAct.slice(0,5).map((a,i)=>(<div key={a.id} className="hoverRow" style={{display:"flex",gap:13,padding:"11px 8px",borderRadius:10,borderBottom:i<Math.min(myAct.length,5)-1?`1px solid ${T.line}`:"none",alignItems:"flex-start"}}>
           <div style={{width:34,height:34,borderRadius:11,background:T.surface2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{actIcon(a.type)}</div>
-          <div><div style={{fontSize:13.5,fontWeight:600}}>{a.desc}</div><div style={{fontSize:11.5,color:T.faint,marginTop:2}}>{a.date} · {a.by}</div></div>
+          <div><div style={{fontSize:13.5,fontWeight:600}}>{a.desc}</div><div style={{fontSize:11.5,color:T.faint,marginTop:2}}>{a.date}{a.by?` · ${clientBy(a.by)}`:""}</div></div>
         </div>))}
     </Card>
   </div>);
@@ -1057,6 +1060,25 @@ function ClientDashboard({user:userProp,data,reload,onLogout}){
     </div>);
   };
 
+  // GMB Pro monthly report: client sets a delivery email; manager marks it sent each month.
+  const ReportCard=()=>{
+    const[email,setEmail]=useState(user.reportEmail||user.email||"");
+    const[saving,setSaving]=useState(false);
+    const sent=user.reportSentMonth; // e.g. "March 2026"
+    const save=async()=>{setSaving(true);try{await api.patchProfile(user.id,{reportEmail:email});await reload();toast("Report email saved");}catch(e){toast("Could not save","info");}setSaving(false);};
+    return(<Card style={{marginBottom:16}}>
+      <SectionTitle sub="Your detailed monthly GMB performance report, delivered to your inbox by your account manager.">Monthly Report</SectionTitle>
+      {sent&&<div style={{padding:"11px 14px",background:T.greenSoft,borderRadius:11,marginBottom:14,fontSize:12.5,color:T.green,fontWeight:700,display:"flex",alignItems:"center",gap:8}}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Report sent for {sent}
+      </div>}
+      <div style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
+        <div style={{flex:"1 1 240px"}}><Input label="Send my report to" value={email} onChange={setEmail} placeholder="you@business.com" validate="email"/></div>
+        <Btn onClick={save} disabled={saving} style={{marginBottom:14}}>{saving?"Saving…":"Save email"}</Btn>
+      </div>
+    </Card>);
+  };
+
   const Gmb=()=>{
     if(user.plan!=="gmb")return(<div>
       <PageHead isMobile={isMobile} title="GMB Management"/>
@@ -1077,6 +1099,7 @@ function ClientDashboard({user:userProp,data,reload,onLogout}){
         </div>
         <div><div style={{fontSize:14,fontWeight:800,fontFamily:FONT_D}}>Now visible in AI searches</div><div style={{fontSize:12.5,color:T.sub,lineHeight:1.5,marginTop:2}}>Your managed profile and consistent data help you appear in ChatGPT, Gemini and Google AI Overviews, not just traditional search.</div></div>
       </Card>
+      <ReportCard/>
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:14,marginBottom:20}}>
         <StatCard label="Profile Views" value={d.views} icon="👁️" color={T.green} soft={T.greenSoft} trend={18} delay={0}/>
         <StatCard label="Calls From Google" value={d.calls} icon="📞" trend={12} delay={80}/>
@@ -1456,11 +1479,12 @@ function AdminDashboard({user,data,reload,onLogout}){
   const audit=async(action,{targetType,targetId,targetName,detail}={})=>{
     await api.logAudit({actor:user,action,targetType,targetId,targetName,detail});
   };
-  // When an AGENT edits/deletes a listing, flag it for managers (queued for email in Batch 4).
+  // When an AGENT edits/deletes a listing, flag it for managers (queued for email later).
+  // Uses an internal clientId sentinel so it appears in admin activity but NEVER in the client's feed.
   const notifyManagersIfAgent=async(action,listing)=>{
     if(user.role!=="agent")return;
     const clientName=clients.find(c=>c.id===listing.clientId)?.businessName||"a client";
-    await api.addActivity({id:uid(),clientId:listing.clientId,type:"edit_blocked",desc:`⚠️ Manager review: agent ${user.name} ${action} "${listing.directory}" for ${clientName}`,date:todayFull(),by:"System"});
+    await api.addActivity({id:uid(),clientId:"__internal",type:"edit_blocked",desc:`Manager review: ${user.name} ${action} "${listing.directory}" for ${clientName}`,date:todayFull(),by:"System"});
     // Batch 4 will also send this to managers via /api/notify.
     if(typeof window!=="undefined")window.__pendingManagerAlerts=(window.__pendingManagerAlerts||0)+1;
   };
@@ -1473,6 +1497,7 @@ function AdminDashboard({user,data,reload,onLogout}){
     {id:"gmb",icon:"📍",label:"GMB",roles:["super_admin","manager"]},
     {id:"team",icon:"🔑",label:"Team",roles:["super_admin"]},
     {id:"activity",icon:"📜",label:"Activity Log",roles:["super_admin","manager"]},
+    {id:"finance",icon:"💰",label:"Finance",roles:["super_admin"]},
     {id:"audit",icon:"🛡️",label:"Audit Trail",roles:["super_admin"]},
     {id:"trash",icon:"🗑️",label:"Trash",roles:["super_admin"]},
     {id:"settings",icon:"⚙️",label:"Settings",roles:["super_admin"]},
@@ -1794,9 +1819,10 @@ function AdminDashboard({user,data,reload,onLogout}){
         <Btn variant="ghost" size="sm" onClick={()=>setModal({type:"integrations",client:c})}>🔗 Integrations</Btn>
         <Btn variant="ghost" size="sm" onClick={()=>setModal({type:"analytics",client:c})}>📈 Update Analytics</Btn>
         {c.plan==="gmb"&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"gmb",client:c})}>📍 Update GMB</Btn>}
+        {c.plan==="gmb"&&<Btn variant="soft" size="sm" onClick={()=>{const month=new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"});setConfirm({title:"Mark report as sent?",msg:`Confirm you've emailed the ${month} GMB report to ${c.reportEmail||c.email}. The client will see "Report sent for ${month}".`,yes:"Mark sent",onYes:()=>R(async()=>{await api.patchProfile(c.id,{reportSentMonth:month});await audit("report.sent",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name,detail:month});await addActivity(c.id,"gmb_update",`Monthly report sent for ${month}`);},"Report marked as sent")});}}>📤 Mark Report Sent</Btn>}
         {c.status==="active"?
-          <Btn variant="ghost" size="sm" onClick={()=>setConfirm({title:"Suspend client?",msg:`${c.businessName||c.name} won't be able to log in until reactivated.`,yes:"Suspend",onYes:()=>R(async()=>{await api.upsertProfile({...c,status:"suspended"});await audit("client.suspend",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name});},"Client suspended")})}>⏸ Suspend</Btn>:
-          <Btn variant="green" size="sm" onClick={()=>R(async()=>{await api.upsertProfile({...c,status:"active"});await audit("client.reactivate",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name});},"Client reactivated")}>▶ Reactivate</Btn>}
+          <Btn variant="ghost" size="sm" onClick={()=>setConfirm({title:"Suspend client?",msg:`${c.businessName||c.name} won't be able to log in until reactivated.`,yes:"Suspend",onYes:()=>R(async()=>{await api.patchProfile(c.id,{status:"suspended"});await audit("client.suspend",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name});},"Client suspended")})}>⏸ Suspend</Btn>:
+          <Btn variant="green" size="sm" onClick={()=>R(async()=>{await api.patchProfile(c.id,{status:"active"});await audit("client.reactivate",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name});},"Client reactivated")}>▶ Reactivate</Btn>}
         {isAdmin&&!c.protected&&<Btn variant="danger" size="sm" onClick={()=>setConfirm({title:"Delete client?",msg:`Move ${c.businessName||c.name} to Trash? Recoverable for 30 days, then permanently removed with all their listings.`,danger:true,yes:"Delete",onYes:()=>R(async()=>{await api.deleteUser(c.id);await audit("client.delete",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name});},"Client moved to Trash").then(()=>{setPage("clients");setSelClient(null);})})}>🗑 Delete</Btn>}
         {c.protected&&<span style={{fontSize:11,color:T.faint,alignSelf:"center"}}>🔒 Demo account (protected)</span>}
       </div>}
@@ -1982,6 +2008,79 @@ function AdminDashboard({user,data,reload,onLogout}){
     </div>);
   };
 
+  const Finance=()=>{
+    const[search,setSearch]=useState("");
+    const[statusF,setStatusF]=useState("all");
+    const[planF,setPlanF]=useState("all");
+    // Lifecycle status per client: cancelled > paused > active. Uses real profile fields.
+    const lifecycle=(c)=>{
+      if(c.status==="suspended")return "paused";
+      if(c.cancelAtPeriodEnd||c.canceledAt)return c.plan?"cancelling":"cancelled";
+      if(c.plan&&c.status==="active")return "active";
+      return "no plan";
+    };
+    const monthsActive=(c)=>{
+      if(!c.createdAt)return 1;
+      const start=new Date(c.createdAt);const end=c.canceledAt?new Date(c.canceledAt):new Date();
+      return Math.max(1,Math.round((end-start)/2629800000));
+    };
+    const priceOf=(c)=>PLANS[c.plan]?.price||0;
+    const ltv=(c)=>priceOf(c)*monthsActive(c);
+    const rows=clients.map(c=>({...c,_status:lifecycle(c),_ltv:ltv(c),_months:monthsActive(c)}));
+    // Metrics
+    const activeClients=rows.filter(r=>r._status==="active"||r._status==="cancelling");
+    const activeMRR=activeClients.reduce((s,c)=>s+priceOf(c),0);
+    const thisMonth=new Date().getMonth();
+    const newThisMonth=rows.filter(c=>c.createdAt&&new Date(c.createdAt).getMonth()===thisMonth).length;
+    const churnedThisMonth=rows.filter(c=>c.canceledAt&&new Date(c.canceledAt).getMonth()===thisMonth).length;
+    const churnedMRR=rows.filter(c=>c._status==="cancelled").reduce((s,c)=>s+priceOf(c),0);
+    let filtered=rows;
+    if(statusF!=="all")filtered=filtered.filter(r=>r._status===statusF);
+    if(planF!=="all")filtered=filtered.filter(r=>r.plan===planF);
+    if(search)filtered=filtered.filter(r=>`${r.businessName} ${r.name} ${r.email}`.toLowerCase().includes(search.toLowerCase()));
+    const fmtDate=(d)=>d?new Date(d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"–";
+    const statusColor={active:T.green,cancelling:T.amber,cancelled:T.red,paused:T.faint,"no plan":T.faint};
+    const cols=[
+      {key:"businessName",label:"Business"},{key:"email",label:"Email"},
+      {key:"plan",label:"Plan",get:c=>PLANS[c.plan]?.name||"None"},
+      {label:"Price",get:c=>`$${priceOf(c)}`},
+      {label:"Status",get:c=>c._status},
+      {label:"Signed Up",get:c=>fmtDate(c.createdAt)},
+      {label:"Cancelled/Paused",get:c=>fmtDate(c.canceledAt)},
+      {label:"Months",get:c=>c._months},{label:"LTV",get:c=>`$${c._ltv}`},
+    ];
+    return(<div>
+      <PageHead isMobile={isMobile} title="Finance" sub="Full subscription lifecycle, revenue, and churn"/>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:14,marginBottom:20}}>
+        <StatCard label="Active MRR" value={`$${activeMRR}`} sub={`${activeClients.length} paying`} icon="💵" color={T.green} soft={T.greenSoft}/>
+        <StatCard label="New This Month" value={newThisMonth} sub="signups" icon="📈" color={T.brand} soft={T.brandSoft}/>
+        <StatCard label="Churned This Month" value={churnedThisMonth} sub="cancellations" icon="📉" color={T.red} soft={T.redSoft}/>
+        <StatCard label="Lost MRR" value={`$${churnedMRR}`} sub="from cancelled" icon="⚠️" color={T.amber} soft={T.amberSoft}/>
+      </div>
+      <ListToolbar search={search} setSearch={setSearch} placeholder="🔍  Search business, email…"
+        filters={[
+          {value:statusF,set:setStatusF,options:[{value:"all",label:"All statuses"},{value:"active",label:"Active"},{value:"cancelling",label:"Cancelling"},{value:"cancelled",label:"Cancelled"},{value:"paused",label:"Paused"},{value:"no plan",label:"No plan"}]},
+          {value:planF,set:setPlanF,options:[{value:"all",label:"All plans"},...Object.entries(PLANS).map(([id,p])=>({value:id,label:p.name}))]},
+        ]}
+        rows={filtered} cols={cols} exportName="rankorbit-finance" exportTitle="Finance Lifecycle"/>
+      <Card style={{overflowX:"auto"}}>
+        {filtered.length===0?<Empty icon="💰" title="No clients match" sub="Adjust filters."/>:
+        <table style={{width:"100%",borderCollapse:"collapse",minWidth:780}}>
+          <thead><tr>{["Business","Plan","Status","Signed Up","Cancelled/Paused","Months","LTV"].map(h=><th key={h} style={{textAlign:"left",padding:"9px 12px",fontSize:10.5,fontWeight:800,color:T.faint,textTransform:"uppercase",letterSpacing:".6px",borderBottom:`1.5px solid ${T.line}`}}>{h}</th>)}</tr></thead>
+          <tbody>{filtered.map(c=>(<tr key={c.id} className="hoverRow">
+            <td style={{padding:"11px 12px",fontSize:13,fontWeight:700,borderBottom:`1px solid ${T.line}`}}>{c.businessName||c.name}<br/><span style={{fontSize:11,color:T.faint,fontWeight:400}}>{c.email}</span></td>
+            <td style={{padding:"11px 12px",fontSize:12.5,borderBottom:`1px solid ${T.line}`}}>{PLANS[c.plan]?.name||"–"}<br/><span style={{fontSize:11,color:T.faint}}>${priceOf(c)}/mo</span></td>
+            <td style={{padding:"11px 12px",borderBottom:`1px solid ${T.line}`}}><span style={{fontSize:11,fontWeight:800,color:statusColor[c._status],background:statusColor[c._status]+"1a",padding:"3px 9px",borderRadius:20,textTransform:"capitalize"}}>{c._status}</span></td>
+            <td style={{padding:"11px 12px",fontSize:12,color:T.sub,borderBottom:`1px solid ${T.line}`,whiteSpace:"nowrap"}}>{fmtDate(c.createdAt)}</td>
+            <td style={{padding:"11px 12px",fontSize:12,color:T.sub,borderBottom:`1px solid ${T.line}`,whiteSpace:"nowrap"}}>{fmtDate(c.canceledAt)}</td>
+            <td style={{padding:"11px 12px",fontSize:12.5,fontWeight:700,borderBottom:`1px solid ${T.line}`}}>{c._months}</td>
+            <td style={{padding:"11px 12px",fontSize:12.5,fontWeight:800,color:T.green,borderBottom:`1px solid ${T.line}`}}>${c._ltv}</td>
+          </tr>))}</tbody>
+        </table>}
+      </Card>
+    </div>);
+  };
+
   const AuditTrail=()=>{
     const[search,setSearch]=useState("");
     const[actionF,setActionF]=useState("all");
@@ -2152,6 +2251,7 @@ function AdminDashboard({user,data,reload,onLogout}){
     {page==="gmb"&&<GmbAdmin/>}
     {page==="team"&&<Team/>}
     {page==="activity"&&<Activity/>}
+    {page==="finance"&&<Finance/>}
     {page==="audit"&&<AuditTrail/>}
     {page==="trash"&&<Trash/>}
     {page==="settings"&&<Settings/>}
