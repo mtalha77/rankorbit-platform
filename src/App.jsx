@@ -273,6 +273,12 @@ const api={
     if(supa){await supa.from("audit").insert(row);return;}
     LSet("ro3_audit",[row,...(LS("ro3_audit")||[])]);
   },
+  // Partial update: writes only the given fields to a profile by id. Avoids resending
+  // read-only/generated columns that can cause RLS or type errors on full-object writes.
+  async patchProfile(id,fields){
+    if(supa){const{error}=await supa.from("profiles").update(fields).eq("id",id);if(error){console.error("patchProfile:",error.message);throw error;}return;}
+    const us=LS("ro3_users")||[];const i=us.findIndex(x=>x.id===id);if(i>=0){us[i]={...us[i],...fields};LSet("ro3_users",us);}
+  },
   async upsertProfile(u){
     if(supa){
       // Existing profiles → UPDATE (RLS allows self-update); new rows → INSERT.
@@ -1125,7 +1131,7 @@ function ClientDashboard({user:userProp,data,reload,onLogout}){
       }else if(!stripeReady){
         // DEMO MODE: no Stripe configured yet. Activate the plan directly so the flow can be tested
         // end-to-end without payment. This path disappears automatically once any Payment Link is set.
-        R(async()=>{await api.upsertProfile({...user,plan:planId,status:"active",currentPeriodEnd:nextMonthFirst()});},`${PLANS[planId].name} activated (demo mode, no charge)`);
+        R(async()=>{await api.patchProfile(user.id,{plan:planId,status:"active",currentPeriodEnd:nextMonthFirst()});},`${PLANS[planId].name} activated (demo mode, no charge)`);
       }else toast("Payment link for this plan isn't set up yet, your account manager will send it","info");
     };
     // Require core business details before a plan can be selected (captures data upfront, esp. Google signups).
@@ -1224,7 +1230,7 @@ function ClientDashboard({user:userProp,data,reload,onLogout}){
     const[saving,setSaving]=useState(false);
     const[tried,setTried]=useState(false);
     const ok=f.businessName&&f.phone.replace(/\D/g,"").length>=10&&f.address&&f.city&&f.state;
-    const save=async()=>{if(!ok){setTried(true);return;}setSaving(true);await api.upsertProfile({...user,...f});await onSaved();setSaving(false);toast("Business profile saved");};
+    const save=async()=>{if(!ok){setTried(true);return;}setSaving(true);try{await api.patchProfile(user.id,f);await onSaved();toast("Business profile saved");}catch(e){toast("Could not save: "+(e.message||"unknown error"),"info");}setSaving(false);};
     const req=(k)=>tried&&!f[k]?`Required`:"";
     return(<Card style={{marginBottom:20,background:`linear-gradient(135deg,${T.brandSoft},#fff)`,maxWidth:640}}>
       <SectionTitle sub="Tell us about your business so we can list it correctly everywhere. Takes one minute, then choose your plan.">First, complete your business profile</SectionTitle>
