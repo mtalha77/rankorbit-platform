@@ -267,6 +267,16 @@ const api={
     const allU=LS("ro3_users")||[];
     return{users:allU.filter(x=>!x.deletedAt),trashedUsers:allU.filter(x=>x.deletedAt),listings,trashedListings:flatAll.filter(x=>x.deletedAt),gmb:LS("ro3_gmb")||{},analytics:LS("ro3_analytics")||{},activity:LS("ro3_activity")||[],audit:LS("ro3_audit")||[],settings:LS("ro3_settings")||SEED.settings};
   },
+  // Assign a client to an agent (stored on the client profile as assignedAgentId).
+  async assignClient(clientId,agentId){
+    if(supa){const{error}=await supa.from("profiles").update({assignedAgentId:agentId||null}).eq("id",clientId);if(error)throw error;return;}
+    const us=LS("ro3_users")||[];const i=us.findIndex(x=>x.id===clientId);if(i>=0){us[i].assignedAgentId=agentId||null;LSet("ro3_users",us);}
+  },
+  // Grant/revoke a manager's ability to open (read-only) client accounts.
+  async setImpersonateGrant(managerId,allowed){
+    if(supa){const{error}=await supa.from("profiles").update({canImpersonate:!!allowed}).eq("id",managerId);if(error)throw error;return;}
+    const us=LS("ro3_users")||[];const i=us.findIndex(x=>x.id===managerId);if(i>=0){us[i].canImpersonate=!!allowed;LSet("ro3_users",us);}
+  },
   // Audit log: every sensitive staff action records who/what/when. Fire-and-forget.
   async logAudit({actor,action,targetType,targetId,targetName,detail}){
     const row={id:uid(),actorId:actor?.id||"",actorName:actor?.name||actor?.email||"Unknown",actorRole:actor?.role||"",action,targetType:targetType||"",targetId:targetId||"",targetName:targetName||"",detail:detail||"",createdAt:new Date().toISOString()};
@@ -1463,10 +1473,16 @@ function AdminDashboard({user,data,reload,onLogout}){
   const[toast,Toasts]=useToast();
   const w=useWindowSize();const isMobile=w<820;
   const{users,listings,gmb,analytics,activity,settings}=data;
-  const clients=users.filter(u=>u.role==="client");
+  const allClients=users.filter(u=>u.role==="client");
   const staff=users.filter(u=>u.role!=="client");
   const isAdmin=user.role==="super_admin";
   const isStaffMgr=user.role==="super_admin"||user.role==="manager";
+  const isAgent=user.role==="agent";
+  // Agents only see clients assigned to them by a manager. Staff/managers see all.
+  const clients=isAgent?allClients.filter(c=>c.assignedAgentId===user.id):allClients;
+  // Read-only impersonation: super-admin always; managers only if granted canImpersonate.
+  const canImpersonate=isAdmin||(user.role==="manager"&&user.canImpersonate);
+  const[viewAs,setViewAs]=useState(null); // client being viewed read-only
   const revenue=clients.reduce((s,c)=>s+(PLANS[c.plan]?.price||0),0);
   const flat=Object.values(listings).flat();
   const totalLive=flat.filter(l=>l.status==="live").length;
@@ -1592,6 +1608,42 @@ function AdminDashboard({user,data,reload,onLogout}){
         }}>{editing?"Save Changes":"Add Client"}</Btn>
       </div>
       {!editing&&api.mode==="supabase"&&<div style={{marginTop:12,fontSize:11,color:T.faint,lineHeight:1.5}}>Note: this creates a profile record. For the client to log in, they sign up themselves (email/Google) with this email, or you send them a reset link.</div>}
+    </Modal>);
+  };
+  const AssignModal=({agent,onClose})=>{
+    const[sel,setSel]=useState(new Set(allClients.filter(c=>c.assignedAgentId===agent.id).map(c=>c.id)));
+    const[saving,setSaving]=useState(false);
+    const[q,setQ]=useState("");
+    const toggle=(id)=>setSel(s=>{const n=new Set(s);n.has(id)?n.delete(id):n.add(id);return n;});
+    const list=allClients.filter(c=>!q||`${c.businessName} ${c.name} ${c.email}`.toLowerCase().includes(q.toLowerCase()));
+    const save=async()=>{
+      setSaving(true);
+      try{
+        for(const c of allClients){
+          const was=c.assignedAgentId===agent.id;const now=sel.has(c.id);
+          if(now&&!was)await api.assignClient(c.id,agent.id);
+          else if(!now&&was)await api.assignClient(c.id,null);
+        }
+        await audit("agent.assign",{targetType:"staff",targetId:agent.id,targetName:agent.name,detail:`${sel.size} clients`});
+        await reload();toast(`${sel.size} clients assigned`);onClose();
+      }catch(e){toast("Could not save assignments","info");}
+      setSaving(false);
+    };
+    return(<Modal open onClose={onClose} title={`Assign clients to ${agent.name}`}>
+      <div style={{fontSize:12.5,color:T.sub,marginBottom:14}}>Select which clients this agent can work on. Agents can only view and update listings for clients assigned to them.</div>
+      <input value={q} onChange={e=>setQ(e.target.value)} placeholder="🔍  Search clients…" style={{width:"100%",padding:"10px 14px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:11,fontSize:13,fontFamily:FONT_B,boxSizing:"border-box",marginBottom:12}}/>
+      <div style={{maxHeight:320,overflowY:"auto",marginBottom:16}}>
+        {list.length===0?<div style={{padding:"20px",textAlign:"center",fontSize:12.5,color:T.faint}}>No clients found.</div>:
+          list.map(c=>(<label key={c.id} style={{display:"flex",alignItems:"center",gap:11,padding:"10px 8px",borderBottom:`1px solid ${T.line}`,cursor:"pointer"}}>
+            <input type="checkbox" checked={sel.has(c.id)} onChange={()=>toggle(c.id)} style={{width:16,height:16,accentColor:T.brand}}/>
+            <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{c.businessName||c.name}</div><div style={{fontSize:11,color:T.faint}}>{c.email}{c.assignedAgentId&&c.assignedAgentId!==agent.id?" · assigned to another agent":""}</div></div>
+            {c.plan&&<Badge type="submitted" label={PLANS[c.plan]?.name}/>}
+          </label>))}
+      </div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+        <span style={{fontSize:12.5,color:T.sub,fontWeight:700}}>{sel.size} selected</span>
+        <div style={{display:"flex",gap:8}}><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save assignments"}</Btn></div>
+      </div>
     </Modal>);
   };
   const TeamModal=({onClose})=>{
@@ -1816,6 +1868,7 @@ function AdminDashboard({user,data,reload,onLogout}){
       </div>
       {canEdit&&<div style={{display:"flex",gap:8,marginBottom:18,flexWrap:"wrap"}}>
         <Btn variant="ghost" size="sm" onClick={()=>setModal({type:"clientForm",client:c})}>✏️ Edit Info</Btn>
+        {canImpersonate&&<Btn variant="soft" size="sm" onClick={()=>{audit("client.impersonate",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name});setViewAs(c.id);}}>👁️ Open Account (read-only)</Btn>}
         <Btn variant="ghost" size="sm" onClick={()=>setModal({type:"integrations",client:c})}>🔗 Integrations</Btn>
         <Btn variant="ghost" size="sm" onClick={()=>setModal({type:"analytics",client:c})}>📈 Update Analytics</Btn>
         {c.plan==="gmb"&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"gmb",client:c})}>📍 Update GMB</Btn>}
@@ -1945,8 +1998,11 @@ function AdminDashboard({user,data,reload,onLogout}){
           <div style={{width:42,height:42,borderRadius:"50%",background:m.role==="super_admin"?`linear-gradient(135deg,${T.brand},${T.violet})`:m.role==="manager"?`linear-gradient(135deg,${T.amber},#E8A33D)`:`linear-gradient(135deg,${T.blue},#5B9FE8)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:800,color:"#fff"}}>{m.avatar}</div>
           <div><div style={{fontSize:14,fontWeight:800}}>{m.name}</div><div style={{fontSize:12,color:T.sub}}>{m.email}</div></div>
         </div>
-        <div style={{display:"flex",gap:10,alignItems:"center"}}>
+        <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
           <Badge type={m.role==="super_admin"?"live":m.role==="manager"?"pending":"submitted"} label={m.role==="super_admin"?"Super Admin":m.role==="manager"?"Manager":"Agent"}/>
+          {m.role==="agent"&&<span style={{fontSize:11,color:T.sub,fontWeight:700,background:T.blueSoft,padding:"3px 9px",borderRadius:20}}>{allClients.filter(c=>c.assignedAgentId===m.id).length} clients assigned</span>}
+          {isStaffMgr&&m.role==="agent"&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"assign",agent:m})}>Assign clients</Btn>}
+          {isAdmin&&m.role==="manager"&&<Btn variant={m.canImpersonate?"green":"ghost"} size="sm" onClick={()=>R(async()=>{await api.setImpersonateGrant(m.id,!m.canImpersonate);await audit("grant.impersonate",{targetType:"staff",targetId:m.id,targetName:m.name,detail:m.canImpersonate?"revoked":"granted"});},m.canImpersonate?"Account access revoked":"Account access granted")}>{m.canImpersonate?"✓ Can view accounts":"Allow account access"}</Btn>}
           {m.id!==user.id&&m.role!=="super_admin"&&!m.protected&&<Btn variant="danger" size="sm" onClick={()=>setConfirm({title:"Remove team member?",msg:`Remove ${m.name} from the team?`,danger:true,yes:"Remove",onYes:()=>R(async()=>api.deleteUser(m.id),`${m.name} removed`)})}>Remove</Btn>}
           {m.protected&&<span style={{fontSize:11,color:T.faint}}>🔒 Demo</span>}
         </div>
@@ -1954,7 +2010,7 @@ function AdminDashboard({user,data,reload,onLogout}){
     </Card>))}
     <Card style={{background:T.surface2,boxShadow:"none",border:`1px dashed ${T.line}`}}>
       <div style={{fontSize:11,fontWeight:800,color:T.faint,marginBottom:10,letterSpacing:".6px"}}>ROLE PERMISSIONS</div>
-      {[["Super Admin",T.brand,"Full access, clients, listings, GMB, team, revenue, settings"],["Manager",T.amber,"Clients, listings, GMB. No team, revenue, or settings."],["Agent",T.blue,"View clients and update listing statuses/notes only."]].map(([r,c,p])=>(
+      {[["Super Admin",T.brand,"Full access, clients, listings, GMB, team, finance, settings, and read-only account view"],["Manager",T.amber,"Clients, listings, GMB, assign clients to agents. Account view only if granted."],["Agent",T.blue,"Update listings only for clients a manager has assigned to them."]].map(([r,c,p])=>(
         <div key={r} style={{display:"flex",gap:9,marginBottom:8,alignItems:"flex-start"}}><span style={{width:8,height:8,borderRadius:3,background:c,marginTop:5,flexShrink:0}}/><div style={{fontSize:12.5}}><b style={{color:c}}>{r}:</b> <span style={{color:T.sub}}>{p}</span></div></div>))}
     </Card>
   </div>);
@@ -2243,6 +2299,21 @@ function AdminDashboard({user,data,reload,onLogout}){
     </div>);
   };
 
+  // Read-only impersonation: show the selected client's dashboard behind a banner, no editing.
+  if(viewAs){
+    const c=allClients.find(x=>x.id===viewAs);
+    if(!c){setViewAs(null);return null;}
+    return(<>
+      <div style={{position:"sticky",top:0,zIndex:1000,background:`linear-gradient(90deg,${T.amber},#E8890B)`,color:"#fff",padding:"10px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,boxShadow:SHADOW}}>
+        <div style={{fontSize:13,fontWeight:700}}>👁️ Viewing {c.businessName||c.name}'s account (read-only). Changes are disabled.</div>
+        <button onClick={()=>setViewAs(null)} style={{background:"rgba(255,255,255,.25)",border:"none",color:"#fff",padding:"6px 16px",borderRadius:8,fontWeight:800,cursor:"pointer",fontFamily:FONT_B,fontSize:12.5}}>Exit view</button>
+      </div>
+      <div style={{pointerEvents:"none"}}>
+        <ClientDashboard user={c} data={data} reload={reload} onLogout={()=>setViewAs(null)}/>
+      </div>
+    </>);
+  }
+
   return(<><Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} planBadge={roleBadge} brandTag="ADMIN" badgeCounts={{listings:totalFlagged+actionNeeded}}>
     {page==="overview"&&<Overview/>}
     {page==="clients"&&<Clients/>}
@@ -2258,6 +2329,7 @@ function AdminDashboard({user,data,reload,onLogout}){
   </Shell>
   {modal?.type==="clientForm"&&<ClientFormModal client={modal.client} onClose={()=>setModal(null)}/>}
   {modal?.type==="team"&&<TeamModal onClose={()=>setModal(null)}/>}
+  {modal?.type==="assign"&&<AssignModal agent={modal.agent} onClose={()=>setModal(null)}/>}
   {modal?.type==="addListing"&&<AddListingModal clientId={modal.clientId} onClose={()=>setModal(null)}/>}
   {modal?.type==="updateListing"&&<UpdateListingModal listing={modal.listing} clientId={modal.clientId} onClose={()=>setModal(null)}/>}
   {modal?.type==="gmb"&&<GmbModal client={modal.client} onClose={()=>setModal(null)}/>}
