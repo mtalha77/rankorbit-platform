@@ -75,9 +75,9 @@ function MiniOrbit({size=30}){
 // ─── SEED (local fallback mode) ──────────────────────────────────────────────
 const SEED = {
   users:[
-    {id:"u1",email:"admin@rankorbit.com",password:"admin123",role:"super_admin",name:"Talha (Admin)",avatar:"T",protected:true},
-    {id:"u2",email:"manager@rankorbit.com",password:"manager123",role:"manager",name:"Sara (Manager)",avatar:"S",protected:true},
-    {id:"u3",email:"agent@rankorbit.com",password:"agent123",role:"agent",name:"Ali (Agent)",avatar:"A",protected:true},
+    {id:"u1",email:"admin@naporbit.com",password:"admin123",role:"super_admin",name:"Talha (Admin)",avatar:"T",protected:true},
+    {id:"u2",email:"manager@naporbit.com",password:"manager123",role:"manager",name:"Sara (Manager)",avatar:"S",protected:true},
+    {id:"u3",email:"agent@naporbit.com",password:"agent123",role:"agent",name:"Ali (Agent)",avatar:"A",protected:true},
     {id:"u4",email:"mike@example.com",password:"client123",role:"client",name:"Mike Johnson",avatar:"M",businessName:"Mike's Plumbing",plan:"growth",phone:"(555) 200-1000",address:"123 Main St",city:"Austin",state:"TX",zip:"78701",website:"mikesplumbing.com",category:"Home Services",status:"active",napScore:94,protected:true},
     {id:"u5",email:"sarah@dentalcare.com",password:"client123",role:"client",name:"Sarah Miller",avatar:"S",businessName:"Sarah's Dental Care",plan:"gmb",phone:"(555) 300-2000",address:"456 Oak Ave",city:"Houston",state:"TX",zip:"77001",website:"sarahsdental.com",category:"Medical / Health",status:"active",napScore:88,protected:true},
     {id:"u6",email:"john@autoshop.com",password:"client123",role:"client",name:"John Davis",avatar:"J",businessName:"Davis Auto Repair",plan:"essentials",phone:"(555) 400-3000",address:"789 Elm Rd",city:"Dallas",state:"TX",zip:"75201",website:"davisauto.com",category:"Auto Services",status:"active",napScore:72,protected:true},
@@ -353,6 +353,11 @@ const api={
     if(supa){await supa.from("settings").update({data}).eq("id",1);return;}
     LSet("ro3_settings",data);
   },
+  // Public read of settings (used by the landing page to know which plans are live).
+  async getSettings(){
+    if(supa){const{data}=await supa.from("settings").select("data").eq("id",1).maybeSingle();return data?.data||{};}
+    return LS("ro3_settings")||{};
+  },
 };
 
 // ─── HOOKS ───────────────────────────────────────────────────────────────────
@@ -550,7 +555,7 @@ function exportPDF(rows,cols,name,title){
     td{border-bottom:1px solid #eee;padding:6px 9px}
     tr:nth-child(even) td{background:#F6F7FB}
   </style></head><body>
-    <h1>Rank Orbit, ${title||name}</h1>
+    <h1>NAP Orbit, ${title||name}</h1>
     <div class="meta">${rows.length} rows · exported ${new Date().toLocaleString()}</div>
     <table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
     <script>window.onload=()=>{window.print();}<\/script>
@@ -607,6 +612,10 @@ const clientBy=(by)=>(!by||by==="System"?(by||""):"Account Manager");
 const PLANS={essentials:{name:"Essentials",price:49,quota:"10 listings/mo",color:T.blue,soft:T.blueSoft,features:["10 directory submissions every month","NAP consistency management","Unauthorized edit protection","Helps you get found in AI searches","Listing monitoring & alerts","Client dashboard access"]},
   growth:{name:"Growth",price:89,quota:"20 listings/mo",color:T.brand,soft:T.brandSoft,features:["20 directory submissions every month","Everything in Essentials","Helps you get found in AI searches","Expanded directory coverage","Priority support","Monthly coverage report"]},
   gmb:{name:"GMB Pro",price:249,quota:"20 listings + GMB",color:T.violet,soft:T.violetSoft,features:["Everything in Growth","Google Business Profile management","Get found in AI searches (ChatGPT, Gemini, AI Overviews)","Monthly GMB posts & Q&A","Engagement analytics (views, calls)","Dedicated BDM support"]}};
+// Which plans are publicly live. Super-admin toggles these in the control panel.
+// Missing/undefined flag = live by default. A plan set to false is hidden everywhere client-facing.
+const planLive=(id,cfg={})=>{const m={essentials:"livePlanEssentials",growth:"livePlanGrowth",gmb:"livePlanGmb"};const v=cfg[m[id]];return v===undefined||v===null||v===true||v==="true";};
+const livePlanEntries=(cfg={})=>Object.entries(PLANS).filter(([id])=>planLive(id,cfg));
 const BIZ_FIELDS=[["name","Full Name"],["businessName","Business Name"],["email","Email"],["phone","Phone"],["address","Address"],["city","City"],["state","State"],["zip","ZIP"],["website","Website"]];
 const CATEGORIES=["Home Services","Medical / Health","Legal","Restaurant / Food","Auto Services","Beauty & Salon","Real Estate","Other"];
 // US states + Canadian provinces (restricts address region to US/Canada).
@@ -658,7 +667,7 @@ function AuthScreen({onLogin,portal="client"}){
     setBusy(true);const r=await api.resetPassword(email);setBusy(false);
     if(r.error)setError(r.error);else{setError("");setInfo("Password reset link sent. Check your email.");setMode("login");}
   };
-  const staff=[{l:"Super Admin",e:"admin@rankorbit.com",p:"admin123",c:T.brand,s:"Full access"},{l:"Manager",e:"manager@rankorbit.com",p:"manager123",c:T.violet,s:"Ops access"},{l:"Agent",e:"agent@rankorbit.com",p:"agent123",c:T.blue,s:"Listings only"}];
+  const staff=[{l:"Super Admin",e:"admin@naporbit.com",p:"admin123",c:T.brand,s:"Full access"},{l:"Manager",e:"manager@naporbit.com",p:"manager123",c:T.violet,s:"Ops access"},{l:"Agent",e:"agent@naporbit.com",p:"agent123",c:T.blue,s:"Listings only"}];
   const clients=[{l:"Essentials $49",e:"john@autoshop.com",p:"client123",c:T.blue,s:"Davis Auto"},{l:"Growth $89",e:"mike@example.com",p:"client123",c:T.brand,s:"Mike's Plumbing"},{l:"GMB Pro $249",e:"sarah@dentalcare.com",p:"client123",c:T.violet,s:"Sarah's Dental"}];
   const w=useWindowSize();const isMobile=w<860;
   return(<div style={{minHeight:"100vh",background:T.bg,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT_B,padding:16,position:"relative",overflow:"hidden"}}>
@@ -669,7 +678,7 @@ function AuthScreen({onLogin,portal="client"}){
         <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:26}}>
           <Orbit size={92}/>
           <div>
-            <div style={{fontFamily:FONT_D,fontSize:30,fontWeight:800,letterSpacing:"-1px"}}>Rank <span style={{color:T.brand}}>Orbit</span></div>
+            <div style={{fontFamily:FONT_D,fontSize:30,fontWeight:800,letterSpacing:"-1px"}}>NAP <span style={{color:T.brand}}>Orbit</span></div>
             <div style={{fontSize:13,color:T.sub,marginTop:2}}>Local Visibility Platform</div>
           </div>
         </div>
@@ -686,7 +695,7 @@ function AuthScreen({onLogin,portal="client"}){
       </div>)}
       <div className="pop" style={{width:"100%",maxWidth:430}}>
         {isMobile&&(<div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20,justifyContent:"center"}}>
-          <MiniOrbit size={40}/><div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800}}>Rank <span style={{color:T.brand}}>Orbit</span></div>
+          <MiniOrbit size={40}/><div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800}}>NAP <span style={{color:T.brand}}>Orbit</span></div>
         </div>)}
         <Card style={{padding:28,boxShadow:SHADOW_LG}}>
           <div style={{fontFamily:FONT_D,fontSize:18,fontWeight:800,marginBottom:4}}>{isStaff?"Staff sign in":mode==="login"?"Sign in":mode==="signup"?"Create your account":"Reset password"}</div>
@@ -772,7 +781,7 @@ function Shell({user,nav,page,setPage,onLogout,planBadge,badgeCounts={},children
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <MiniOrbit size={34}/>
           <div>
-            <div style={{fontFamily:FONT_D,fontSize:15.5,fontWeight:800,lineHeight:1.1}}>Rank <span style={{color:T.brand}}>Orbit</span></div>
+            <div style={{fontFamily:FONT_D,fontSize:15.5,fontWeight:800,lineHeight:1.1}}>NAP <span style={{color:T.brand}}>Orbit</span></div>
             {brandTag&&<div style={{fontSize:9.5,fontWeight:800,color:T.red,letterSpacing:".6px"}}>{brandTag}</div>}
           </div>
         </div>
@@ -801,7 +810,7 @@ function Shell({user,nav,page,setPage,onLogout,planBadge,badgeCounts={},children
       {isMobile&&(<div style={{padding:"13px 16px",background:T.surface,borderBottom:`1px solid ${T.line}`,display:"flex",alignItems:"center",gap:12,flexShrink:0,justifyContent:"space-between"}}>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           <button onClick={()=>setOpen(true)} style={{background:T.surface2,border:"none",color:T.ink,fontSize:17,cursor:"pointer",width:36,height:36,borderRadius:10}}>☰</button>
-          <div style={{fontFamily:FONT_D,fontSize:15,fontWeight:800}}>Rank <span style={{color:T.brand}}>Orbit</span></div>
+          <div style={{fontFamily:FONT_D,fontSize:15,fontWeight:800}}>NAP <span style={{color:T.brand}}>Orbit</span></div>
         </div>
         <button onClick={onLogout} style={{background:"none",border:"none",color:T.sub,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>Sign Out ↪</button>
       </div>)}
@@ -843,7 +852,7 @@ function ClientDashboard({user:userProp,data,reload,onLogout,impersonating=false
   const cfg=settings?.config||{};
   // Client-visible prices honor the super-admin control-panel overrides, falling back to defaults.
   const priceOf=(id)=>{const m={essentials:"priceEssentials",growth:"priceGrowth",gmb:"priceGmb"};const v=cfg[m[id]];return v!=null&&v!==""?Number(v):PLANS[id]?.price;};
-  const PLANSV=Object.fromEntries(Object.entries(PLANS).map(([id,p])=>[id,{...p,price:priceOf(id)}]));
+  const PLANSV=Object.fromEntries(Object.entries(PLANS).filter(([id])=>planLive(id,cfg)||id===user.plan).map(([id,p])=>[id,{...p,price:priceOf(id)}]));
   const live=my.filter(l=>l.status==="live").length;
   const pending=my.filter(l=>l.status==="pending").length;
   const plan=PLANSV[user.plan]||PLANSV.essentials;
@@ -919,7 +928,7 @@ function ClientDashboard({user:userProp,data,reload,onLogout,impersonating=false
     <PageHead isMobile={isMobile} title={`${greet}, ${(user.name||"there").split(" ")[0]} 👋`} sub={`Here's what we're doing for ${user.businessName||"your business"} right now`}
       right={<div style={{display:"flex",gap:10,alignItems:"center"}}><NotifBell/><Btn variant="soft" size="sm" onClick={()=>setPage("call")}>📞 Talk to your BDM</Btn></div>}/>
     {!user.plan&&(<Card style={{marginBottom:18,background:`linear-gradient(135deg,${T.brandSoft},#fff)`,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
-      <div><div style={{fontFamily:FONT_D,fontSize:16,fontWeight:800}}>Welcome to Rank Orbit 🚀</div><div style={{fontSize:13,color:T.sub,marginTop:3}}>Choose a plan to start getting listed, or your account manager will set you up after your call.</div></div>
+      <div><div style={{fontFamily:FONT_D,fontSize:16,fontWeight:800}}>Welcome to NAP Orbit 🚀</div><div style={{fontSize:13,color:T.sub,marginTop:3}}>Choose a plan to start getting listed, or your account manager will set you up after your call.</div></div>
       <Btn onClick={()=>setPage("billing")}>Choose a plan</Btn>
     </Card>)}
     {/* Visibility Score hero + onboarding checklist */}
@@ -1249,7 +1258,7 @@ function ClientDashboard({user:userProp,data,reload,onLogout,impersonating=false
         <SectionTitle sub="Download everything we hold about your account, profile, listings, and activity.">Your Data</SectionTitle>
         <Btn variant="ghost" size="sm" onClick={()=>{
           const mine={profile:user,listings:my,activity:myAct,exportedAt:new Date().toISOString()};
-          downloadBlob(JSON.stringify(mine,null,2),`rankorbit-my-data-${Date.now()}.json`,"application/json");
+          downloadBlob(JSON.stringify(mine,null,2),`naporbit-my-data-${Date.now()}.json`,"application/json");
           toast("Your data downloaded");
         }}>⤓ Download my data (JSON)</Btn>
       </Card>
@@ -1352,7 +1361,7 @@ function ClientDashboard({user:userProp,data,reload,onLogout,impersonating=false
 
   const LegalPage=()=>{
     const[tab,setTab]=useState("terms");
-    const co="Rank Orbit";const eff=new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"});
+    const co="NAP Orbit";const eff=new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"});
     const H=({children})=>(<div style={{fontSize:14,fontWeight:800,fontFamily:FONT_D,color:T.ink,margin:"18px 0 7px"}}>{children}</div>);
     const P=({children})=>(<p style={{fontSize:13,color:T.sub,lineHeight:1.65,margin:"0 0 10px"}}>{children}</p>);
     return(<div>
@@ -1387,7 +1396,7 @@ function ClientDashboard({user:userProp,data,reload,onLogout,impersonating=false
           <H>10. Changes to Terms</H>
           <P>{co} may update these terms. Material changes will be communicated by email or in-platform notice. Continued use after changes constitutes acceptance.</P>
           <H>11. Contact</H>
-          <P>Questions about these terms: info@rankorbit.com.</P>
+          <P>Questions about these terms: info@naporbit.com.</P>
         </div>):(<div>
           <H>1. Overview</H>
           <P>This Privacy Policy explains how {co} collects, uses, and protects information when you use our Services. We are committed to handling your data responsibly and transparently.</P>
@@ -1408,7 +1417,7 @@ function ClientDashboard({user:userProp,data,reload,onLogout,impersonating=false
           <H>9. Changes</H>
           <P>We may update this policy and will notify you of material changes by email or in-platform notice.</P>
           <H>10. Contact</H>
-          <P>Privacy questions or data requests: info@rankorbit.com.</P>
+          <P>Privacy questions or data requests: info@naporbit.com.</P>
         </div>)}
       </Card>
     </div>);
@@ -1444,7 +1453,7 @@ function UserManual({user,plan,onClose,goTo}){
   ];
   return(<Modal open onClose={onClose} title="👋 Welcome to your dashboard" width={620}>
     <div style={{fontSize:13.5,color:T.sub,lineHeight:1.6,marginBottom:18}}>
-      Hi {user.name?.split(" ")[0]||"there"}! Here's a quick tour of everything in your Rank Orbit dashboard and what each section does. You can reopen this anytime with the <b>Help</b> button.
+      Hi {user.name?.split(" ")[0]||"there"}! Here's a quick tour of everything in your NAP Orbit dashboard and what each section does. You can reopen this anytime with the <b>Help</b> button.
     </div>
     <div style={{display:"flex",flexDirection:"column",gap:2}}>
       {sections.map((s)=>(
@@ -1611,6 +1620,26 @@ function AdminDashboard({user,data,reload,onLogout}){
       {!editing&&api.mode==="supabase"&&<div style={{marginTop:12,fontSize:11,color:T.faint,lineHeight:1.5}}>Note: this creates a profile record. For the client to log in, they sign up themselves (email/Google) with this email, or you send them a reset link.</div>}
     </Modal>);
   };
+  const SuspendModal=({client,onClose})=>{
+    const[reason,setReason]=useState("");
+    const[saving,setSaving]=useState(false);
+    const roleLabel=user.role==="super_admin"?"Super Admin":"Manager";
+    const doSuspend=async()=>{
+      setSaving(true);
+      try{
+        await api.patchProfile(client.id,{status:"suspended",suspendedAt:new Date().toISOString(),suspendReason:reason.trim(),suspendedBy:roleLabel});
+        await audit("client.suspend",{targetType:"client",targetId:client.id,targetName:client.businessName||client.name,detail:reason.trim()||"no reason given"});
+        await reload();toast("Client suspended");onClose();
+      }catch(e){toast("Could not suspend","info");}
+      setSaving(false);
+    };
+    return(<Modal open onClose={onClose} title={`Suspend ${client.businessName||client.name}?`}>
+      <div style={{fontSize:12.5,color:T.sub,marginBottom:14,lineHeight:1.5}}>The client won't be able to log in until reactivated. Add a short reason for the record (staff only).</div>
+      <label style={{fontSize:11.5,color:T.sub,fontWeight:700,display:"block",marginBottom:6,letterSpacing:".4px"}}>REASON / NOTES</label>
+      <textarea value={reason} onChange={e=>setReason(e.target.value)} placeholder="e.g. Payment failed, client requested pause, policy issue…" rows={3} style={{width:"100%",padding:"11px 14px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:11,fontSize:13,fontFamily:FONT_B,boxSizing:"border-box",resize:"vertical",marginBottom:16}}/>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn variant="danger" onClick={doSuspend} disabled={saving}>{saving?"Suspending…":"Suspend client"}</Btn></div>
+    </Modal>);
+  };
   const AssignModal=({agent,onClose})=>{
     const[sel,setSel]=useState(new Set(allClients.filter(c=>c.assignedAgentId===agent.id).map(c=>c.id)));
     const[saving,setSaving]=useState(false);
@@ -1652,7 +1681,7 @@ function AdminDashboard({user,data,reload,onLogout}){
     const set=(k,v)=>setF(x=>({...x,[k]:v}));
     return(<Modal open onClose={onClose} title="Add Team Member">
       <Input label="Full Name" value={f.name} onChange={v=>set("name",v)} placeholder="Team member name"/>
-      <Input label="Email" value={f.email} onChange={v=>set("email",v)} placeholder="team@rankorbit.com" type="email"/>
+      <Input label="Email" value={f.email} onChange={v=>set("email",v)} placeholder="team@naporbit.com" type="email"/>
       <Select label="Role" value={f.role} onChange={v=>set("role",v)} options={[{value:"manager",label:"Manager"},{value:"agent",label:"Agent"}]}/>
       <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
@@ -1828,7 +1857,7 @@ function AdminDashboard({user,data,reload,onLogout}){
           {value:planF,set:setPlanF,options:[{value:"all",label:"All plans"},...Object.entries(PLANS).map(([id,p])=>({value:id,label:p.name}))]},
           {value:statusF,set:setStatusF,options:[{value:"all",label:"All statuses"},{value:"active",label:"Active"},{value:"suspended",label:"Suspended"}]},
         ]}
-        rows={filtered} cols={exportCols} exportName="rankorbit-clients" exportTitle="Clients"/>
+        rows={filtered} cols={exportCols} exportName="naporbit-clients" exportTitle="Clients"/>
       {filtered.length===0?<Card><Empty icon="🔍" title="No clients found" sub="Try a different search or filter, or add a client."/></Card>:
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         {filtered.map((c,idx)=>{
@@ -1863,7 +1892,20 @@ function AdminDashboard({user,data,reload,onLogout}){
     // Agents reach ClientDetail only for clients assigned to them (clients list is pre-scoped),
     // so if an agent can open this client, they're allowed to edit it.
     const canEdit=isStaffMgr||(isAgent&&c.assignedAgentId===user.id);
+    const fmtDT=(d)=>d?new Date(d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"}):"";
     return(<div>
+      {c.status==="suspended"&&<Card style={{marginBottom:16,background:T.redSoft,border:`1px solid ${T.red}33`}}>
+        <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+          <span style={{fontSize:20}}>⏸</span>
+          <div style={{flex:1}}>
+            <div style={{fontSize:14,fontWeight:800,color:T.red}}>Account suspended</div>
+            <div style={{fontSize:12.5,color:T.sub,marginTop:4,lineHeight:1.6}}>
+              {c.suspendedAt&&<>Suspended on <b>{fmtDT(c.suspendedAt)}</b></>}{c.suspendedBy&&<> by <b>{c.suspendedBy}</b></>}.
+              {c.suspendReason?<><br/>Reason: {c.suspendReason}</>:<><br/>No reason recorded.</>}
+            </div>
+          </div>
+        </div>
+      </Card>}
       <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:20,flexWrap:"wrap"}}>
         <button onClick={()=>{setPage("clients");setSelClient(null);}} style={{background:T.surface,border:`1px solid ${T.line}`,borderRadius:10,padding:"7px 14px",color:T.sub,fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>← Clients</button>
         <div style={{fontFamily:FONT_D,fontSize:isMobile?17:21,fontWeight:800}}>{c.businessName||c.name}</div>
@@ -1877,8 +1919,8 @@ function AdminDashboard({user,data,reload,onLogout}){
         {c.plan==="gmb"&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"gmb",client:c})}>📍 Update GMB</Btn>}
         {c.plan==="gmb"&&<Btn variant="soft" size="sm" onClick={()=>{const month=new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"});setConfirm({title:"Mark report as sent?",msg:`Confirm you've emailed the ${month} GMB report to ${c.reportEmail||c.email}. The client will see "Report sent for ${month}".`,yes:"Mark sent",onYes:()=>R(async()=>{await api.patchProfile(c.id,{reportSentMonth:month});await audit("report.sent",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name,detail:month});await addActivity(c.id,"gmb_update",`Monthly report sent for ${month}`);},"Report marked as sent")});}}>📤 Mark Report Sent</Btn>}
         {c.status==="active"?
-          <Btn variant="ghost" size="sm" onClick={()=>setConfirm({title:"Suspend client?",msg:`${c.businessName||c.name} won't be able to log in until reactivated.`,yes:"Suspend",onYes:()=>R(async()=>{await api.patchProfile(c.id,{status:"suspended"});await audit("client.suspend",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name});},"Client suspended")})}>⏸ Suspend</Btn>:
-          <Btn variant="green" size="sm" onClick={()=>R(async()=>{await api.patchProfile(c.id,{status:"active"});await audit("client.reactivate",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name});},"Client reactivated")}>▶ Reactivate</Btn>}
+          <Btn variant="ghost" size="sm" onClick={()=>setModal({type:"suspend",client:c})}>⏸ Suspend</Btn>:
+          <Btn variant="green" size="sm" onClick={()=>R(async()=>{await api.patchProfile(c.id,{status:"active",suspendedAt:null,suspendReason:null,suspendedBy:null});await audit("client.reactivate",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name});},"Client reactivated")}>▶ Reactivate</Btn>}
         {isAdmin&&!c.protected&&<Btn variant="danger" size="sm" onClick={()=>setConfirm({title:"Delete client?",msg:`Move ${c.businessName||c.name} to Trash? Recoverable for 30 days, then permanently removed with all their listings.`,danger:true,yes:"Delete",onYes:()=>R(async()=>{await api.deleteUser(c.id);await audit("client.delete",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name});},"Client moved to Trash").then(()=>{setPage("clients");setSelClient(null);})})}>🗑 Delete</Btn>}
         {c.protected&&<span style={{fontSize:11,color:T.faint,alignSelf:"center"}}>🔒 Demo account (protected)</span>}
       </div>}
@@ -1948,7 +1990,7 @@ function AdminDashboard({user,data,reload,onLogout}){
     return(<div>
       <PageHead isMobile={isMobile} title="All Listings" sub={`${withNames.length} total across ${clients.length} clients`}/>
       <ListToolbar search={search} setSearch={setSearch} placeholder="🔍  Search client, directory, status…"
-        rows={filtered} cols={exportCols} exportName="rankorbit-listings" exportTitle="All Listings"/>
+        rows={filtered} cols={exportCols} exportName="naporbit-listings" exportTitle="All Listings"/>
       <div style={{display:"flex",gap:8,marginBottom:18,flexWrap:"wrap"}}>
         {["all","live","pending","submitted","flagged","rejected","action"].map(s=>(
           <button key={s} onClick={()=>setFilter(s)} style={{padding:"7px 15px",borderRadius:20,border:`1.5px solid ${filter===s?T.brand:T.line}`,background:filter===s?T.brandSoft:T.surface,color:filter===s?T.brand:T.sub,fontSize:12.5,fontWeight:filter===s?800:600,cursor:"pointer",fontFamily:FONT_B}}>{s==="action"?"⚠️ Client action":s[0].toUpperCase()+s.slice(1)} ({cnt(s)})</button>))}
@@ -2053,7 +2095,7 @@ function AdminDashboard({user,data,reload,onLogout}){
           {value:byF,set:setByF,options:[{value:"all",label:"All people"},...people.map(p=>({value:p,label:p}))]},
           {value:timeF,set:setTimeF,options:[{value:"all",label:"All time"},{value:"7",label:"Last 7 days"},{value:"30",label:"Last 30 days"},{value:"90",label:"Last 90 days"}]},
         ]}
-        rows={filtered} cols={cols} exportName="rankorbit-activity" exportTitle="Activity Log"/>
+        rows={filtered} cols={cols} exportName="naporbit-activity" exportTitle="Activity Log"/>
       <Card>
         {filtered.length===0?<Empty icon="📜" title="No matching activity" sub="Try a different search or filter."/>:
           filtered.map((a,i)=>(<div key={a.id} className="hoverRow" style={{display:"flex",gap:13,padding:"11px 8px",borderRadius:10,borderBottom:i<filtered.length-1?`1px solid ${T.line}`:"none",alignItems:"flex-start"}}>
@@ -2124,7 +2166,7 @@ function AdminDashboard({user,data,reload,onLogout}){
           {value:statusF,set:setStatusF,options:[{value:"all",label:"All statuses"},{value:"active",label:"Active"},{value:"cancelling",label:"Cancelling"},{value:"cancelled",label:"Cancelled"},{value:"paused",label:"Paused"},{value:"no plan",label:"No plan"}]},
           {value:planF,set:setPlanF,options:[{value:"all",label:"All plans"},...Object.entries(PLANS).map(([id,p])=>({value:id,label:p.name}))]},
         ]}
-        rows={filtered} cols={cols} exportName="rankorbit-finance" exportTitle="Finance Lifecycle"/>
+        rows={filtered} cols={cols} exportName="naporbit-finance" exportTitle="Finance Lifecycle"/>
       <Card style={{overflowX:"auto"}}>
         {filtered.length===0?<Empty icon="💰" title="No clients match" sub="Adjust filters."/>:
         <table style={{width:"100%",borderCollapse:"collapse",minWidth:780}}>
@@ -2160,7 +2202,7 @@ function AdminDashboard({user,data,reload,onLogout}){
       <PageHead isMobile={isMobile} title="Audit Trail" sub="Every sensitive staff action, who did what, and when"/>
       <ListToolbar search={search} setSearch={setSearch} placeholder="🔍  Search staff, action, target…"
         filters={[{value:actionF,set:setActionF,options:[{value:"all",label:"All actions"},...actions.map(a=>({value:a,label:a}))]}]}
-        rows={filtered} cols={cols} exportName="rankorbit-audit" exportTitle="Audit Trail"/>
+        rows={filtered} cols={cols} exportName="naporbit-audit" exportTitle="Audit Trail"/>
       <Card style={{overflowX:"auto"}}>
         {filtered.length===0?<Empty icon="🛡️" title="No audit records yet" sub="Staff actions like edits, deletes, and suspensions are logged here."/>:
         <table style={{width:"100%",borderCollapse:"collapse",minWidth:640}}>
@@ -2214,11 +2256,12 @@ function AdminDashboard({user,data,reload,onLogout}){
     const set=(k,v)=>setF(x=>({...x,[k]:v}));
     // Control-panel config: notification emails, report recipients, prices, toggles. UI-editable, DB-stored.
     const cfg0={
-      notifyEmail:"info@rankorbit.com",
-      reportEmails:"info@rankorbit.com, rankorbit@gmail.com",
+      notifyEmail:"info@naporbit.com",
+      reportEmails:"info@naporbit.com, naporbit@gmail.com",
       priceEssentials:PLANS.essentials.price, priceGrowth:PLANS.growth.price, priceGmb:PLANS.gmb.price,
       notifySignup:true, notifyCancel:true, notifyPlanChange:true, notifyAgentEdit:true, monthlyReport:true,
       allowSignups:true,
+      livePlanEssentials:true, livePlanGrowth:true, livePlanGmb:true,
       ...(settings?.config||{})
     };
     const[c,setC]=useState(cfg0);
@@ -2239,8 +2282,8 @@ function AdminDashboard({user,data,reload,onLogout}){
         <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16}}>
           <div>
             <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:10}}>NOTIFICATION EMAILS</div>
-            <Input label="Event notifications to" value={c.notifyEmail} onChange={v=>setCfg("notifyEmail",v)} placeholder="info@rankorbit.com"/>
-            <Input label="Monthly report recipients (comma-separated)" value={c.reportEmails} onChange={v=>setCfg("reportEmails",v)} placeholder="info@rankorbit.com, rankorbit@gmail.com"/>
+            <Input label="Event notifications to" value={c.notifyEmail} onChange={v=>setCfg("notifyEmail",v)} placeholder="info@naporbit.com"/>
+            <Input label="Monthly report recipients (comma-separated)" value={c.reportEmails} onChange={v=>setCfg("reportEmails",v)} placeholder="info@naporbit.com, naporbit@gmail.com"/>
           </div>
           <div>
             <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:10}}>PLAN PRICES ($ / month)</div>
@@ -2251,6 +2294,12 @@ function AdminDashboard({user,data,reload,onLogout}){
             </div>
             <div style={{fontSize:11,color:T.faint,lineHeight:1.5,marginTop:2}}>Note: these update what clients see. Your actual Stripe charge is set by the Payment Link, keep them in sync.</div>
           </div>
+        </div>
+        <div style={{marginTop:16}}>
+          <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:4}}>LIVE PLANS (shown on website, signup & billing)</div>
+          <Toggle label="Essentials plan is live" k="livePlanEssentials"/>
+          <Toggle label="Growth plan is live" k="livePlanGrowth"/>
+          <Toggle label="GMB Pro plan is live" k="livePlanGmb" sub="Turn off to launch it later. Existing clients on a hidden plan keep it."/>
         </div>
         <div style={{marginTop:16}}>
           <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:4}}>NOTIFICATIONS & TOGGLES</div>
@@ -2336,6 +2385,7 @@ function AdminDashboard({user,data,reload,onLogout}){
   {modal?.type==="clientForm"&&<ClientFormModal client={modal.client} onClose={()=>setModal(null)}/>}
   {modal?.type==="team"&&<TeamModal onClose={()=>setModal(null)}/>}
   {modal?.type==="assign"&&<AssignModal agent={modal.agent} onClose={()=>setModal(null)}/>}
+  {modal?.type==="suspend"&&<SuspendModal client={modal.client} onClose={()=>setModal(null)}/>}
   {modal?.type==="addListing"&&<AddListingModal clientId={modal.clientId} onClose={()=>setModal(null)}/>}
   {modal?.type==="updateListing"&&<UpdateListingModal listing={modal.listing} clientId={modal.clientId} onClose={()=>setModal(null)}/>}
   {modal?.type==="gmb"&&<GmbModal client={modal.client} onClose={()=>setModal(null)}/>}
@@ -2360,6 +2410,10 @@ function LandingPage(){
   const go=()=>nav("/login");
   const pad=isMobile?"0 20px":isTab?"0 32px":"0 40px";
   const maxW=1160;
+  // Load which plans are live + any price overrides (set by super-admin control panel).
+  const[cfg,setCfg]=useState({});
+  useEffect(()=>{(async()=>{try{const s=await api.getSettings?.();if(s?.config)setCfg(s.config);}catch{}})();},[]);
+  const lprice=(id)=>{const m={essentials:"priceEssentials",growth:"priceGrowth",gmb:"priceGmb"};const v=cfg[m[id]];return v!=null&&v!==""?Number(v):PLANS[id]?.price;};
 
   // Bold section heading
   const Eyebrow=({children,color=T.brand})=>(
@@ -2382,7 +2436,7 @@ function LandingPage(){
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:isMobile?"13px 20px":"15px 40px",maxWidth:maxW,margin:"0 auto"}}>
         <div style={{display:"flex",alignItems:"center",gap:11}}>
           <MiniOrbit size={36}/>
-          <div style={{fontFamily:FONT_D,fontSize:21,fontWeight:800,letterSpacing:"-.6px"}}>Rank <span style={{color:T.brand}}>Orbit</span></div>
+          <div style={{fontFamily:FONT_D,fontSize:21,fontWeight:800,letterSpacing:"-.6px"}}>NAP <span style={{color:T.brand}}>Orbit</span></div>
         </div>
         <div style={{display:"flex",gap:isMobile?8:14,alignItems:"center"}}>
           {!isMobile&&<button onClick={go} style={{background:"none",border:"none",color:T.sub,fontSize:14.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>Sign in</button>}
@@ -2552,7 +2606,7 @@ function LandingPage(){
         <Reveal><div style={{textAlign:"center",marginBottom:isMobile?30:44}}><Eyebrow color={T.green}>Loved by local businesses</Eyebrow><h2 style={{fontFamily:FONT_D,fontSize:isMobile?26:38,fontWeight:800,letterSpacing:"-1.2px",margin:0,lineHeight:1.1}}>Owners who stopped worrying about listings</h2></div></Reveal>
         <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:isMobile?16:22}}>
           {[
-            {q:"We were getting calls at an old number for months and had no idea. Rank Orbit fixed it everywhere in a week. The phone actually rings now.",n:"Mike D.",r:"Plumbing, Austin TX"},
+            {q:"We were getting calls at an old number for months and had no idea. NAP Orbit fixed it everywhere in a week. The phone actually rings now.",n:"Mike D.",r:"Plumbing, Austin TX"},
             {q:"I do not have time to manage dozens of websites. I check one dashboard and everything is just handled. That is worth every penny.",n:"Sarah M.",r:"Dental clinic, Houston TX"},
             {q:"Someone changed our hours on Google and we lost a whole Saturday of walk-ins. Now that never happens. They catch it instantly.",n:"John D.",r:"Auto repair, Dallas TX"},
           ].map((t,i)=>(
@@ -2578,24 +2632,26 @@ function LandingPage(){
         <Reveal delay={80}><h2 style={{fontFamily:FONT_D,fontSize:isMobile?28:42,fontWeight:800,letterSpacing:"-1.2px",margin:"0 0 12px",lineHeight:1.1}}>One flat monthly price. No credits, no games.</h2></Reveal>
         <Reveal delay={140}><p style={{fontSize:isMobile?15.5:17,color:T.sub,maxWidth:520,margin:"0 auto",lineHeight:1.6}}>Pick a plan and we get to work. Cancel anytime before your renewal.</p></Reveal>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:isMobile?16:22,maxWidth:960,margin:"0 auto"}}>
-        {[
-          {n:"Essentials",p:49,q:"10 listings a month",pop:false,f:["10 directory submissions monthly","NAP consistency management","Unauthorized edit protection","Live dashboard access"]},
-          {n:"Growth",p:89,q:"20 listings a month",pop:true,f:["20 directory submissions monthly","Everything in Essentials","Expanded directory coverage","Priority support"]},
-          {n:"GMB Pro",p:249,q:"20 listings + Google Profile",pop:false,f:["Everything in Growth","Google Business Profile management","Get found in AI searches (ChatGPT, Gemini, AI Overviews)","Monthly posts & Q&A","Dedicated manager"]},
-        ].map((pl,i)=>(
+      {(()=>{const cards=[
+          {id:"essentials",n:"Essentials",q:"10 listings a month",pop:false,f:["10 directory submissions monthly","NAP consistency management","Unauthorized edit protection","Helps you get found in AI searches","Live dashboard access"]},
+          {id:"growth",n:"Growth",q:"20 listings a month",pop:true,f:["20 directory submissions monthly","Everything in Essentials","Helps you get found in AI searches","Expanded directory coverage","Priority support"]},
+          {id:"gmb",n:"GMB Pro",q:"20 listings + Google Profile",pop:false,f:["Everything in Growth","Google Business Profile management","Get found in AI searches (ChatGPT, Gemini, AI Overviews)","Monthly posts & Q&A","Dedicated manager"]},
+        ].filter(pl=>planLive(pl.id,cfg));
+      const gt=isMobile?"1fr":`repeat(${cards.length},1fr)`;
+      return(<div style={{display:"grid",gridTemplateColumns:gt,gap:isMobile?16:22,maxWidth:cards.length===1?420:cards.length===2?720:960,margin:"0 auto"}}>
+        {cards.map((pl,i)=>(
           <Reveal key={pl.n} delay={i*100}>
             <div className="lift" style={{background:T.surface,borderRadius:20,padding:isMobile?26:30,border:pl.pop?`2px solid ${T.brand}`:`1px solid ${T.line}`,boxShadow:pl.pop?SHADOW_LG:SHADOW,position:"relative",height:"100%",display:"flex",flexDirection:"column"}}>
               {pl.pop&&<div style={{position:"absolute",top:-12,left:"50%",transform:"translateX(-50%)",background:`linear-gradient(135deg,${T.brand},${T.violet})`,color:"#fff",fontSize:11,fontWeight:800,padding:"4px 16px",borderRadius:20,letterSpacing:".4px"}}>MOST POPULAR</div>}
               <h3 style={{fontFamily:FONT_D,fontSize:19,fontWeight:800,margin:"0 0 4px"}}>{pl.n}</h3>
-              <div style={{margin:"6px 0 4px"}}><span style={{fontFamily:FONT_D,fontSize:44,fontWeight:800,letterSpacing:"-2px"}}>${pl.p}</span><span style={{fontSize:15,color:T.faint,fontWeight:600}}>/mo</span></div>
+              <div style={{margin:"6px 0 4px"}}><span style={{fontFamily:FONT_D,fontSize:44,fontWeight:800,letterSpacing:"-2px"}}>${lprice(pl.id)}</span><span style={{fontSize:15,color:T.faint,fontWeight:600}}>/mo</span></div>
               <div style={{fontSize:13.5,color:T.sub,fontWeight:700,marginBottom:18}}>{pl.q}</div>
               <div style={{height:1,background:T.line,marginBottom:18}}/>
               <div style={{flex:1}}>{pl.f.map(f=>(<div key={f} style={{display:"flex",gap:9,marginBottom:11,alignItems:"flex-start"}}><Ico d={<path d="M20 6 9 17l-5-5"/>} c={T.green} s={17}/><span style={{fontSize:13.5,color:T.sub,lineHeight:1.5}}>{f}</span></div>))}</div>
               <Btn size="md" variant={pl.pop?"primary":"ghost"} style={{width:"100%",marginTop:18}} onClick={go}>Choose {pl.n}</Btn>
             </div>
           </Reveal>))}
-      </div>
+      </div>);})()}
     </div>
 
     {/* ── Final CTA ── */}
@@ -2617,8 +2673,8 @@ function LandingPage(){
     {/* ── Footer ── */}
     <div style={{borderTop:`1px solid ${T.line}`,padding:isMobile?"26px 20px":"30px 40px"}}>
       <div style={{maxWidth:maxW,margin:"0 auto",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:14}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}><MiniOrbit size={30}/><span style={{fontWeight:800,fontSize:15,fontFamily:FONT_D}}>Rank Orbit</span></div>
-        <div style={{fontSize:13,color:T.faint}}>© {new Date().getFullYear()} Rank Orbit. All rights reserved.</div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}><MiniOrbit size={30}/><span style={{fontWeight:800,fontSize:15,fontFamily:FONT_D}}>NAP Orbit</span></div>
+        <div style={{fontSize:13,color:T.faint}}>© {new Date().getFullYear()} NAP Orbit. All rights reserved.</div>
         <div style={{display:"flex",gap:18,fontSize:13.5}}>
           <button onClick={go} style={{background:"none",border:"none",color:T.sub,cursor:"pointer",fontFamily:FONT_B,fontWeight:700}}>Client login</button>
         </div>
