@@ -617,7 +617,19 @@ const PLANS={essentials:{name:"Essentials",price:49,quota:"10 listings/mo",color
 const planLive=(id,cfg={})=>{const m={essentials:"livePlanEssentials",growth:"livePlanGrowth",gmb:"livePlanGmb"};const v=cfg[m[id]];return v===undefined||v===null||v===true||v==="true";};
 const livePlanEntries=(cfg={})=>Object.entries(PLANS).filter(([id])=>planLive(id,cfg));
 const BIZ_FIELDS=[["name","Full Name"],["businessName","Business Name"],["email","Email"],["phone","Phone"],["address","Address"],["city","City"],["state","State"],["zip","ZIP"],["website","Website"]];
-const CATEGORIES=["Home Services","Medical / Health","Legal","Restaurant / Food","Auto Services","Beauty & Salon","Real Estate","Other"];
+const CATEGORIES=[
+  "Plumbing","HVAC / Heating & Cooling","Electrical","Roofing","Handyman","Landscaping / Lawn Care","Pest Control","Cleaning Services","Painting","Flooring","Remodeling / Contractor","Garage Doors","Locksmith","Moving / Storage","Appliance Repair","Pool Services","Tree Services","Window & Gutter",
+  "Auto Repair","Auto Body / Detailing","Towing",
+  "Dental","Medical / Clinic","Chiropractor","Physical Therapy","Optometry","Mental Health / Therapy","Veterinary","Med Spa / Aesthetics",
+  "Hair Salon","Barbershop","Nail Salon","Spa / Massage","Tattoo / Piercing",
+  "Restaurant","Cafe / Coffee Shop","Bakery","Catering","Food Truck","Bar / Brewery",
+  "Law Firm / Attorney","Accounting / Tax","Insurance","Real Estate","Mortgage / Lending","Financial Advisor","Marketing Agency","IT Services","Consulting",
+  "Gym / Fitness","Yoga / Pilates Studio","Personal Trainer",
+  "Photography","Event Planning","Wedding Services",
+  "Daycare / Childcare","Tutoring / Education","Driving School",
+  "Retail Store","Boutique / Apparel","Jewelry","Florist","Pet Grooming / Boarding",
+  "Home Services","Professional Services","Other"
+];
 // US states + Canadian provinces (restricts address region to US/Canada).
 const US_CA_STATES=[
   {code:"AL",name:"Alabama"},{code:"AK",name:"Alaska"},{code:"AZ",name:"Arizona"},{code:"AR",name:"Arkansas"},{code:"CA",name:"California"},{code:"CO",name:"Colorado"},{code:"CT",name:"Connecticut"},{code:"DE",name:"Delaware"},{code:"FL",name:"Florida"},{code:"GA",name:"Georgia"},{code:"HI",name:"Hawaii"},{code:"ID",name:"Idaho"},{code:"IL",name:"Illinois"},{code:"IN",name:"Indiana"},{code:"IA",name:"Iowa"},{code:"KS",name:"Kansas"},{code:"KY",name:"Kentucky"},{code:"LA",name:"Louisiana"},{code:"ME",name:"Maine"},{code:"MD",name:"Maryland"},{code:"MA",name:"Massachusetts"},{code:"MI",name:"Michigan"},{code:"MN",name:"Minnesota"},{code:"MS",name:"Mississippi"},{code:"MO",name:"Missouri"},{code:"MT",name:"Montana"},{code:"NE",name:"Nebraska"},{code:"NV",name:"Nevada"},{code:"NH",name:"New Hampshire"},{code:"NJ",name:"New Jersey"},{code:"NM",name:"New Mexico"},{code:"NY",name:"New York"},{code:"NC",name:"North Carolina"},{code:"ND",name:"North Dakota"},{code:"OH",name:"Ohio"},{code:"OK",name:"Oklahoma"},{code:"OR",name:"Oregon"},{code:"PA",name:"Pennsylvania"},{code:"RI",name:"Rhode Island"},{code:"SC",name:"South Carolina"},{code:"SD",name:"South Dakota"},{code:"TN",name:"Tennessee"},{code:"TX",name:"Texas"},{code:"UT",name:"Utah"},{code:"VT",name:"Vermont"},{code:"VA",name:"Virginia"},{code:"WA",name:"Washington"},{code:"WV",name:"West Virginia"},{code:"WI",name:"Wisconsin"},{code:"WY",name:"Wyoming"},{code:"DC",name:"Washington DC"},
@@ -1521,7 +1533,7 @@ function AdminDashboard({user,data,reload,onLogout}){
     {id:"clients",icon:"👥",label:"Clients",roles:["super_admin","manager","agent"],match:["clientDetail"]},
     {id:"listings",icon:"📋",label:"All Listings",roles:["super_admin","manager","agent"]},
     {id:"gmb",icon:"📍",label:"GMB",roles:["super_admin","manager"]},
-    {id:"team",icon:"🔑",label:"Team",roles:["super_admin"]},
+    {id:"team",icon:"🔑",label:"Team",roles:["super_admin","manager"]},
     {id:"activity",icon:"📜",label:"Activity Log",roles:["super_admin","manager"]},
     {id:"finance",icon:"💰",label:"Finance",roles:["super_admin"]},
     {id:"audit",icon:"🛡️",label:"Audit Trail",roles:["super_admin"]},
@@ -1611,10 +1623,13 @@ function AdminDashboard({user,data,reload,onLogout}){
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
         <Btn variant="green" onClick={()=>{
           if(!f.email||!f.name){toast("Name and email required","warn");return;}
-          R(async()=>{
-            if(editing)await api.upsertProfile(f);
-            else{await api.upsertProfile({...f,id:uid(),avatar:(f.name||"?")[0].toUpperCase(),napScore:0,createdAt:new Date().toISOString()});await addActivity("","client",`New client added: ${f.businessName||f.name}`);}
-          },editing?"Client updated":`${f.businessName||f.name} added`).then(onClose);
+          (async()=>{
+            try{
+              if(editing){await api.upsertProfile(f);toast("Client updated");}
+              else{await api.upsertProfile({...f,id:uid(),avatar:(f.name||"?")[0].toUpperCase(),napScore:0,createdAt:new Date().toISOString()});await addActivity("","client",`New client added: ${f.businessName||f.name}`);toast(`${f.businessName||f.name} added`);}
+              await reload();onClose();
+            }catch(e){toast("Could not save: "+(e.message||"unknown"),"info");}
+          })();
         }}>{editing?"Save Changes":"Add Client"}</Btn>
       </div>
       {!editing&&api.mode==="supabase"&&<div style={{marginTop:12,fontSize:11,color:T.faint,lineHeight:1.5}}>Note: this creates a profile record. For the client to log in, they sign up themselves (email/Google) with this email, or you send them a reset link.</div>}
@@ -2097,30 +2112,69 @@ function AdminDashboard({user,data,reload,onLogout}){
     </div>);
   };
 
-  const Team=()=>(<div>
-    <PageHead isMobile={isMobile} title="Team" sub={`${staff.length} team members`} right={<Btn onClick={()=>setModal({type:"team"})}>+ Add Member</Btn>}/>
-    {staff.map((m,i)=>(<Card key={m.id} hover className="fadeUp" style={{animationDelay:`${i*60}ms`,marginBottom:12}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
-        <div style={{display:"flex",gap:13,alignItems:"center"}}>
-          <div style={{width:42,height:42,borderRadius:"50%",background:m.role==="super_admin"?`linear-gradient(135deg,${T.brand},${T.violet})`:m.role==="manager"?`linear-gradient(135deg,${T.amber},#E8A33D)`:`linear-gradient(135deg,${T.blue},#5B9FE8)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:800,color:"#fff"}}>{m.avatar}</div>
-          <div><div style={{fontSize:14,fontWeight:800}}>{m.name}</div><div style={{fontSize:12,color:T.sub}}>{m.email}</div></div>
+  const[teamView,setTeamView]=useState(null); // staff member whose logs are open
+  const Team=()=>{
+    // Managers see agents + themselves (not super-admins), and cannot manage grants/removal.
+    const visibleStaff=isAdmin?staff:staff.filter(m=>m.role==="agent"||m.id===user.id);
+    if(teamView){
+      const m=staff.find(x=>x.id===teamView);
+      if(!m){setTeamView(null);return null;}
+      // This member's actions across the platform (audit + activity they performed).
+      const memberActs=activity.filter(a=>a.by===m.name);
+      const assigned=allClients.filter(c=>c.assignedAgentId===m.id);
+      return(<div>
+        <button onClick={()=>setTeamView(null)} style={{background:"none",border:"none",color:T.brand,fontWeight:700,fontSize:13,cursor:"pointer",marginBottom:14,fontFamily:FONT_B}}>← Back to Team</button>
+        <div style={{display:"flex",gap:14,alignItems:"center",marginBottom:20,flexWrap:"wrap"}}>
+          <div style={{width:52,height:52,borderRadius:"50%",background:m.role==="manager"?`linear-gradient(135deg,${T.amber},#E8A33D)`:`linear-gradient(135deg,${T.blue},#5B9FE8)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,fontWeight:800,color:"#fff"}}>{m.avatar}</div>
+          <div><div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800}}>{m.name}</div><div style={{fontSize:13,color:T.sub}}>{m.email} · {m.role==="manager"?"Manager":m.role==="super_admin"?"Super Admin":"Agent"}</div></div>
         </div>
-        <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-          <Badge type={m.role==="super_admin"?"live":m.role==="manager"?"pending":"submitted"} label={m.role==="super_admin"?"Super Admin":m.role==="manager"?"Manager":"Agent"}/>
-          {m.role==="agent"&&<span style={{fontSize:11,color:T.sub,fontWeight:700,background:T.blueSoft,padding:"3px 9px",borderRadius:20}}>{allClients.filter(c=>c.assignedAgentId===m.id).length} clients assigned</span>}
-          {isStaffMgr&&m.role==="agent"&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"assign",agent:m})}>Assign clients</Btn>}
-          {isAdmin&&m.role==="manager"&&<Btn variant={m.canImpersonate?"green":"ghost"} size="sm" onClick={()=>R(async()=>{await api.setImpersonateGrant(m.id,!m.canImpersonate);await audit("grant.impersonate",{targetType:"staff",targetId:m.id,targetName:m.name,detail:m.canImpersonate?"revoked":"granted"});},m.canImpersonate?"Account access revoked":"Account access granted")}>{m.canImpersonate?"✓ Can view accounts":"Allow account access"}</Btn>}
-          {m.id!==user.id&&m.role!=="super_admin"&&!m.protected&&<Btn variant="danger" size="sm" onClick={()=>setConfirm({title:"Remove team member?",msg:`Remove ${m.name} from the team?`,danger:true,yes:"Remove",onYes:()=>R(async()=>api.deleteUser(m.id),`${m.name} removed`)})}>Remove</Btn>}
-          {m.protected&&<span style={{fontSize:11,color:T.faint}}>🔒 Demo</span>}
+        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(3,1fr)",gap:14,marginBottom:20}}>
+          <StatCard label="Actions logged" value={memberActs.length} icon="⚡" color={T.brand} soft={T.brandSoft}/>
+          {m.role==="agent"&&<StatCard label="Clients assigned" value={assigned.length} icon="👥" color={T.blue} soft={T.blueSoft}/>}
+          <StatCard label="Last active" value={memberActs[0]?.date?memberActs[0].date.split(" at ")[0]:"–"} icon="🕐" color={T.violet} soft={T.violetSoft}/>
         </div>
-      </div>
-    </Card>))}
-    <Card style={{background:T.surface2,boxShadow:"none",border:`1px dashed ${T.line}`}}>
-      <div style={{fontSize:11,fontWeight:800,color:T.faint,marginBottom:10,letterSpacing:".6px"}}>ROLE PERMISSIONS</div>
-      {[["Super Admin",T.brand,"Full access, clients, listings, GMB, team, finance, settings, and read-only account view"],["Manager",T.amber,"Clients, listings, GMB, assign clients to agents. Account view only if granted."],["Agent",T.blue,"Update listings only for clients a manager has assigned to them."]].map(([r,c,p])=>(
-        <div key={r} style={{display:"flex",gap:9,marginBottom:8,alignItems:"flex-start"}}><span style={{width:8,height:8,borderRadius:3,background:c,marginTop:5,flexShrink:0}}/><div style={{fontSize:12.5}}><b style={{color:c}}>{r}:</b> <span style={{color:T.sub}}>{p}</span></div></div>))}
-    </Card>
-  </div>);
+        {m.role==="agent"&&<Card style={{marginBottom:16}}>
+          <SectionTitle sub="Clients this agent can work on">Assigned clients</SectionTitle>
+          {assigned.length===0?<div style={{fontSize:12.5,color:T.faint}}>No clients assigned yet.</div>:
+            <div style={{display:"flex",flexWrap:"wrap",gap:8}}>{assigned.map(c=><span key={c.id} style={{fontSize:12,fontWeight:700,background:T.surface2,padding:"5px 11px",borderRadius:20}}>{c.businessName||c.name}</span>)}</div>}
+          {isStaffMgr&&<Btn variant="ghost" size="sm" style={{marginTop:12}} onClick={()=>setModal({type:"assign",agent:m})}>Manage assignments</Btn>}
+        </Card>}
+        <Card>
+          <SectionTitle sub={`Everything ${m.name} has done on the platform`}>Activity log</SectionTitle>
+          {memberActs.length===0?<Empty icon="📭" title="No activity yet" sub="This member's actions will appear here."/>:
+            memberActs.map((a,i)=>(<div key={a.id} className="hoverRow" style={{display:"flex",gap:12,padding:"11px 8px",borderBottom:i<memberActs.length-1?`1px solid ${T.line}`:"none",alignItems:"flex-start"}}>
+              <div style={{width:32,height:32,borderRadius:10,background:T.surface2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0}}>{actIcon(a.type)}</div>
+              <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600}}>{a.desc}</div><div style={{fontSize:11,color:T.faint,marginTop:2}}>{a.date}{a.clientId&&a.clientId!=="__internal"?` · ${clients.find(c=>c.id===a.clientId)?.businessName||""}`:""}</div></div>
+            </div>))}
+        </Card>
+      </div>);
+    }
+    return(<div>
+      <PageHead isMobile={isMobile} title="Team" sub={`${visibleStaff.length} team members`} right={isStaffMgr&&<Btn onClick={()=>setModal({type:"team"})}>+ Add Member</Btn>}/>
+      {visibleStaff.map((m,i)=>(<Card key={m.id} hover className="fadeUp" style={{animationDelay:`${i*60}ms`,marginBottom:12}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
+          <div style={{display:"flex",gap:13,alignItems:"center"}}>
+            <div style={{width:42,height:42,borderRadius:"50%",background:m.role==="super_admin"?`linear-gradient(135deg,${T.brand},${T.violet})`:m.role==="manager"?`linear-gradient(135deg,${T.amber},#E8A33D)`:`linear-gradient(135deg,${T.blue},#5B9FE8)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:800,color:"#fff"}}>{m.avatar}</div>
+            <div><div style={{fontSize:14,fontWeight:800}}>{m.name}</div><div style={{fontSize:12,color:T.sub}}>{m.email}</div></div>
+          </div>
+          <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+            <Badge type={m.role==="super_admin"?"live":m.role==="manager"?"pending":"submitted"} label={m.role==="super_admin"?"Super Admin":m.role==="manager"?"Manager":"Agent"}/>
+            {m.role==="agent"&&<span style={{fontSize:11,color:T.sub,fontWeight:700,background:T.blueSoft,padding:"3px 9px",borderRadius:20}}>{allClients.filter(c=>c.assignedAgentId===m.id).length} clients</span>}
+            <Btn variant="ghost" size="sm" onClick={()=>setTeamView(m.id)}>View logs</Btn>
+            {isStaffMgr&&m.role==="agent"&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"assign",agent:m})}>Assign clients</Btn>}
+            {isAdmin&&m.role==="manager"&&<Btn variant={m.canImpersonate?"green":"ghost"} size="sm" onClick={()=>R(async()=>{await api.setImpersonateGrant(m.id,!m.canImpersonate);await audit("grant.impersonate",{targetType:"staff",targetId:m.id,targetName:m.name,detail:m.canImpersonate?"revoked":"granted"});},m.canImpersonate?"Account access revoked":"Account access granted")}>{m.canImpersonate?"✓ Can view accounts":"Allow account access"}</Btn>}
+            {isAdmin&&m.id!==user.id&&m.role!=="super_admin"&&!m.protected&&<Btn variant="danger" size="sm" onClick={()=>setConfirm({title:"Remove team member?",msg:`Remove ${m.name} from the team?`,danger:true,yes:"Remove",onYes:()=>R(async()=>api.deleteUser(m.id),`${m.name} removed`)})}>Remove</Btn>}
+            {m.protected&&<span style={{fontSize:11,color:T.faint}}>🔒 Demo</span>}
+          </div>
+        </div>
+      </Card>))}
+      <Card style={{background:T.surface2,boxShadow:"none",border:`1px dashed ${T.line}`}}>
+        <div style={{fontSize:11,fontWeight:800,color:T.faint,marginBottom:10,letterSpacing:".6px"}}>ROLE PERMISSIONS</div>
+        {[["Super Admin",T.brand,"Full access, clients, listings, GMB, team, finance, settings, and read-only account view"],["Manager",T.amber,"Clients, listings, GMB, assign clients to agents, view team logs. Account view only if granted."],["Agent",T.blue,"Update listings only for clients a manager has assigned to them."]].map(([r,c,p])=>(
+          <div key={r} style={{display:"flex",gap:9,marginBottom:8,alignItems:"flex-start"}}><span style={{width:8,height:8,borderRadius:3,background:c,marginTop:5,flexShrink:0}}/><div style={{fontSize:12.5}}><b style={{color:c}}>{r}:</b> <span style={{color:T.sub}}>{p}</span></div></div>))}
+      </Card>
+    </div>);
+  };
 
   const Activity=()=>{
     const[search,setSearch]=useState("");
