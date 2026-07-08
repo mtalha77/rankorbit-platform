@@ -2456,6 +2456,31 @@ function AdminDashboard({user,data,reload,onLogout}){
       </Card>
 
       <Card style={{marginBottom:16}}>
+        <SectionTitle sub="Route each notification type to one or more email addresses. Separate multiple emails with commas. Toggle any type off to stop sending it.">Notifications & Email Routing</SectionTitle>
+        <div style={{padding:"12px 15px",background:T.amberSoft,borderRadius:12,marginBottom:16,fontSize:12,color:T.amber,fontWeight:600,lineHeight:1.5}}>Email delivery activates once your sending domain (naporbit.com) is verified. Until then these settings are saved but no emails send.</div>
+        {[
+          {k:"routeSignup",label:"New client signup",desc:"When a client creates an account"},
+          {k:"routeSuspend",label:"Client suspension",desc:"When a client is suspended or reactivated"},
+          {k:"routeOnboard",label:"New client onboarding",desc:"When a client completes their profile / picks a plan"},
+          {k:"routeCancel",label:"Cancellation",desc:"When a client cancels their subscription"},
+          {k:"routeBdm",label:"BDM / call bookings",desc:"When a client books a call"},
+          {k:"routeAgentEdit",label:"Agent edit alerts",desc:"When an agent edits or deletes a listing"},
+          {k:"routeSystem",label:"System alerts",desc:"Errors, payment failures, and other platform alerts"},
+          {k:"routeReport",label:"Monthly finance report",desc:"Signups, revenue, churn summary"},
+        ].map((n,idx,arr)=>(
+          <div key={n.k} style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1.2fr auto",gap:12,alignItems:"center",padding:"12px 0",borderBottom:idx<arr.length-1?`1px solid ${T.line}`:"none"}}>
+            <div>
+              <div style={{fontSize:13,fontWeight:800}}>{n.label}</div>
+              <div style={{fontSize:11,color:T.faint,marginTop:2}}>{n.desc}</div>
+            </div>
+            <input value={c[n.k]??""} onChange={e=>setCfg(n.k,e.target.value)} placeholder="email@naporbit.com, other@…" style={{padding:"9px 13px",background:c[n.k+"On"]===false?T.surface2:T.surface,border:`1.5px solid ${T.line}`,borderRadius:10,fontSize:12.5,fontFamily:FONT_B,boxSizing:"border-box",width:"100%",opacity:c[n.k+"On"]===false?.5:1}}/>
+            <button onClick={()=>setCfg(n.k+"On",c[n.k+"On"]===false?true:false)} style={{padding:"7px 14px",borderRadius:20,border:"none",cursor:"pointer",fontFamily:FONT_B,fontWeight:800,fontSize:11.5,background:c[n.k+"On"]===false?T.surface2:T.greenSoft,color:c[n.k+"On"]===false?T.faint:T.green,whiteSpace:"nowrap"}}>{c[n.k+"On"]===false?"Off":"On"}</button>
+          </div>
+        ))}
+        <Btn style={{marginTop:16}} onClick={()=>R(async()=>{await api.saveSettings({...settings,stripe:f,config:c});await audit("settings.update",{targetType:"settings",detail:"notification routing"});},"Notification settings saved")}>Save Notification Settings</Btn>
+      </Card>
+
+      <Card style={{marginBottom:16}}>
         <SectionTitle sub="Paste one recurring Payment Link per plan. Client Subscribe/Upgrade buttons open these with the client tagged, so the webhook can auto-activate their plan after payment.">Stripe Payment Links</SectionTitle>
         <div style={{padding:"14px 16px",background:T.blueSoft,borderRadius:12,marginBottom:18,fontSize:12.5,color:T.blue,lineHeight:1.7}}>
           <div style={{fontWeight:800,marginBottom:6}}>Setup, one time, ~10 min:</div>
