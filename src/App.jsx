@@ -1155,21 +1155,33 @@ function ClientDashboard({user:userProp,data,reload,onLogout,impersonating=false
           </AreaChart>
         </ResponsiveContainer>
       </Card>
-      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16}}>
-        <Card><SectionTitle>Posts Published</SectionTitle>
-          {(!d.posts||d.posts.length===0)?<Empty icon="📝" title="No posts yet" sub="Your first GMB post is being drafted."/>:
-            d.posts.map((p,i)=>(<div key={i} className="hoverRow" style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 8px",borderRadius:10,borderBottom:i<d.posts.length-1?`1px solid ${T.line}`:"none"}}>
-              <div><div style={{fontSize:13.5,fontWeight:700}}>{p.title}</div><div style={{fontSize:11.5,color:T.faint,marginTop:2}}>Published {p.date}</div></div>
-              <Badge type="live"/>
-            </div>))}
-        </Card>
-        <Card><SectionTitle>Profile Completeness</SectionTitle>
-          {Object.entries(d.completeness||{}).map(([k,v])=>(<div key={k} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${T.line}`}}>
+      <Card style={{marginBottom:16}}>
+        <SectionTitle sub="Google Business Profile posts we publish to keep your listing active and engaging" right={<span style={{fontSize:11.5,fontWeight:800,color:T.violet,background:T.violetSoft,padding:"4px 11px",borderRadius:20}}>{(d.posts||[]).length} posts</span>}>GMB Posts</SectionTitle>
+        {(!d.posts||d.posts.length===0)?<Empty icon="📝" title="No posts yet" sub="Your first GMB post is being drafted by your account manager."/>:
+          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12}}>
+            {d.posts.map((p,i)=>{
+              const typeInfo={offer:{c:T.amber,cs:T.amberSoft,ic:"🎁",label:"Offer"},event:{c:T.violet,cs:T.violetSoft,ic:"📅",label:"Event"},update:{c:T.brand,cs:T.brandSoft,ic:"📢",label:"Update"},product:{c:T.green,cs:T.greenSoft,ic:"🛍️",label:"Product"}}[p.type||"update"];
+              const scheduled=p.status==="scheduled";
+              return(<div key={i} style={{background:T.surface,border:`1px solid ${T.line}`,borderRadius:14,padding:16,position:"relative"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                  <span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11,fontWeight:800,color:typeInfo.c,background:typeInfo.cs,padding:"3px 9px",borderRadius:20}}>{typeInfo.ic} {typeInfo.label}</span>
+                  <span style={{fontSize:10.5,fontWeight:800,color:scheduled?T.amber:T.green,background:scheduled?T.amberSoft:T.greenSoft,padding:"3px 9px",borderRadius:20}}>{scheduled?"◷ Scheduled":"● Live"}</span>
+                </div>
+                <div style={{fontSize:14,fontWeight:800,marginBottom:5}}>{p.title}</div>
+                {p.content&&<div style={{fontSize:12.5,color:T.sub,lineHeight:1.5,marginBottom:8}}>{p.content}</div>}
+                <div style={{fontSize:11,color:T.faint}}>{scheduled?"Scheduled for":"Published"} {p.date}</div>
+              </div>);
+            })}
+          </div>}
+      </Card>
+      <Card><SectionTitle>Profile Completeness</SectionTitle>
+        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:"2px 24px"}}>
+          {Object.entries(d.completeness||{}).map(([k,v])=>(<div key={k} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:`1px solid ${T.line}`}}>
             <span style={{fontSize:13,color:T.sub,textTransform:"capitalize"}}>{k}</span>
             <span style={{fontSize:12.5,fontWeight:800,color:v?T.green:T.amber}}>{v?"✓ Done":"○ In progress"}</span>
           </div>))}
-        </Card>
-      </div>
+        </div>
+      </Card>
     </div>);
   };
 
@@ -1792,9 +1804,9 @@ function AdminDashboard({user,data,reload,onLogout}){
   };
   const GmbModal=({client,onClose})=>{
     const ex=gmb[client.id]||{views:0,calls:0,directions:0,source:"manual",trend:[],posts:[],qa:[],photos:0,completeness:{category:false,description:false,hours:false,photo:false,services:false,attributes:false}};
-    const[f,setF]=useState({views:ex.views,calls:ex.calls,directions:ex.directions,postTitle:"",qaQ:"",qaA:""});
+    const[f,setF]=useState({views:ex.views,calls:ex.calls,directions:ex.directions,postTitle:"",postType:"update",postContent:"",postScheduled:false,postDate:"",qaQ:"",qaA:""});
     const set=(k,v)=>setF(x=>({...x,[k]:v}));
-    return(<Modal open onClose={onClose} title={`GMB Update · ${client.businessName}`} width={560}>
+    return(<Modal open onClose={onClose} title={`GMB Update · ${client.businessName}`} width={580}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
         <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px"}}>ENGAGEMENT METRICS (MANUAL)</div>
         <Badge type="manual"/>
@@ -1804,7 +1816,22 @@ function AdminDashboard({user,data,reload,onLogout}){
         <Input label="Calls" value={f.calls} onChange={v=>set("calls",v)} type="number"/>
         <Input label="Directions" value={f.directions} onChange={v=>set("directions",v)} type="number"/>
       </div>
-      <Input label="Add GMB Post (optional)" value={f.postTitle} onChange={v=>set("postTitle",v)} placeholder="e.g. Summer Special, 10% Off"/>
+      <div style={{background:T.surface2,borderRadius:14,padding:16,margin:"6px 0 14px"}}>
+        <div style={{fontSize:11,fontWeight:800,color:T.violet,letterSpacing:".6px",marginBottom:12}}>📝 CREATE A GMB POST (OPTIONAL)</div>
+        <label style={{fontSize:11.5,color:T.sub,fontWeight:700,display:"block",marginBottom:6,letterSpacing:".4px"}}>POST TYPE</label>
+        <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+          {[["update","📢 Update"],["offer","🎁 Offer"],["event","📅 Event"],["product","🛍️ Product"]].map(([v,label])=>(
+            <button key={v} onClick={()=>set("postType",v)} style={{padding:"7px 13px",borderRadius:10,border:`1.5px solid ${f.postType===v?T.violet:T.line}`,background:f.postType===v?T.violetSoft:T.surface,color:f.postType===v?T.violet:T.sub,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>{label}</button>))}
+        </div>
+        <Input label="Post title" value={f.postTitle} onChange={v=>set("postTitle",v)} placeholder="e.g. Summer Special, 10% Off"/>
+        <label style={{fontSize:11.5,color:T.sub,fontWeight:700,display:"block",marginBottom:6,letterSpacing:".4px"}}>CONTENT</label>
+        <textarea value={f.postContent} onChange={e=>set("postContent",e.target.value)} placeholder="What's this post about? This shows to the client." rows={2} style={{width:"100%",padding:"11px 14px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:11,fontSize:13,fontFamily:FONT_B,boxSizing:"border-box",resize:"vertical",marginBottom:10}}/>
+        <label style={{display:"flex",alignItems:"center",gap:9,cursor:"pointer"}}>
+          <input type="checkbox" checked={f.postScheduled} onChange={e=>set("postScheduled",e.target.checked)} style={{width:15,height:15,accentColor:T.violet}}/>
+          <span style={{fontSize:12.5,color:T.sub}}>Schedule for later (instead of publishing now)</span>
+        </label>
+        {f.postScheduled&&<Input label="Scheduled date" value={f.postDate} onChange={v=>set("postDate",v)} placeholder="e.g. Jul 15" style={{marginTop:10}}/>}
+      </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
         <Input label="Q&A Question (optional)" value={f.qaQ} onChange={v=>set("qaQ",v)} placeholder="Customer question"/>
         <Input label="Answer" value={f.qaA} onChange={v=>set("qaA",v)} placeholder="Your reply"/>
@@ -1813,11 +1840,12 @@ function AdminDashboard({user,data,reload,onLogout}){
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
         <Btn variant="green" onClick={()=>R(async()=>{
           const trend=[...ex.trend,{m:new Date().toLocaleString("en-US",{month:"short"}),v:+f.views||0,c:+f.calls||0,d:+f.directions||0}];
-          const posts=f.postTitle?[...ex.posts,{title:f.postTitle,date:today(),status:"live"}]:ex.posts;
+          const newPost=f.postTitle?{title:f.postTitle,type:f.postType,content:f.postContent,date:f.postScheduled?(f.postDate||"soon"):today(),status:f.postScheduled?"scheduled":"live"}:null;
+          const posts=newPost?[newPost,...ex.posts]:ex.posts;
           const qa=f.qaQ&&f.qaA?[...ex.qa,{q:f.qaQ,a:f.qaA,date:today()}]:ex.qa;
           await api.upsertGmb(client.id,{...ex,views:+f.views||0,calls:+f.calls||0,directions:+f.directions||0,source:"manual",trend,posts,qa});
-          await addActivity(client.id,"gmb_update",`GMB data updated for ${client.businessName}`);
-        },"GMB data saved").then(onClose)}>Save GMB Update</Btn>
+          await addActivity(client.id,"gmb_update",newPost?`GMB post published: ${f.postTitle}`:`GMB data updated for ${client.businessName}`);
+        },"GMB update saved").then(onClose)}>Save GMB Update</Btn>
       </div>
     </Modal>);
   };
@@ -1826,7 +1854,7 @@ function AdminDashboard({user,data,reload,onLogout}){
     const[f,setF]=useState({sessions:ex.sessions,users:ex.users,pageviews:ex.pageviews,avgTime:ex.avgTime});
     const set=(k,v)=>setF(x=>({...x,[k]:v}));
     return(<Modal open onClose={onClose} title={`Analytics · ${client.businessName}`} width={520}>
-      <div style={{display:"flex",justifycontent:"space-between",alignItems:"center",marginBottom:12}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
         <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px"}}>MANUAL ANALYTICS ENTRY</div><Badge type="manual"/>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
