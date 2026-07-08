@@ -75,9 +75,9 @@ function MiniOrbit({size=30}){
 // ─── SEED (local fallback mode) ──────────────────────────────────────────────
 const SEED = {
   users:[
-    {id:"u1",email:"admin@naporbit.com",password:"admin123",role:"super_admin",name:"Talha (Admin)",avatar:"T",protected:true},
-    {id:"u2",email:"manager@naporbit.com",password:"manager123",role:"manager",name:"Sara (Manager)",avatar:"S",protected:true},
-    {id:"u3",email:"agent@naporbit.com",password:"agent123",role:"agent",name:"Ali (Agent)",avatar:"A",protected:true},
+    {id:"u1",email:"admin@rankorbit.com",password:"admin123",role:"super_admin",name:"Talha (Admin)",avatar:"T",protected:true},
+    {id:"u2",email:"manager@rankorbit.com",password:"manager123",role:"manager",name:"Sara (Manager)",avatar:"S",protected:true},
+    {id:"u3",email:"agent@rankorbit.com",password:"agent123",role:"agent",name:"Ali (Agent)",avatar:"A",protected:true},
     {id:"u4",email:"mike@example.com",password:"client123",role:"client",name:"Mike Johnson",avatar:"M",businessName:"Mike's Plumbing",plan:"growth",phone:"(555) 200-1000",address:"123 Main St",city:"Austin",state:"TX",zip:"78701",website:"mikesplumbing.com",category:"Home Services",status:"active",napScore:94,protected:true},
     {id:"u5",email:"sarah@dentalcare.com",password:"client123",role:"client",name:"Sarah Miller",avatar:"S",businessName:"Sarah's Dental Care",plan:"gmb",phone:"(555) 300-2000",address:"456 Oak Ave",city:"Houston",state:"TX",zip:"77001",website:"sarahsdental.com",category:"Medical / Health",status:"active",napScore:88,protected:true},
     {id:"u6",email:"john@autoshop.com",password:"client123",role:"client",name:"John Davis",avatar:"J",businessName:"Davis Auto Repair",plan:"essentials",phone:"(555) 400-3000",address:"789 Elm Rd",city:"Dallas",state:"TX",zip:"75201",website:"davisauto.com",category:"Auto Services",status:"active",napScore:72,protected:true},
@@ -667,7 +667,7 @@ function AuthScreen({onLogin,portal="client"}){
     setBusy(true);const r=await api.resetPassword(email);setBusy(false);
     if(r.error)setError(r.error);else{setError("");setInfo("Password reset link sent. Check your email.");setMode("login");}
   };
-  const staff=[{l:"Super Admin",e:"admin@naporbit.com",p:"admin123",c:T.brand,s:"Full access"},{l:"Manager",e:"manager@naporbit.com",p:"manager123",c:T.violet,s:"Ops access"},{l:"Agent",e:"agent@naporbit.com",p:"agent123",c:T.blue,s:"Listings only"}];
+  const staff=[{l:"Super Admin",e:"admin@rankorbit.com",p:"admin123",c:T.brand,s:"Full access"},{l:"Manager",e:"manager@rankorbit.com",p:"manager123",c:T.violet,s:"Ops access"},{l:"Agent",e:"agent@rankorbit.com",p:"agent123",c:T.blue,s:"Listings only"}];
   const clients=[{l:"Essentials $49",e:"john@autoshop.com",p:"client123",c:T.blue,s:"Davis Auto"},{l:"Growth $89",e:"mike@example.com",p:"client123",c:T.brand,s:"Mike's Plumbing"},{l:"GMB Pro $249",e:"sarah@dentalcare.com",p:"client123",c:T.violet,s:"Sarah's Dental"}];
   const w=useWindowSize();const isMobile=w<860;
   return(<div style={{minHeight:"100vh",background:T.bg,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT_B,padding:16,position:"relative",overflow:"hidden"}}>
