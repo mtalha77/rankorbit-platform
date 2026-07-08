@@ -1620,6 +1620,65 @@ function AdminDashboard({user,data,reload,onLogout}){
       {!editing&&api.mode==="supabase"&&<div style={{marginTop:12,fontSize:11,color:T.faint,lineHeight:1.5}}>Note: this creates a profile record. For the client to log in, they sign up themselves (email/Google) with this email, or you send them a reset link.</div>}
     </Modal>);
   };
+  const NapConfirmModal=({client,newScore,onClose})=>{
+    const hist=client.napHistory||[];
+    const last3=hist.slice(-3).reverse();
+    const roleLabel=user.role==="super_admin"?"Super Admin":user.role==="manager"?"Manager":"Agent";
+    const[saving,setSaving]=useState(false);
+    const save=async()=>{
+      setSaving(true);
+      try{
+        const entry={score:newScore,date:new Date().toISOString(),by:roleLabel};
+        await api.patchProfile(client.id,{napScore:newScore,napHistory:[...hist,entry].slice(-20)});
+        await audit("nap.update",{targetType:"client",targetId:client.id,targetName:client.businessName||client.name,detail:`${client.napScore||0}% → ${newScore}%`});
+        await addActivity(client.id,"nap_fix",`NAP consistency updated to ${newScore}%`);
+        await reload();toast(`NAP score saved: ${newScore}%`);onClose();
+      }catch(e){toast("Could not save NAP","info");}
+      setSaving(false);
+    };
+    const fmt=(d)=>new Date(d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+    return(<Modal open onClose={onClose} title="Confirm NAP score update">
+      <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:14,padding:"10px 0 18px"}}>
+        <div style={{textAlign:"center"}}><div style={{fontSize:11,color:T.faint,fontWeight:700}}>CURRENT</div><div style={{fontFamily:FONT_D,fontSize:32,fontWeight:800,color:T.faint}}>{client.napScore||0}%</div></div>
+        <span style={{fontSize:22,color:T.faint}}>→</span>
+        <div style={{textAlign:"center"}}><div style={{fontSize:11,color:T.brand,fontWeight:700}}>NEW</div><div style={{fontFamily:FONT_D,fontSize:32,fontWeight:800,color:newScore>=90?T.green:newScore>=70?T.amber:T.red}}>{newScore}%</div></div>
+      </div>
+      <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:8}}>LAST 3 NAP UPDATES</div>
+      {last3.length===0?<div style={{fontSize:12.5,color:T.faint,padding:"8px 0 16px"}}>No previous updates recorded.</div>:
+        <div style={{marginBottom:16}}>{last3.map((h,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${T.line}`}}>
+          <span style={{fontSize:12.5,fontWeight:700}}>{h.score}%</span>
+          <span style={{fontSize:11.5,color:T.faint}}>{fmt(h.date)} · {h.by}</span>
+        </div>))}</div>}
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={saving}>{saving?"Saving…":"Confirm & save"}</Btn></div>
+    </Modal>);
+  };
+  const LogEditModal=({client,onClose})=>{
+    const[note,setNote]=useState("");
+    const[shareWithClient,setShare]=useState(false);
+    const[saving,setSaving]=useState(false);
+    const save=async()=>{
+      setSaving(true);
+      try{
+        const base="Unauthorized edit blocked and reverted";
+        const desc=note.trim()?`${base}: ${note.trim()}`:base;
+        // If shared with client it goes to their feed; otherwise internal only.
+        await addActivity(shareWithClient?client.id:"__internal","edit_blocked",desc);
+        await audit("edit.revert",{targetType:"client",targetId:client.id,targetName:client.businessName||client.name,detail:note.trim()||"no note"});
+        await reload();toast("Unauthorized edit logged & reverted");onClose();
+      }catch(e){toast("Could not log","info");}
+      setSaving(false);
+    };
+    return(<Modal open onClose={onClose} title="Log unauthorized edit">
+      <div style={{fontSize:12.5,color:T.sub,marginBottom:14,lineHeight:1.5}}>Record an unauthorized change you caught and reverted. Add a note describing what was found.</div>
+      <label style={{fontSize:11.5,color:T.sub,fontWeight:700,display:"block",marginBottom:6,letterSpacing:".4px"}}>NOTES (what was changed?)</label>
+      <textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="e.g. Business hours changed on Google without authorization, reverted to correct hours." rows={3} style={{width:"100%",padding:"11px 14px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:11,fontSize:13,fontFamily:FONT_B,boxSizing:"border-box",resize:"vertical",marginBottom:12}}/>
+      <label style={{display:"flex",alignItems:"center",gap:9,cursor:"pointer",marginBottom:16}}>
+        <input type="checkbox" checked={shareWithClient} onChange={e=>setShare(e.target.checked)} style={{width:16,height:16,accentColor:T.brand}}/>
+        <span style={{fontSize:12.5,color:T.sub}}>Show this note to the client in their activity feed</span>
+      </label>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn variant="danger" onClick={save} disabled={saving}>{saving?"Logging…":"Log & revert"}</Btn></div>
+    </Modal>);
+  };
   const SuspendModal=({client,onClose})=>{
     const[reason,setReason]=useState("");
     const[saving,setSaving]=useState(false);
@@ -1934,8 +1993,8 @@ function AdminDashboard({user,data,reload,onLogout}){
         <Card><SectionTitle>NAP Consistency</SectionTitle>
           <div style={{fontFamily:FONT_D,fontSize:44,fontWeight:800,textAlign:"center",padding:"8px 0",color:nap>=90?T.green:nap>=70?T.amber:T.red}}>{nap}%</div>
           {canEdit?<><input type="range" min="0" max="100" value={nap} onChange={e=>setNap(+e.target.value)} style={{width:"100%",accentColor:T.brand}}/>
-          <Btn style={{width:"100%",marginTop:12}} onClick={()=>R(async()=>api.upsertProfile({...c,napScore:nap}),`NAP score saved: ${nap}%`)}>Save NAP Score</Btn>
-          <button onClick={()=>R(async()=>addActivity(c.id,"edit_blocked","Unauthorized edit blocked and reverted"),"Unauthorized edit logged & reverted")} style={{width:"100%",marginTop:10,padding:"11px 0",background:T.redSoft,border:"none",borderRadius:11,color:T.red,fontSize:12.5,fontWeight:800,cursor:"pointer",fontFamily:FONT_B}}>🛡️ Log Unauthorized Edit + Revert</button></>:
+          <Btn style={{width:"100%",marginTop:12}} onClick={()=>setModal({type:"napConfirm",client:c,newScore:nap})}>Save NAP Score</Btn>
+          <button onClick={()=>setModal({type:"logEdit",client:c})} style={{width:"100%",marginTop:10,padding:"11px 0",background:T.redSoft,border:"none",borderRadius:11,color:T.red,fontSize:12.5,fontWeight:800,cursor:"pointer",fontFamily:FONT_B}}>🛡️ Log Unauthorized Edit + Revert</button></>:
           <div style={{fontSize:12,color:T.faint,textAlign:"center"}}>View only</div>}
         </Card>
       </div>
@@ -2386,6 +2445,8 @@ function AdminDashboard({user,data,reload,onLogout}){
   {modal?.type==="team"&&<TeamModal onClose={()=>setModal(null)}/>}
   {modal?.type==="assign"&&<AssignModal agent={modal.agent} onClose={()=>setModal(null)}/>}
   {modal?.type==="suspend"&&<SuspendModal client={modal.client} onClose={()=>setModal(null)}/>}
+  {modal?.type==="napConfirm"&&<NapConfirmModal client={modal.client} newScore={modal.newScore} onClose={()=>setModal(null)}/>}
+  {modal?.type==="logEdit"&&<LogEditModal client={modal.client} onClose={()=>setModal(null)}/>}
   {modal?.type==="addListing"&&<AddListingModal clientId={modal.clientId} onClose={()=>setModal(null)}/>}
   {modal?.type==="updateListing"&&<UpdateListingModal listing={modal.listing} clientId={modal.clientId} onClose={()=>setModal(null)}/>}
   {modal?.type==="gmb"&&<GmbModal client={modal.client} onClose={()=>setModal(null)}/>}
