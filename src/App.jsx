@@ -822,7 +822,7 @@ const PageHead=({title,sub,right,isMobile})=>(
 );
 
 // ─── CLIENT DASHBOARD ────────────────────────────────────────────────────────
-function ClientDashboard({user:userProp,data,reload,onLogout}){
+function ClientDashboard({user:userProp,data,reload,onLogout,impersonating=false}){
   const[page,setPage]=useState("home");
   const[toast,Toasts]=useToast();
   const[showManual,setShowManual]=useState(false);
@@ -830,10 +830,11 @@ function ClientDashboard({user:userProp,data,reload,onLogout}){
   // Always use the freshest copy of the profile (data.users is refreshed by reload()),
   // so profile edits (e.g. completing the business profile) reflect immediately.
   const user=(data.users||[]).find(u=>u.id===userProp.id)||userProp;
-  // First-login user manual: show once, then remember (per-user, this browser).
+  // First-login user manual: show once. Never auto-open while staff is impersonating.
   useEffect(()=>{
+    if(impersonating)return;
     try{const key="ro_manual_seen_"+user.id;if(!localStorage.getItem(key)){setShowManual(true);localStorage.setItem(key,"1");}}catch{}
-  },[user.id]);
+  },[user.id,impersonating]);
   const my=data.listings[user.id]||[];
   const myGmb=data.gmb[user.id];
   const myAnalytics=data.analytics[user.id];
@@ -1859,7 +1860,9 @@ function AdminDashboard({user,data,reload,onLogout}){
     const c=clients.find(x=>x.id===selClient);if(!c)return null;
     const cl=listings[c.id]||[];
     const[nap,setNap]=useState(c.napScore||0);
-    const canEdit=isStaffMgr;
+    // Agents reach ClientDetail only for clients assigned to them (clients list is pre-scoped),
+    // so if an agent can open this client, they're allowed to edit it.
+    const canEdit=isStaffMgr||(isAgent&&c.assignedAgentId===user.id);
     return(<div>
       <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:20,flexWrap:"wrap"}}>
         <button onClick={()=>{setPage("clients");setSelClient(null);}} style={{background:T.surface,border:`1px solid ${T.line}`,borderRadius:10,padding:"7px 14px",color:T.sub,fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>← Clients</button>
@@ -1930,7 +1933,10 @@ function AdminDashboard({user,data,reload,onLogout}){
   const AllListings=()=>{
     const[filter,setFilter]=useState("all");
     const[search,setSearch]=useState("");
-    const withNames=flat.map(l=>({...l,_name:clients.find(c=>c.id===l.clientId)?.businessName||"?"}));
+    // Agents only see listings for clients assigned to them; staff see all.
+    const scopedIds=new Set(clients.map(c=>c.id));
+    const scopedFlat=isAgent?flat.filter(l=>scopedIds.has(l.clientId)):flat;
+    const withNames=scopedFlat.map(l=>({...l,_name:clients.find(c=>c.id===l.clientId)?.businessName||"?"}));
     let filtered=filter==="all"?withNames:filter==="action"?withNames.filter(l=>l.actionNeeded):withNames.filter(l=>l.status===filter);
     if(search)filtered=filtered.filter(l=>`${l._name} ${l.directory} ${l.status}`.toLowerCase().includes(search.toLowerCase()));
     const cnt=(s)=>s==="all"?withNames.length:s==="action"?withNames.filter(l=>l.actionNeeded).length:withNames.filter(l=>l.status===s).length;
@@ -2308,8 +2314,8 @@ function AdminDashboard({user,data,reload,onLogout}){
         <div style={{fontSize:13,fontWeight:700}}>👁️ Viewing {c.businessName||c.name}'s account (read-only). Changes are disabled.</div>
         <button onClick={()=>setViewAs(null)} style={{background:"rgba(255,255,255,.25)",border:"none",color:"#fff",padding:"6px 16px",borderRadius:8,fontWeight:800,cursor:"pointer",fontFamily:FONT_B,fontSize:12.5}}>Exit view</button>
       </div>
-      <div style={{pointerEvents:"none"}}>
-        <ClientDashboard user={c} data={data} reload={reload} onLogout={()=>setViewAs(null)}/>
+      <div>
+        <ClientDashboard user={c} data={data} reload={reload} onLogout={()=>setViewAs(null)} impersonating/>
       </div>
     </>);
   }
@@ -2664,15 +2670,16 @@ export default function App(){
     const existing=await api.currentUser();
     if(existing){await applyUser(existing);}else{await reload();}
     setReady(true);
-  })();},[reload,applyUser]);
+  })();/* eslint-disable-next-line */},[]);
   // Catch OAuth (Google) sign-in the moment Supabase parses the callback hash.
   useEffect(()=>{
     if(!supa)return;
     const{data:{subscription}}=supa.auth.onAuthStateChange(async(event,session)=>{
+      // Only react to real sign-in / sign-out. TOKEN_REFRESHED and USER_UPDATED fire
+      // periodically (tab focus, hourly refresh) and must NOT trigger reloads (caused blinking).
       if((event==="SIGNED_IN"||event==="INITIAL_SESSION")&&session){
         if(loadedForRef.id===session.user.id)return; // dedupe: same user, ignore repeat events
         let{data:prof}=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
-        // OAuth users may arrive before the DB trigger creates their profile: create it now.
         if(!prof){
           const m=session.user.user_metadata||{};
           const name=m.full_name||m.name||session.user.email?.split("@")[0]||"there";
@@ -2686,7 +2693,7 @@ export default function App(){
       if(event==="SIGNED_OUT"){loadedForRef.id=null;setCurrentUser(null);}
     });
     return()=>subscription?.unsubscribe();
-  },[applyUser,loadedForRef]);
+  /* eslint-disable-next-line */},[]);
   const onLogin=async(u)=>{await applyUser(u);};
   const onLogout=async()=>{loadedForRef.id=null;await api.logout();setCurrentUser(null);};
   if(!ready)return(<><GlobalStyle/><Loading/></>);
