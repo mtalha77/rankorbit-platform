@@ -35,7 +35,9 @@ export default async function handler(req, res) {
   if (!token) return res.status(401).json({ error: "Not authenticated" });
 
   const { data: userData, error: userErr } = await admin.auth.getUser(token);
-  if (userErr || !userData?.user) return res.status(401).json({ error: "Invalid session" });
+  if (userErr || !userData?.user) {
+    return res.status(401).json({ error: "Invalid session: " + (userErr?.message || "token not accepted, log out and back in") });
+  }
 
   const { data: caller } = await admin.from("profiles").select("role").eq("id", userData.user.id).maybeSingle();
   const callerRole = caller?.role;
