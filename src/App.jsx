@@ -285,17 +285,11 @@ const api={
     }catch(e){return{error:"Session read failed: "+(e.message||"unknown")};}
     if(!session)return{error:"DIAG: getSession returned null. localStorage ro_auth = "+(()=>{try{return window.localStorage.getItem("ro_auth")?"present":"MISSING";}catch{return "err";}})()+". Try logging out and back in at /admin."};
     if(!session.access_token)return{error:"Session exists but has no token. Log out and back in at /admin."};
-    const tok=String(session.access_token);
-    // Diagnostic: a real JWT is pure ASCII. If there's a stray non-ASCII char, report it.
-    const bad=[...tok].findIndex(ch=>ch.charCodeAt(0)>255);
-    if(bad>=0){
-      return{error:`Token has a bad character at position ${bad} (code ${tok.charCodeAt(bad)}). This is a corrupted session. LOG OUT fully, clear the site, and log in again at /admin.`};
-    }
     try{
       const r=await fetch("/api/create-staff",{
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({token:tok,name,email,password,role}),
+        body:JSON.stringify({token:String(session.access_token),name,email,password,role}),
       });
       const j=await r.json();
       if(!r.ok)return{error:j.error||"Failed to create staff account"};
