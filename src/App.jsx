@@ -273,6 +273,23 @@ const api={
     const us=LS("ro3_users")||[];const i=us.findIndex(x=>x.id===clientId);if(i>=0){us[i].assignedAgentId=agentId||null;LSet("ro3_users",us);}
   },
   // Grant/revoke a manager's ability to open (read-only) client accounts.
+  // Create a staff login (manager/agent) via the serverless admin function.
+  // Passes the caller's access token so the server can verify their role.
+  async createStaff({name,email,password,role}){
+    if(!supa)return{error:"Not connected to database"};
+    const{data:{session}}=await supa.auth.getSession();
+    if(!session)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/create-staff",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":`Bearer ${session.access_token}`},
+        body:JSON.stringify({name,email,password,role}),
+      });
+      const j=await r.json();
+      if(!r.ok)return{error:j.error||"Failed to create staff account"};
+      return{ok:true};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
   async setImpersonateGrant(managerId,allowed){
     if(supa){const{error}=await supa.from("profiles").update({canImpersonate:!!allowed}).eq("id",managerId);if(error)throw error;return;}
     const us=LS("ro3_users")||[];const i=us.findIndex(x=>x.id===managerId);if(i>=0){us[i].canImpersonate=!!allowed;LSet("ro3_users",us);}
@@ -1793,18 +1810,37 @@ function AdminDashboard({user,data,reload,onLogout}){
     </Modal>);
   };
   const TeamModal=({onClose})=>{
-    const[f,setF]=useState({role:"agent"});
+    const genPw=()=>{const cs="ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";let p="";for(let i=0;i<12;i++)p+=cs[Math.floor(Math.random()*cs.length)];return p;};
+    const[f,setF]=useState({role:isAdmin?"manager":"agent",password:genPw()});
+    const[saving,setSaving]=useState(false);
     const set=(k,v)=>setF(x=>({...x,[k]:v}));
-    return(<Modal open onClose={onClose} title="Add Team Member">
+    const create=async()=>{
+      if(!f.email||!f.name){toast("Name and email required","warn");return;}
+      if(!f.password||f.password.length<8){toast("Password must be at least 8 characters","warn");return;}
+      setSaving(true);
+      const r=await api.createStaff({name:f.name,email:f.email,password:f.password,role:f.role});
+      setSaving(false);
+      if(r.error){toast(r.error,"info");return;}
+      await audit("staff.create",{targetType:"staff",targetName:f.name,detail:f.role});
+      await reload();toast(`${f.name} created. Login ready.`);onClose();
+    };
+    // Managers can only create agents; super-admin can create managers or agents.
+    const roleOpts=isAdmin?[{value:"manager",label:"Manager"},{value:"agent",label:"Agent"}]:[{value:"agent",label:"Agent"}];
+    return(<Modal open onClose={onClose} title="Create Team Member Login">
+      <div style={{fontSize:12.5,color:T.sub,marginBottom:16,lineHeight:1.5}}>This creates a working login immediately. Share the email and password with your team member, they can sign in at the staff portal right away.</div>
       <Input label="Full Name" value={f.name} onChange={v=>set("name",v)} placeholder="Team member name"/>
-      <Input label="Email" value={f.email} onChange={v=>set("email",v)} placeholder="team@naporbit.com" type="email"/>
-      <Select label="Role" value={f.role} onChange={v=>set("role",v)} options={[{value:"manager",label:"Manager"},{value:"agent",label:"Agent"}]}/>
+      <Input label="Email" value={f.email} onChange={v=>set("email",v)} placeholder="name@naporbit.com" validate="email"/>
+      <label style={{fontSize:11.5,color:T.sub,fontWeight:700,display:"block",marginBottom:6,letterSpacing:".4px"}}>PASSWORD</label>
+      <div style={{display:"flex",gap:8,marginBottom:14}}>
+        <input value={f.password} onChange={e=>set("password",e.target.value)} style={{flex:1,padding:"11px 15px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:11,fontSize:13.5,fontFamily:"monospace",boxSizing:"border-box"}}/>
+        <Btn variant="ghost" size="sm" onClick={()=>set("password",genPw())}>🎲 Generate</Btn>
+      </div>
+      <Select label="Role" value={f.role} onChange={v=>set("role",v)} options={roleOpts}/>
+      <div style={{padding:"11px 14px",background:T.amberSoft,borderRadius:11,fontSize:11.5,color:T.amber,fontWeight:600,lineHeight:1.5,marginBottom:16}}>Save these credentials, they'll also stay visible on the Team page for you to copy later.</div>
       <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-        <Btn onClick={()=>{if(!f.email||!f.name){toast("Name and email required","warn");return;}
-          R(async()=>api.upsertProfile({...f,id:uid(),avatar:(f.name||"?")[0].toUpperCase(),status:"active",createdAt:new Date().toISOString()}),`${f.name} added to team`).then(onClose);}}>Add Member</Btn>
+        <Btn variant="green" onClick={create} disabled={saving}>{saving?"Creating…":"Create login"}</Btn>
       </div>
-      {api.mode==="supabase"&&<div style={{marginTop:10,fontSize:11,color:T.faint,lineHeight:1.5}}>They sign up with this email to get login access, then this role applies.</div>}
     </Modal>);
   };
   const GmbModal=({client,onClose})=>{
@@ -2175,6 +2211,30 @@ function AdminDashboard({user,data,reload,onLogout}){
   };
 
   const[teamView,setTeamView]=useState(null); // staff member whose logs are open
+  // Staff credentials row: email + password with show/copy. Visible to super-admin/manager only.
+  const CredsRow=({m})=>{
+    const[show,setShow]=useState(false);
+    const copy=(txt,label)=>{try{navigator.clipboard.writeText(txt);toast(`${label} copied`);}catch{toast("Copy failed","info");}};
+    const Field=({label,value,mono})=>(
+      <div style={{flex:"1 1 200px"}}>
+        <div style={{fontSize:10,fontWeight:800,color:T.faint,letterSpacing:".5px",marginBottom:4}}>{label}</div>
+        <div style={{display:"flex",gap:6,alignItems:"center"}}>
+          <code style={{flex:1,fontSize:12.5,fontFamily:mono?"monospace":FONT_B,background:T.surface,border:`1px solid ${T.line}`,borderRadius:8,padding:"7px 10px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{value}</code>
+          <button onClick={()=>copy(value,label)} title="Copy" style={{border:"none",background:T.surface2,borderRadius:8,padding:"7px 9px",cursor:"pointer",fontSize:12}}>📋</button>
+        </div>
+      </div>
+    );
+    return(<div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${T.line}`}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+        <span style={{fontSize:10.5,fontWeight:800,color:T.faint,letterSpacing:".6px"}}>🔑 LOGIN CREDENTIALS{m.createdByRole?` · created by ${m.createdByRole}`:""}</span>
+        <button onClick={()=>setShow(s=>!s)} style={{border:"none",background:"none",color:T.brand,fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>{show?"Hide":"Show"}</button>
+      </div>
+      {show&&<div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+        <Field label="EMAIL" value={m.email}/>
+        <Field label="PASSWORD" value={m.staffPassword} mono/>
+      </div>}
+    </div>);
+  };
   const Team=()=>{
     // Managers see agents + themselves (not super-admins), and cannot manage grants/removal.
     const visibleStaff=isAdmin?staff:staff.filter(m=>m.role==="agent"||m.id===user.id);
@@ -2229,6 +2289,7 @@ function AdminDashboard({user,data,reload,onLogout}){
             {m.protected&&<span style={{fontSize:11,color:T.faint}}>🔒 Demo</span>}
           </div>
         </div>
+        {m.staffPassword&&m.role!=="super_admin"&&<CredsRow m={m}/>}
       </Card>))}
       <Card style={{background:T.surface2,boxShadow:"none",border:`1px dashed ${T.line}`}}>
         <div style={{fontSize:11,fontWeight:800,color:T.faint,marginBottom:10,letterSpacing:".6px"}}>ROLE PERMISSIONS</div>
