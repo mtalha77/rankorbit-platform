@@ -29,14 +29,13 @@ export default async function handler(req, res) {
 
   const admin = createClient(URL, SERVICE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
 
-  // 1) Verify the caller from their access token.
-  const authHeader = req.headers.authorization || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+  // Read the whole payload first; the caller's token comes in the body (headers are ASCII-only).
+  const { token, name, email, password, role } = await readJson(req);
   if (!token) return res.status(401).json({ error: "Not authenticated" });
 
   const { data: userData, error: userErr } = await admin.auth.getUser(token);
   if (userErr || !userData?.user) {
-    return res.status(401).json({ error: "Invalid session: " + (userErr?.message || "token not accepted, log out and back in") });
+    return res.status(401).json({ error: "Invalid session: " + (userErr?.message || "log out and back in") });
   }
 
   const { data: caller } = await admin.from("profiles").select("role").eq("id", userData.user.id).maybeSingle();
@@ -45,8 +44,7 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: "Only super admins and managers can create staff" });
   }
 
-  // 2) Validate the requested new account.
-  const { name, email, password, role } = await readJson(req);
+  // Validate the requested new account.
   if (!name || !email || !password || !role) return res.status(400).json({ error: "Missing name, email, password, or role" });
   if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters" });
   if (!["super_admin", "manager", "agent"].includes(role)) return res.status(400).json({ error: "Invalid role" });
