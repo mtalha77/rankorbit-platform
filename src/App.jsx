@@ -276,17 +276,16 @@ const api={
   // Create a staff login (manager/agent) via the serverless admin function.
   // Passes the caller's access token so the server can verify their role.
   async createStaff({name,email,password,role}){
-    if(!supa)return{error:"Not connected to database"};
-    let session;
+    if(!supa)return{error:"Not connected to database (Supabase keys missing)"};
+    let session=null;
     try{
       const r1=await supa.auth.getSession();
       session=r1.data.session;
-      if(session){const rr=await supa.auth.refreshSession();if(rr.data.session)session=rr.data.session;}
-    }catch{}
-    if(!session||!session.access_token)return{error:"No active login session. Log out and sign in at /admin with your real super-admin account."};
+      if(session){const rr=await supa.auth.refreshSession();if(rr.data?.session)session=rr.data.session;}
+    }catch(e){return{error:"Session read failed: "+(e.message||"unknown")};}
+    if(!session)return{error:"No Supabase session found. You're logged in without a real auth session, this happens with demo logins. Log out fully and sign in at /admin with the super-admin account you created in Supabase."};
+    if(!session.access_token)return{error:"Session exists but has no token. Log out and back in at /admin."};
     try{
-      // Token goes in the JSON body (handles any characters) rather than a header
-      // (headers are ASCII-only and threw a ByteString error).
       const r=await fetch("/api/create-staff",{
         method:"POST",
         headers:{"Content-Type":"application/json"},
