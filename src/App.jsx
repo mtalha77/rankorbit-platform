@@ -277,18 +277,23 @@ const api={
   // Passes the caller's access token so the server can verify their role.
   async createStaff({name,email,password,role}){
     if(!supa)return{error:"Not connected to database"};
-    // Force a fresh token, a stale/expired access token causes "Invalid session" on the server.
     let session;
     try{
       const r1=await supa.auth.getSession();
       session=r1.data.session;
       if(session){const rr=await supa.auth.refreshSession();if(rr.data.session)session=rr.data.session;}
     }catch{}
-    if(!session)return{error:"Not signed in, please log out and back in"};
+    if(!session||!session.access_token)return{error:"No active login session. Please log out and sign in with a real account (not a demo button)."};
+    const tok=session.access_token;
+    // A real Supabase JWT is 3 dot-separated ASCII segments. Reject anything else
+    // (e.g. a demo/localStorage login that has no real token) before it hits the server.
+    if(!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(tok)){
+      return{error:"Your login isn't a real database session (likely a demo account). Log in with a real super-admin account to create staff."};
+    }
     try{
       const r=await fetch("/api/create-staff",{
         method:"POST",
-        headers:{"Content-Type":"application/json","Authorization":`Bearer ${session.access_token}`},
+        headers:{"Content-Type":"application/json","Authorization":"Bearer "+tok},
         body:JSON.stringify({name,email,password,role}),
       });
       const j=await r.json();
