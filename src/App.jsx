@@ -864,10 +864,13 @@ function ClientDashboard({user:userProp,data,reload,onLogout,impersonating=false
   const cfg=settings?.config||{};
   // Client-visible prices honor the super-admin control-panel overrides, falling back to defaults.
   const priceOf=(id)=>{const m={essentials:"priceEssentials",growth:"priceGrowth",gmb:"priceGmb"};const v=cfg[m[id]];return v!=null&&v!==""?Number(v):PLANS[id]?.price;};
-  const PLANSV=Object.fromEntries(Object.entries(PLANS).filter(([id])=>planLive(id,cfg)||id===user.plan).map(([id,p])=>[id,{...p,price:priceOf(id)}]));
+  // Full map (all plans, for looking up a client's current plan even if now hidden).
+  const PLANSALL=Object.fromEntries(Object.entries(PLANS).map(([id,p])=>[id,{...p,price:priceOf(id)}]));
+  // Selectable map: only live plans show in the choose/upgrade grid.
+  const PLANSV=Object.fromEntries(Object.entries(PLANS).filter(([id])=>planLive(id,cfg)).map(([id,p])=>[id,{...p,price:priceOf(id)}]));
   const live=my.filter(l=>l.status==="live").length;
   const pending=my.filter(l=>l.status==="pending").length;
-  const plan=PLANSV[user.plan]||PLANSV.essentials;
+  const plan=PLANSALL[user.plan]||PLANSALL.essentials;
   const hour=new Date().getHours();
   const greet=hour<12?"Good morning":hour<17?"Good afternoon":"Good evening";
   const nav=[
@@ -1528,6 +1531,8 @@ function AdminDashboard({user,data,reload,onLogout}){
   // Read-only impersonation: super-admin always; managers only if granted canImpersonate.
   const canImpersonate=isAdmin||(user.role==="manager"&&user.canImpersonate);
   const[viewAs,setViewAs]=useState(null); // client being viewed read-only
+  const acfg=settings?.config||{};
+  const livePlans=livePlanEntries(acfg); // [id,plan] pairs for plans currently live
   const revenue=clients.reduce((s,c)=>s+(PLANS[c.plan]?.price||0),0);
   const flat=Object.values(listings).flat();
   const totalLive=flat.filter(l=>l.status==="live").length;
@@ -1638,7 +1643,7 @@ function AdminDashboard({user,data,reload,onLogout}){
       </div>
       <Input label="Street Address" value={f.address} onChange={v=>set("address",v)} placeholder="123 Main St"/>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-        <Select label="Plan" value={f.plan} onChange={v=>set("plan",v)} options={[{value:"",label:"No plan yet"},...Object.entries(PLANS).map(([id,p])=>({value:id,label:`${p.name} $${p.price}/mo`}))]}/>
+        <Select label="Plan" value={f.plan} onChange={v=>set("plan",v)} options={[{value:"",label:"No plan yet"},...livePlans.map(([id,p])=>({value:id,label:`${p.name} $${p.price}/mo`})),...(f.plan&&!livePlans.find(([id])=>id===f.plan)?[{value:f.plan,label:`${PLANS[f.plan]?.name} (hidden)`}]:[])]}/>
         <Select label="Category" value={f.category} onChange={v=>set("category",v)} options={CATEGORIES.map(o=>({value:o,label:o}))}/>
       </div>
       {editing&&<Select label="Status" value={f.status} onChange={v=>set("status",v)} options={[{value:"active",label:"Active"},{value:"suspended",label:"Suspended"}]}/>}
