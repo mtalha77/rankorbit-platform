@@ -1824,8 +1824,8 @@ function AdminDashboard({user,data,reload,onLogout}){
       await audit("staff.create",{targetType:"staff",targetName:f.name,detail:f.role});
       await reload();toast(`${f.name} created. Login ready.`);onClose();
     };
-    // Managers can only create agents; super-admin can create managers or agents.
-    const roleOpts=isAdmin?[{value:"manager",label:"Manager"},{value:"agent",label:"Agent"}]:[{value:"agent",label:"Agent"}];
+    // Managers can only create agents; super-admin can create super-admins, managers, or agents.
+    const roleOpts=isAdmin?[{value:"super_admin",label:"Super Admin"},{value:"manager",label:"Manager"},{value:"agent",label:"Agent"}]:[{value:"agent",label:"Agent"}];
     return(<Modal open onClose={onClose} title="Create Team Member Login">
       <div style={{fontSize:12.5,color:T.sub,marginBottom:16,lineHeight:1.5}}>This creates a working login immediately. Share the email and password with your team member, they can sign in at the staff portal right away.</div>
       <Input label="Full Name" value={f.name} onChange={v=>set("name",v)} placeholder="Team member name"/>
@@ -2289,7 +2289,7 @@ function AdminDashboard({user,data,reload,onLogout}){
             {m.protected&&<span style={{fontSize:11,color:T.faint}}>🔒 Demo</span>}
           </div>
         </div>
-        {m.staffPassword&&m.role!=="super_admin"&&<CredsRow m={m}/>}
+        {m.staffPassword&&!m.protected&&<CredsRow m={m}/>}
       </Card>))}
       <Card style={{background:T.surface2,boxShadow:"none",border:`1px dashed ${T.line}`}}>
         <div style={{fontSize:11,fontWeight:800,color:T.faint,marginBottom:10,letterSpacing:".6px"}}>ROLE PERMISSIONS</div>
@@ -2630,7 +2630,7 @@ function AdminDashboard({user,data,reload,onLogout}){
     </>);
   }
 
-  return(<><Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} planBadge={roleBadge} brandTag="ADMIN" badgeCounts={{listings:totalFlagged+actionNeeded}}>
+  return(<><Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} planBadge={roleBadge} brandTag="ADMIN">
     {page==="overview"&&<Overview/>}
     {page==="clients"&&<Clients/>}
     {page==="clientDetail"&&<ClientDetail/>}
