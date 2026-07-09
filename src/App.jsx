@@ -277,8 +277,14 @@ const api={
   // Passes the caller's access token so the server can verify their role.
   async createStaff({name,email,password,role}){
     if(!supa)return{error:"Not connected to database"};
-    const{data:{session}}=await supa.auth.getSession();
-    if(!session)return{error:"Not signed in"};
+    // Force a fresh token, a stale/expired access token causes "Invalid session" on the server.
+    let session;
+    try{
+      const r1=await supa.auth.getSession();
+      session=r1.data.session;
+      if(session){const rr=await supa.auth.refreshSession();if(rr.data.session)session=rr.data.session;}
+    }catch{}
+    if(!session)return{error:"Not signed in, please log out and back in"};
     try{
       const r=await fetch("/api/create-staff",{
         method:"POST",
