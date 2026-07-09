@@ -284,11 +284,11 @@ const api={
       if(session){const rr=await supa.auth.refreshSession();if(rr.data.session)session=rr.data.session;}
     }catch{}
     if(!session||!session.access_token)return{error:"No active login session. Please log out and sign in with a real account (not a demo button)."};
-    const tok=session.access_token;
+    const tok=(session.access_token||"").replace(/[^\x00-\x7F]/g,"").trim();
     // A real Supabase JWT is 3 dot-separated ASCII segments. Reject anything else
     // (e.g. a demo/localStorage login that has no real token) before it hits the server.
     if(!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(tok)){
-      return{error:"Your login isn't a real database session (likely a demo account). Log in with a real super-admin account to create staff."};
+      return{error:"Your login isn't a real database session. Fully log out, then sign in at /admin with your real super-admin account and try again."};
     }
     try{
       const r=await fetch("/api/create-staff",{
