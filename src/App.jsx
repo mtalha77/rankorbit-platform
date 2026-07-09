@@ -2,22 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { createClient } from "@supabase/supabase-js";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-
-// ─── TOKENS ──────────────────────────────────────────────────────────────────
-const T = {
-  bg:"#F6F7FB", surface:"#FFFFFF", surface2:"#F0F1F8",
-  ink:"#171732", sub:"#5F6480", faint:"#9CA0B8", line:"#E7E9F2",
-  brand:"#5B5BD6", brandDark:"#4646C4", brandSoft:"#EEEEFC", brandGlow:"rgba(91,91,214,0.18)",
-  green:"#0FA47A", greenSoft:"#E4F6EF",
-  amber:"#C97F06", amberSoft:"#FCF2DF",
-  red:"#DE4B63", redSoft:"#FCEAEE",
-  blue:"#2E7CD6", blueSoft:"#E8F1FC",
-  violet:"#8A4FD8", violetSoft:"#F2EAFC",
-};
-const FONT_D="'Sora','Inter',sans-serif";
-const FONT_B="'Inter',system-ui,sans-serif";
-const SHADOW="0 1px 2px rgba(23,23,50,.04), 0 8px 24px rgba(23,23,50,.06)";
-const SHADOW_LG="0 4px 12px rgba(23,23,50,.06), 0 20px 48px rgba(23,23,50,.10)";
+import { T, FONT_D, FONT_B, SHADOW, SHADOW_LG } from "./lib/theme";
+import { PLANS, CATEGORIES, US_CA_STATES, BIZ_FIELDS, planLive, livePlanEntries } from "./lib/constants";
+import { today, todayFull, nextMonthFirst } from "./lib/helpers";
 
 function GlobalStyle(){
   return(<style>{`
@@ -632,36 +619,6 @@ const actIcon=(t)=>({listing_live:"🟢",nap_fix:"🔧",edit_blocked:"🛡️",f
 // Client-facing anonymizer: clients never see staff names, only "Account Manager".
 // "System" stays as-is. Used everywhere the client can see a "by" attribution.
 const clientBy=(by)=>(!by||by==="System"?(by||""):"Account Manager");
-const PLANS={essentials:{name:"Essentials",price:49,quota:"10 listings/mo",color:T.blue,soft:T.blueSoft,features:["10 directory submissions every month","NAP consistency management","Unauthorized edit protection","Helps you get found in AI searches","Listing monitoring & alerts","Client dashboard access"]},
-  growth:{name:"Growth",price:89,quota:"20 listings/mo",color:T.brand,soft:T.brandSoft,features:["20 directory submissions every month","Everything in Essentials","Helps you get found in AI searches","Expanded directory coverage","Priority support","Monthly coverage report"]},
-  gmb:{name:"GMB Pro",price:249,quota:"20 listings + GMB",color:T.violet,soft:T.violetSoft,features:["Everything in Growth","Google Business Profile management","Get found in AI searches (ChatGPT, Gemini, AI Overviews)","Monthly GMB posts & Q&A","Engagement analytics (views, calls)","Dedicated BDM support"]}};
-// Which plans are publicly live. Super-admin toggles these in the control panel.
-// Missing/undefined flag = live by default. A plan set to false is hidden everywhere client-facing.
-const planLive=(id,cfg={})=>{const m={essentials:"livePlanEssentials",growth:"livePlanGrowth",gmb:"livePlanGmb"};const v=cfg[m[id]];return v===undefined||v===null||v===true||v==="true";};
-const livePlanEntries=(cfg={})=>Object.entries(PLANS).filter(([id])=>planLive(id,cfg));
-const BIZ_FIELDS=[["name","Full Name"],["businessName","Business Name"],["email","Email"],["phone","Phone"],["address","Address"],["city","City"],["state","State"],["zip","ZIP"],["website","Website"]];
-const CATEGORIES=[
-  "Plumbing","HVAC / Heating & Cooling","Electrical","Roofing","Handyman","Landscaping / Lawn Care","Pest Control","Cleaning Services","Painting","Flooring","Remodeling / Contractor","Garage Doors","Locksmith","Moving / Storage","Appliance Repair","Pool Services","Tree Services","Window & Gutter",
-  "Auto Repair","Auto Body / Detailing","Towing",
-  "Dental","Medical / Clinic","Chiropractor","Physical Therapy","Optometry","Mental Health / Therapy","Veterinary","Med Spa / Aesthetics",
-  "Hair Salon","Barbershop","Nail Salon","Spa / Massage","Tattoo / Piercing",
-  "Restaurant","Cafe / Coffee Shop","Bakery","Catering","Food Truck","Bar / Brewery",
-  "Law Firm / Attorney","Accounting / Tax","Insurance","Real Estate","Mortgage / Lending","Financial Advisor","Marketing Agency","IT Services","Consulting",
-  "Gym / Fitness","Yoga / Pilates Studio","Personal Trainer",
-  "Photography","Event Planning","Wedding Services",
-  "Daycare / Childcare","Tutoring / Education","Driving School",
-  "Retail Store","Boutique / Apparel","Jewelry","Florist","Pet Grooming / Boarding",
-  "Home Services","Professional Services","Other"
-];
-// US states + Canadian provinces (restricts address region to US/Canada).
-const US_CA_STATES=[
-  {code:"AL",name:"Alabama"},{code:"AK",name:"Alaska"},{code:"AZ",name:"Arizona"},{code:"AR",name:"Arkansas"},{code:"CA",name:"California"},{code:"CO",name:"Colorado"},{code:"CT",name:"Connecticut"},{code:"DE",name:"Delaware"},{code:"FL",name:"Florida"},{code:"GA",name:"Georgia"},{code:"HI",name:"Hawaii"},{code:"ID",name:"Idaho"},{code:"IL",name:"Illinois"},{code:"IN",name:"Indiana"},{code:"IA",name:"Iowa"},{code:"KS",name:"Kansas"},{code:"KY",name:"Kentucky"},{code:"LA",name:"Louisiana"},{code:"ME",name:"Maine"},{code:"MD",name:"Maryland"},{code:"MA",name:"Massachusetts"},{code:"MI",name:"Michigan"},{code:"MN",name:"Minnesota"},{code:"MS",name:"Mississippi"},{code:"MO",name:"Missouri"},{code:"MT",name:"Montana"},{code:"NE",name:"Nebraska"},{code:"NV",name:"Nevada"},{code:"NH",name:"New Hampshire"},{code:"NJ",name:"New Jersey"},{code:"NM",name:"New Mexico"},{code:"NY",name:"New York"},{code:"NC",name:"North Carolina"},{code:"ND",name:"North Dakota"},{code:"OH",name:"Ohio"},{code:"OK",name:"Oklahoma"},{code:"OR",name:"Oregon"},{code:"PA",name:"Pennsylvania"},{code:"RI",name:"Rhode Island"},{code:"SC",name:"South Carolina"},{code:"SD",name:"South Dakota"},{code:"TN",name:"Tennessee"},{code:"TX",name:"Texas"},{code:"UT",name:"Utah"},{code:"VT",name:"Vermont"},{code:"VA",name:"Virginia"},{code:"WA",name:"Washington"},{code:"WV",name:"West Virginia"},{code:"WI",name:"Wisconsin"},{code:"WY",name:"Wyoming"},{code:"DC",name:"Washington DC"},
-  {code:"AB",name:"Alberta"},{code:"BC",name:"British Columbia"},{code:"MB",name:"Manitoba"},{code:"NB",name:"New Brunswick"},{code:"NL",name:"Newfoundland"},{code:"NS",name:"Nova Scotia"},{code:"ON",name:"Ontario"},{code:"PE",name:"Prince Edward Is."},{code:"QC",name:"Quebec"},{code:"SK",name:"Saskatchewan"},{code:"NT",name:"Northwest Terr."},{code:"NU",name:"Nunavut"},{code:"YT",name:"Yukon"}
-];
-const today=()=>new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"});
-const todayFull=()=>new Date().toLocaleDateString("en-US",{year:"numeric",month:"short",day:"numeric"});
-const nextMonthFirst=()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth()+1,1).toISOString();};
-
 // ─── AUTH ────────────────────────────────────────────────────────────────────
 function AuthScreen({onLogin,portal="client"}){
   // portal="staff" → /admin (login only, no public signup). portal="client" → /login (+signup).
