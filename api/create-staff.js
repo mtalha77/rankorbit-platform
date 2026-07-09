@@ -12,8 +12,11 @@
 
 import { createClient } from "@supabase/supabase-js";
 
-const URL = process.env.VITE_SUPABASE_URL;
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+// Sanitize env values: trim whitespace and remove any non-ASCII char (e.g. a stray
+// arrow/line-break artifact from copy-paste) that would break HTTP header construction.
+const clean = (s) => (s ? String(s).replace(/[^\x21-\x7E]/g, "").trim() : s);
+const URL = clean(process.env.VITE_SUPABASE_URL);
+const SERVICE_KEY = clean(process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 function readJson(req) {
   return new Promise((resolve) => {
