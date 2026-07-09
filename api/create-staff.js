@@ -47,8 +47,8 @@ export default async function handler(req, res) {
   const { name, email, password, role } = await readJson(req);
   if (!name || !email || !password || !role) return res.status(400).json({ error: "Missing name, email, password, or role" });
   if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters" });
-  if (!["manager", "agent"].includes(role)) return res.status(400).json({ error: "Role must be manager or agent" });
-  // Managers may only create agents.
+  if (!["super_admin", "manager", "agent"].includes(role)) return res.status(400).json({ error: "Invalid role" });
+  // Managers may only create agents. Only super_admins may create super_admins or managers.
   if (callerRole === "manager" && role !== "agent") return res.status(403).json({ error: "Managers can only create agents" });
 
   // 3) Create the auth user (email pre-confirmed so they can log in immediately).
