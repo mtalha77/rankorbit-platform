@@ -51,12 +51,12 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: "Could not read token: " + (e.message || "invalid") });
   }
 
-  // Confirm this user really exists in auth (using the service key, server-side, header-safe).
-  const { data: authUser, error: authErr } = await admin.auth.admin.getUserById(callerId);
-  if (authErr || !authUser?.user) return res.status(401).json({ error: "User not found for this session" });
-
-  const { data: caller } = await admin.from("profiles").select("role").eq("id", callerId).maybeSingle();
-  const callerRole = caller?.role;
+  // Verify the caller via their profile (the token already proved they hold a valid session
+  // for this id). If a profile with a staff role exists, they're authorized.
+  const { data: caller, error: profErr2 } = await admin.from("profiles").select("role").eq("id", callerId).maybeSingle();
+  if (profErr2) return res.status(500).json({ error: "Profile lookup failed: " + profErr2.message });
+  if (!caller) return res.status(401).json({ error: "No profile found for your account (id " + callerId + "). Make sure your admin profile row exists." });
+  const callerRole = caller.role;
   if (callerRole !== "super_admin" && callerRole !== "manager") {
     return res.status(403).json({ error: "Only super admins and managers can create staff (your role: " + (callerRole || "none") + ")" });
   }
