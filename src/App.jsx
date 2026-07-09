@@ -6,106 +6,12 @@ import { PLANS, CATEGORIES, US_CA_STATES, BIZ_FIELDS, planLive, livePlanEntries 
 import { today, todayFull, nextMonthFirst, uid, passwordIssues, passwordScore, STAFF_ROLES, SHOW_DEMOS } from "./lib/helpers";
 import { supa, LS, LSet, SUPA_URL, SUPA_KEY } from "./lib/supabase";
 import { api } from "./lib/api";
-
-function GlobalStyle(){
-  return(<style>{`
-    body{font-family:${FONT_B};color:${T.ink};}
-    ::selection{background:${T.brandSoft};}
-    @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
-    @keyframes pop{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
-    @keyframes orbitSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-    @keyframes orbitSpinR{from{transform:rotate(360deg)}to{transform:rotate(0deg)}}
-    @keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
-    @keyframes blob{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(24px,-18px) scale(1.06)}66%{transform:translate(-16px,14px) scale(.97)}}
-    @keyframes toastIn{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}
-    @keyframes growBar{from{width:0}}
-    @keyframes pulseDot{0%,100%{box-shadow:0 0 0 0 rgba(15,164,122,.35)}50%{box-shadow:0 0 0 6px rgba(15,164,122,0)}}
-    @keyframes revealUp{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:none}}
-    @keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-    @keyframes countUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-    .reveal{opacity:0}
-    .reveal.in{animation:revealUp .7s cubic-bezier(.22,.8,.36,1) both}
-    .lift{transition:transform .3s cubic-bezier(.22,.8,.36,1),box-shadow .3s}
-    .lift:hover{transform:translateY(-6px)}
-    .fadeUp{animation:fadeUp .45s cubic-bezier(.22,.8,.36,1) both}
-    .pop{animation:pop .35s cubic-bezier(.22,.8,.36,1) both}
-    .hoverCard{transition:transform .22s cubic-bezier(.22,.8,.36,1),box-shadow .22s}
-    .hoverCard:hover{transform:translateY(-3px);box-shadow:${SHADOW_LG}}
-    .hoverRow{transition:background .15s}
-    .hoverRow:hover{background:${T.surface2}}
-    .navItem{transition:background .18s,color .18s}
-    .navItem:hover{background:${T.surface2}}
-    button{transition:transform .12s,opacity .15s,box-shadow .15s}
-    button:active{transform:scale(.97)}
-    input,select,textarea{transition:border-color .15s,box-shadow .15s}
-    input:focus,select:focus,textarea:focus{border-color:${T.brand}!important;box-shadow:0 0 0 3px ${T.brandGlow}!important;outline:none}
-    @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
-  `}</style>);
-}
-function Orbit({size=120,speed=14}){
-  const s=size;
-  return(<div style={{width:s,height:s,position:"relative",flexShrink:0}}>
-    <div style={{position:"absolute",inset:0,borderRadius:"50%",border:`1.5px solid ${T.line}`}}/>
-    <div style={{position:"absolute",inset:s*0.18,borderRadius:"50%",border:`1.5px dashed ${T.line}`}}/>
-    <div style={{position:"absolute",inset:s*0.36,borderRadius:"50%",background:`linear-gradient(135deg,${T.brand},${T.violet})`,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontFamily:FONT_D,fontWeight:800,fontSize:s*0.16,boxShadow:`0 6px 18px ${T.brandGlow}`}}>RO</div>
-    <div style={{position:"absolute",inset:0,animation:`orbitSpin ${speed}s linear infinite`}}><div style={{position:"absolute",top:-4,left:"50%",width:9,height:9,marginLeft:-4.5,borderRadius:"50%",background:T.green,boxShadow:"0 0 0 3px "+T.greenSoft}}/></div>
-    <div style={{position:"absolute",inset:s*0.18,animation:`orbitSpinR ${speed*0.7}s linear infinite`}}><div style={{position:"absolute",bottom:-4,left:"50%",width:8,height:8,marginLeft:-4,borderRadius:"50%",background:T.brand,boxShadow:"0 0 0 3px "+T.brandSoft}}/></div>
-  </div>);
-}
-function MiniOrbit({size=30}){
-  return(<div style={{width:size,height:size,position:"relative",flexShrink:0}}>
-    <div style={{position:"absolute",inset:size*0.22,borderRadius:"50%",background:`linear-gradient(135deg,${T.brand},${T.violet})`}}/>
-    <div style={{position:"absolute",inset:0,borderRadius:"50%",border:`1.5px solid ${T.line}`}}/>
-    <div style={{position:"absolute",inset:0,animation:"orbitSpin 8s linear infinite"}}><div style={{position:"absolute",top:-2.5,left:"50%",width:6,height:6,marginLeft:-3,borderRadius:"50%",background:T.green}}/></div>
-  </div>);
-}
+import { useWindowSize, useCounter, useToast } from "./hooks";
+import { Reveal } from "./components/Reveal";
+import { GlobalStyle } from "./components/GlobalStyle";
+import { Orbit, MiniOrbit } from "./components/Orbit";
 
 
-// ─── HOOKS ───────────────────────────────────────────────────────────────────
-function useWindowSize(){
-  const[w,setW]=useState(window.innerWidth);
-  useEffect(()=>{const h=()=>setW(window.innerWidth);window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);
-  return w;
-}
-function useCounter(target,dur=900){
-  const[val,setVal]=useState(0);
-  useEffect(()=>{
-    const n=typeof target==="number"?target:parseFloat(target)||0;
-    if(!n){setVal(0);return;}
-    let start=null,raf;
-    const step=(ts)=>{if(!start)start=ts;const p=Math.min((ts-start)/dur,1);const e=1-Math.pow(1-p,3);setVal(Math.round(n*e));if(p<1)raf=requestAnimationFrame(step);};
-    raf=requestAnimationFrame(step);return()=>cancelAnimationFrame(raf);
-  },[target,dur]);
-  return val;
-}
-// Scroll-reveal: adds .in when the element scrolls into view (Bold landing animations).
-function Reveal({children,delay=0,style={},as="div"}){
-  const ref=useState(null);
-  const[el,setEl]=useState(null);
-  useEffect(()=>{
-    if(!el)return;
-    const io=new IntersectionObserver((entries)=>{entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add("in");io.unobserve(e.target);}});},{threshold:.12});
-    io.observe(el);return()=>io.disconnect();
-  },[el]);
-  const Tag=as;
-  return<Tag ref={setEl} className="reveal" style={{animationDelay:`${delay}ms`,...style}}>{children}</Tag>;
-}
-function useToast(){
-  const[toasts,setToasts]=useState([]);
-  const push=useCallback((msg,kind="success")=>{
-    const id=Date.now()+Math.random();
-    setToasts(t=>[...t,{id,msg,kind}]);
-    setTimeout(()=>setToasts(t=>t.filter(x=>x.id!==id)),3200);
-  },[]);
-  const Toasts=useCallback(()=>(
-    <div style={{position:"fixed",bottom:20,left:"50%",transform:"translateX(-50%)",zIndex:2000,display:"flex",flexDirection:"column",gap:8,alignItems:"center",width:"calc(100% - 32px)",maxWidth:420,pointerEvents:"none"}}>
-      {toasts.map(t=>(<div key={t.id} style={{animation:"toastIn .3s cubic-bezier(.22,.8,.36,1) both",background:T.ink,color:"#fff",borderRadius:12,padding:"11px 18px",fontSize:13,fontWeight:600,boxShadow:SHADOW_LG,display:"flex",alignItems:"center",gap:9,maxWidth:"100%"}}>
-        <span>{t.kind==="success"?"✅":t.kind==="info"?"ℹ️":"⚠️"}</span>{t.msg}
-      </div>))}
-    </div>
-  ),[toasts]);
-  return[push,Toasts];
-}
 
 // ─── ATOMS ───────────────────────────────────────────────────────────────────
 const Badge=({type,label})=>{
