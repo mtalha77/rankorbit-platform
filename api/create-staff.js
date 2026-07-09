@@ -33,15 +33,32 @@ export default async function handler(req, res) {
   const { token, name, email, password, role } = await readJson(req);
   if (!token) return res.status(401).json({ error: "Not authenticated" });
 
-  const { data: userData, error: userErr } = await admin.auth.getUser(token);
-  if (userErr || !userData?.user) {
-    return res.status(401).json({ error: "Invalid session: " + (userErr?.message || "log out and back in") });
+  // Verify the caller by decoding the JWT payload directly. We avoid admin.auth.getUser(token)
+  // because it puts the token into an HTTP header internally, which throws a ByteString error
+  // if the token contains any non-ASCII character. Decoding the middle segment is header-free.
+  let callerId = null;
+  try {
+    const cleanTok = String(token).replace(/[^A-Za-z0-9._-]/g, "");
+    const parts = cleanTok.split(".");
+    if (parts.length !== 3) return res.status(401).json({ error: "Malformed token (not a JWT)" });
+    const payloadJson = Buffer.from(parts[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
+    const payload = JSON.parse(payloadJson);
+    callerId = payload.sub;
+    if (!callerId) return res.status(401).json({ error: "Token has no user id" });
+    // Expiry check.
+    if (payload.exp && Date.now() / 1000 > payload.exp) return res.status(401).json({ error: "Session expired, log out and back in" });
+  } catch (e) {
+    return res.status(401).json({ error: "Could not read token: " + (e.message || "invalid") });
   }
 
-  const { data: caller } = await admin.from("profiles").select("role").eq("id", userData.user.id).maybeSingle();
+  // Confirm this user really exists in auth (using the service key, server-side, header-safe).
+  const { data: authUser, error: authErr } = await admin.auth.admin.getUserById(callerId);
+  if (authErr || !authUser?.user) return res.status(401).json({ error: "User not found for this session" });
+
+  const { data: caller } = await admin.from("profiles").select("role").eq("id", callerId).maybeSingle();
   const callerRole = caller?.role;
   if (callerRole !== "super_admin" && callerRole !== "manager") {
-    return res.status(403).json({ error: "Only super admins and managers can create staff" });
+    return res.status(403).json({ error: "Only super admins and managers can create staff (your role: " + (callerRole || "none") + ")" });
   }
 
   // Validate the requested new account.
