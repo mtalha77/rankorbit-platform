@@ -283,18 +283,14 @@ const api={
       session=r1.data.session;
       if(session){const rr=await supa.auth.refreshSession();if(rr.data.session)session=rr.data.session;}
     }catch{}
-    if(!session||!session.access_token)return{error:"No active login session. Please log out and sign in with a real account (not a demo button)."};
-    const tok=(session.access_token||"").replace(/[^\x00-\x7F]/g,"").trim();
-    // A real Supabase JWT is 3 dot-separated ASCII segments. Reject anything else
-    // (e.g. a demo/localStorage login that has no real token) before it hits the server.
-    if(!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(tok)){
-      return{error:"Your login isn't a real database session. Fully log out, then sign in at /admin with your real super-admin account and try again."};
-    }
+    if(!session||!session.access_token)return{error:"No active login session. Log out and sign in at /admin with your real super-admin account."};
     try{
+      // Token goes in the JSON body (handles any characters) rather than a header
+      // (headers are ASCII-only and threw a ByteString error).
       const r=await fetch("/api/create-staff",{
         method:"POST",
-        headers:{"Content-Type":"application/json","Authorization":"Bearer "+tok},
-        body:JSON.stringify({name,email,password,role}),
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({token:session.access_token,name,email,password,role}),
       });
       const j=await r.json();
       if(!r.ok)return{error:j.error||"Failed to create staff account"};
