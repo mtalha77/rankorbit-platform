@@ -283,7 +283,7 @@ const api={
       session=r1.data.session;
       if(session){const rr=await supa.auth.refreshSession();if(rr.data?.session)session=rr.data.session;}
     }catch(e){return{error:"Session read failed: "+(e.message||"unknown")};}
-    if(!session)return{error:"No Supabase session found. You're logged in without a real auth session, this happens with demo logins. Log out fully and sign in at /admin with the super-admin account you created in Supabase."};
+    if(!session)return{error:"DIAG: getSession returned null. localStorage ro_auth = "+(()=>{try{return window.localStorage.getItem("ro_auth")?"present":"MISSING";}catch{return "err";}})()+". Try logging out and back in at /admin."};
     if(!session.access_token)return{error:"Session exists but has no token. Log out and back in at /admin."};
     try{
       const r=await fetch("/api/create-staff",{
