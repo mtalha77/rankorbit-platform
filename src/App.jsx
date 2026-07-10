@@ -23,7 +23,10 @@ function ClientDashboard({user:userProp,data,reload,onLogout,impersonating=false
   const[page,setPage]=useState("home");
   const[toast,Toasts]=useToast();
   const[showManual,setShowManual]=useState(false);
+  const[confirm,setConfirm]=useState(null);
   const w=useWindowSize();const isMobile=w<820;
+  // Async action runner: run fn, optionally toast, then refresh data. Used by billing actions.
+  const R=async(fn,msg)=>{await fn();if(msg)toast(msg);await reload();};
   // Always use the freshest copy of the profile (data.users is refreshed by reload()),
   // so profile edits (e.g. completing the business profile) reflect immediately.
   const user=(data.users||[]).find(u=>u.id===userProp.id)||userProp;
@@ -640,6 +643,7 @@ function ClientDashboard({user:userProp,data,reload,onLogout,impersonating=false
     <span style={{fontSize:18}}>?</span>{!isMobile&&<span>Help</span>}
   </button>
   {showManual&&<UserManual user={user} plan={plan} onClose={()=>setShowManual(false)} goTo={(p)=>{setPage(p);setShowManual(false);}}/>}
+  {confirm&&<Confirm data={confirm} onClose={()=>setConfirm(null)}/>}
   <Toasts/></>);
 }
 
