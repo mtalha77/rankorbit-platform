@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-route
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { T, FONT_D, FONT_B, SHADOW, SHADOW_LG } from "./lib/theme";
 import { PLANS, CATEGORIES, US_CA_STATES, BIZ_FIELDS, planLive, livePlanEntries } from "./lib/constants";
-import { today, todayFull, nextMonthFirst, uid, passwordIssues, passwordScore, STAFF_ROLES, SHOW_DEMOS } from "./lib/helpers";
+import { today, todayFull, nextMonthFirst, uid, passwordIssues, passwordScore, STAFF_ROLES, SHOW_DEMOS, actIcon, clientBy } from "./lib/helpers";
 import { supa, LS, LSet, SUPA_URL, SUPA_KEY } from "./lib/supabase";
 import { api } from "./lib/api";
 import { useWindowSize, useCounter, useToast } from "./hooks";
