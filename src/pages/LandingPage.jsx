@@ -101,13 +101,18 @@ export default function LandingPage(){
     <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"7px 15px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:30,fontSize:12.5,fontWeight:800,letterSpacing:".4px",color,marginBottom:18,boxShadow:SHADOW}}>{children}</div>
   );
   const Ico=({d,c=T.brand,s=24})=>(<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{d}</svg>);
-  const CountStat=({value,suffix,label})=>{
+  const CountStat=({value,suffix,label,icon,last})=>{
     const[el,setEl]=useState(null);const[go2,setGo2]=useState(false);
     useEffect(()=>{if(!el)return;const io=new IntersectionObserver(e=>{e.forEach(x=>{if(x.isIntersecting){setGo2(true);io.disconnect();}});},{threshold:.4});io.observe(el);return()=>io.disconnect();},[el]);
     const v=useCounter(go2?value:0,1400);
-    return(<div ref={setEl} style={{textAlign:"center"}}>
-      <div style={{fontFamily:FONT_D,fontSize:isMobile?34:46,fontWeight:800,color:"#fff",letterSpacing:"-1.5px",lineHeight:1}}>{v}{suffix}</div>
-      <div style={{fontSize:isMobile?12.5:13.5,color:"rgba(255,255,255,.7)",fontWeight:600,marginTop:8}}>{label}</div>
+    return(<div ref={setEl} style={{textAlign:"center",position:"relative",padding:isMobile?"0":"0 16px",borderRight:(!last&&!isMobile)?"1px solid rgba(255,255,255,.1)":"none"}}>
+      <div style={{width:38,height:38,borderRadius:11,background:"rgba(255,255,255,.08)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px"}}>
+        <Ico d={icon} c={T.green} s={19}/>
+      </div>
+      <div style={{fontFamily:FONT_D,fontSize:isMobile?34:48,fontWeight:800,color:"#fff",letterSpacing:"-1.5px",lineHeight:1}}>
+        {v}<span style={{color:T.green}}>{suffix}</span>
+      </div>
+      <div style={{fontSize:isMobile?12:13,color:"rgba(255,255,255,.62)",fontWeight:600,marginTop:9,letterSpacing:".2px"}}>{label}</div>
     </div>);
   };
 
@@ -116,8 +121,7 @@ export default function LandingPage(){
     <div style={{position:"sticky",top:0,zIndex:100,background:"rgba(255,255,255,.82)",backdropFilter:"blur(12px)",borderBottom:`1px solid ${T.line}`}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:isMobile?"13px 20px":"15px 40px",maxWidth:maxW,margin:"0 auto"}}>
         <div style={{display:"flex",alignItems:"center",gap:11}}>
-          <MiniOrbit size={36}/>
-          <div style={{fontFamily:FONT_D,fontSize:21,fontWeight:800,letterSpacing:"-.6px"}}>NAP <span style={{color:T.brand}}>Orbit</span></div>
+          <img src="/nap-orbit-logo.png" alt="NAP Orbit" style={{height:isMobile?26:30,width:"auto",display:"block"}}/>
         </div>
         <div style={{display:"flex",gap:isMobile?8:14,alignItems:"center"}}>
           {!isMobile&&<button onClick={go} style={{background:"none",border:"none",color:T.sub,fontSize:14.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>Sign in</button>}
@@ -172,12 +176,18 @@ export default function LandingPage(){
     </div>
 
     {/* ── Stat band ── */}
-    <div style={{background:`linear-gradient(135deg,${T.ink},#2B2B58)`,padding:isMobile?"36px 20px":"52px 40px",marginTop:isMobile?20:40}}>
-      <div style={{maxWidth:maxW,margin:"0 auto",display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:isMobile?26:20}}>
-        <CountStat value={60} suffix="+" label="Directories we manage"/>
-        <CountStat value={96} suffix="%" label="Average NAP accuracy"/>
-        <CountStat value={30} suffix="+" label="New listings a month"/>
-        <CountStat value={24} suffix="/7" label="Edit protection"/>
+    <div style={{background:`linear-gradient(135deg,${T.ink},#2B2B58)`,padding:isMobile?"38px 20px":"56px 40px",marginTop:isMobile?20:40,position:"relative",overflow:"hidden"}}>
+      <div style={{position:"absolute",top:-60,right:-40,width:240,height:240,borderRadius:"50%",background:`radial-gradient(circle,${T.brand}30,transparent 70%)`,pointerEvents:"none"}}/>
+      <div style={{maxWidth:maxW,margin:"0 auto",position:"relative"}}>
+        <div style={{textAlign:"center",marginBottom:isMobile?28:38}}>
+          <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"5px 14px",background:"rgba(255,255,255,.08)",borderRadius:30,fontSize:12,fontWeight:800,color:T.green,letterSpacing:".4px"}}>BY THE NUMBERS</div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:isMobile?"30px 20px":0}}>
+          <CountStat value={60} suffix="+" label="Directories we manage" icon={<><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.4 8 12 8 12s8-6.6 8-12a8 8 0 0 0-8-8z"/></>}/>
+          <CountStat value={96} suffix="%" label="Average NAP accuracy" icon={<path d="M20 6 9 17l-5-5"/>}/>
+          <CountStat value={30} suffix="+" label="New listings a month" icon={<><path d="M12 5v14M5 12h14"/></>}/>
+          <CountStat value={24} suffix="/7" label="Edit protection" icon={<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>} last/>
+        </div>
       </div>
     </div>
 
@@ -382,7 +392,7 @@ export default function LandingPage(){
     {/* ── Footer ── */}
     <div style={{borderTop:`1px solid ${T.line}`,padding:isMobile?"26px 20px":"30px 40px"}}>
       <div style={{maxWidth:maxW,margin:"0 auto",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:14}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}><MiniOrbit size={30}/><span style={{fontWeight:800,fontSize:15,fontFamily:FONT_D}}>NAP Orbit</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}><img src="/nap-orbit-logo.png" alt="NAP Orbit" style={{height:26,width:"auto",display:"block"}}/></div>
         <div style={{fontSize:13,color:T.faint}}>© {new Date().getFullYear()} NAP Orbit. All rights reserved.</div>
         <div style={{display:"flex",gap:18,fontSize:13.5}}>
           <button onClick={go} style={{background:"none",border:"none",color:T.sub,cursor:"pointer",fontFamily:FONT_B,fontWeight:700}}>Client login</button>
