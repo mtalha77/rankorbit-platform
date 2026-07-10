@@ -19,10 +19,9 @@ export default function Shell({user,nav,page,setPage,onLogout,planBadge,badgeCou
     <div style={{padding:"20px 18px 16px"}}>
       <div style={{display:"flex",alignItems:"center",gap:10,justifyContent:"space-between"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <MiniOrbit size={34}/>
           <div>
-            <div style={{fontFamily:FONT_D,fontSize:15.5,fontWeight:800,lineHeight:1.1}}>NAP <span style={{color:T.brand}}>Orbit</span></div>
-            {brandTag&&<div style={{fontSize:9.5,fontWeight:800,color:T.red,letterSpacing:".6px"}}>{brandTag}</div>}
+            <img src="/nap-orbit-logo.png" alt="NAP Orbit" style={{height:22,width:"auto",display:"block"}}/>
+            {brandTag&&<div style={{fontSize:9.5,fontWeight:800,color:T.red,letterSpacing:".6px",marginTop:3}}>{brandTag}</div>}
           </div>
         </div>
         {isMobile&&<button onClick={()=>setOpen(false)} style={{background:T.surface2,border:"none",color:T.sub,fontSize:16,cursor:"pointer",width:30,height:30,borderRadius:"50%"}}>×</button>}
@@ -50,7 +49,7 @@ export default function Shell({user,nav,page,setPage,onLogout,planBadge,badgeCou
       {isMobile&&(<div style={{padding:"13px 16px",background:T.surface,borderBottom:`1px solid ${T.line}`,display:"flex",alignItems:"center",gap:12,flexShrink:0,justifyContent:"space-between"}}>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           <button onClick={()=>setOpen(true)} style={{background:T.surface2,border:"none",color:T.ink,fontSize:17,cursor:"pointer",width:36,height:36,borderRadius:10}}>☰</button>
-          <div style={{fontFamily:FONT_D,fontSize:15,fontWeight:800}}>NAP <span style={{color:T.brand}}>Orbit</span></div>
+          <img src="/nap-orbit-logo.png" alt="NAP Orbit" style={{height:20,width:"auto",display:"block"}}/>
         </div>
         <button onClick={onLogout} style={{background:"none",border:"none",color:T.sub,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>Sign Out ↪</button>
       </div>)}
