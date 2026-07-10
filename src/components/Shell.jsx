@@ -1,0 +1,64 @@
+// ─── SHELL (nav + layout) ────────────────────────────────────────────────────
+import { useState } from "react";
+import { T, FONT_D, FONT_B, SHADOW_LG } from "../lib/theme";
+import { Orbit, MiniOrbit } from "./Orbit";
+import { useWindowSize } from "../hooks";
+
+export default function Shell({user,nav,page,setPage,onLogout,planBadge,badgeCounts={},children,brandTag}){
+  const w=useWindowSize();const isMobile=w<820;
+  const[open,setOpen]=useState(false);
+  const Item=({item})=>{
+    const active=page===item.id||(item.match&&item.match.includes(page));
+    return(<div className="navItem" onClick={()=>{setPage(item.id);setOpen(false);}} style={{display:"flex",alignItems:"center",gap:11,padding:"10px 14px",margin:"2px 10px",cursor:"pointer",color:active?T.brand:T.sub,background:active?T.brandSoft:"transparent",borderRadius:12,fontWeight:active?800:600,fontSize:13.5}}>
+      <span style={{fontSize:16}}>{item.icon}</span><span>{item.label}</span>
+      {badgeCounts[item.id]>0&&<span style={{marginLeft:"auto",background:T.red,color:"#fff",borderRadius:10,fontSize:10,fontWeight:800,padding:"2px 7px"}}>{badgeCounts[item.id]}</span>}
+      {item.locked&&<span style={{marginLeft:"auto",fontSize:11,color:T.faint}}>🔒</span>}
+    </div>);
+  };
+  const Side=()=>(<div style={{width:isMobile?272:236,background:T.surface,borderRight:`1px solid ${T.line}`,display:"flex",flexDirection:"column",flexShrink:0,...(isMobile?{position:"fixed",top:0,left:open?0:"-290px",height:"100vh",zIndex:200,transition:"left .28s cubic-bezier(.22,.8,.36,1)",boxShadow:open?SHADOW_LG:"none"}:{})}}>
+    <div style={{padding:"20px 18px 16px"}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,justifyContent:"space-between"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <MiniOrbit size={34}/>
+          <div>
+            <div style={{fontFamily:FONT_D,fontSize:15.5,fontWeight:800,lineHeight:1.1}}>NAP <span style={{color:T.brand}}>Orbit</span></div>
+            {brandTag&&<div style={{fontSize:9.5,fontWeight:800,color:T.red,letterSpacing:".6px"}}>{brandTag}</div>}
+          </div>
+        </div>
+        {isMobile&&<button onClick={()=>setOpen(false)} style={{background:T.surface2,border:"none",color:T.sub,fontSize:16,cursor:"pointer",width:30,height:30,borderRadius:"50%"}}>×</button>}
+      </div>
+      {planBadge}
+    </div>
+    <nav style={{flex:1,overflowY:"auto",paddingBottom:10}}>{nav.map(i=><Item key={i.id} item={i}/>)}</nav>
+    <div style={{padding:"14px 16px 18px",borderTop:`1px solid ${T.line}`}}>
+      <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:12}}>
+        <div style={{width:36,height:36,borderRadius:"50%",background:`linear-gradient(135deg,${T.brand},${T.violet})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:"#fff",flexShrink:0}}>{user.avatar}</div>
+        <div style={{overflow:"hidden",flex:1}}>
+          <div style={{fontSize:12.5,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{user.businessName||user.name}</div>
+          <div style={{fontSize:10.5,color:T.faint,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{user.email}</div>
+        </div>
+      </div>
+      <button onClick={onLogout} style={{width:"100%",padding:"9px 0",background:T.surface2,border:`1px solid ${T.line}`,borderRadius:10,color:T.sub,fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>
+        <span style={{fontSize:13}}>↪</span> Sign Out
+      </button>
+    </div>
+  </div>);
+  return(<div style={{display:"flex",height:"100vh",background:T.bg,color:T.ink,fontFamily:FONT_B,overflow:"hidden"}}>
+    <Side/>
+    {isMobile&&open&&<div style={{position:"fixed",inset:0,background:"rgba(23,23,50,.35)",zIndex:199}} onClick={()=>setOpen(false)}/>}
+    <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      {isMobile&&(<div style={{padding:"13px 16px",background:T.surface,borderBottom:`1px solid ${T.line}`,display:"flex",alignItems:"center",gap:12,flexShrink:0,justifyContent:"space-between"}}>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <button onClick={()=>setOpen(true)} style={{background:T.surface2,border:"none",color:T.ink,fontSize:17,cursor:"pointer",width:36,height:36,borderRadius:10}}>☰</button>
+          <div style={{fontFamily:FONT_D,fontSize:15,fontWeight:800}}>NAP <span style={{color:T.brand}}>Orbit</span></div>
+        </div>
+        <button onClick={onLogout} style={{background:"none",border:"none",color:T.sub,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>Sign Out ↪</button>
+      </div>)}
+      <div style={{flex:1,overflow:"auto",padding:isMobile?"18px 16px 40px":"30px 34px 50px"}}>
+        <div key={page} className="fadeUp">{children}</div>
+      </div>
+    </div>
+  </div>);
+}
+
+// ─── CLIENT DASHBOARD ────────────────────────────────────────────────────────
