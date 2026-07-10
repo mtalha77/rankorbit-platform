@@ -76,7 +76,7 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
   // Onboarding checklist: guides brand-new clients through first setup steps.
   const steps=[
     {done:!!user.plan,label:"Choose your plan",action:()=>setPage("billing")},
-    {done:!!(user.businessName&&user.phone&&user.city),label:"Complete your business profile",action:()=>setPage("call")},
+    {done:!!(user.businessName&&user.phone&&user.city),label:"Complete your business profile",action:()=>setPage("billing")},
     {done:my.length>0,label:"First listings submitted",action:()=>setPage("listings")},
     {done:live>0,label:"First listing goes live",action:()=>setPage("listings")},
   ];
