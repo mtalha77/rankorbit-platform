@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { T, FONT_D, FONT_B, SHADOW_LG } from "../lib/theme";
 import { api } from "../lib/api";
-import { passwordIssues, passwordScore, SHOW_DEMOS } from "../lib/helpers";
+import { passwordIssues, passwordScore, SHOW_DEMOS, STAFF_ROLES } from "../lib/helpers";
 import { Btn, Input, Card } from "../components/atoms";
 import { Orbit, MiniOrbit } from "../components/Orbit";
 import { useWindowSize } from "../hooks";
