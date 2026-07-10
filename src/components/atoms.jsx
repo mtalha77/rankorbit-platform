@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { T, FONT_D, FONT_B, SHADOW, SHADOW_LG } from "../lib/theme";
 import { exportCSV, exportXLSX, exportPDF } from "../lib/export";
-import { useWindowSize } from "../hooks";
+import { useWindowSize, useCounter } from "../hooks";
 
 export const Badge=({type,label})=>{
   const map={live:{bg:T.greenSoft,c:T.green,t:"Live"},pending:{bg:T.amberSoft,c:T.amber,t:"Pending"},rejected:{bg:T.redSoft,c:T.red,t:"Rejected"},flagged:{bg:T.redSoft,c:T.red,t:"Flagged"},fixed:{bg:T.blueSoft,c:T.blue,t:"NAP Fixed"},match:{bg:T.greenSoft,c:T.green,t:"✓ Match"},mismatch:{bg:T.redSoft,c:T.red,t:"Mismatch"},submitted:{bg:T.brandSoft,c:T.brand,t:"Submitted"},active:{bg:T.greenSoft,c:T.green,t:"Active"},suspended:{bg:T.redSoft,c:T.red,t:"Suspended"},paid:{bg:T.greenSoft,c:T.green,t:"Paid"},manual:{bg:T.amberSoft,c:T.amber,t:"Manual data"},connected:{bg:T.greenSoft,c:T.green,t:"Connected"}};
