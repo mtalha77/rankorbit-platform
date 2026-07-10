@@ -145,9 +145,6 @@ export const Empty=({icon,title,sub})=>(
     <div style={{fontSize:12.5}}>{sub}</div>
   </div>
 );
-const actIcon=(t)=>({listing_live:"🟢",nap_fix:"🔧",edit_blocked:"🛡️",flagged:"🚩",rejected:"❌",gmb_update:"📍",submitted:"📤",analytics:"📈",client:"👤"}[t]||"⚡");
-// Client-facing anonymizer: clients never see staff names, only "Account Manager".
-// "System" stays as-is. Used everywhere the client can see a "by" attribution.
 
 export const PageHead=({title,sub,right,isMobile})=>(
   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24,flexWrap:"wrap",gap:12}}>
