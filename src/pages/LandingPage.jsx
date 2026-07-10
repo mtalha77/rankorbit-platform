@@ -9,6 +9,66 @@ import { Orbit, MiniOrbit } from "../components/Orbit";
 import { Reveal } from "../components/Reveal";
 import { useWindowSize, useCounter } from "../hooks";
 
+// Custom SVG: NAP Orbit hub at center, radiating connection lines to publisher
+// and AI-engine nodes. Animated pulse travels outward to convey "instant push".
+function PublisherNetworkSVG({isMobile}){
+  const W=isMobile?300:420, H=isMobile?300:380;
+  const cx=W/2, cy=H/2;
+  // Outer nodes: publishers + AI engines around the hub.
+  const nodes=[
+    {label:"Google",angle:-90,r:1,type:"pub"},
+    {label:"Apple",angle:-40,r:1,type:"pub"},
+    {label:"Yelp",angle:10,r:1,type:"pub"},
+    {label:"Bing",angle:55,r:1,type:"pub"},
+    {label:"ChatGPT",angle:100,r:1,type:"ai"},
+    {label:"Gemini",angle:150,r:1,type:"ai"},
+    {label:"AI Overviews",angle:200,r:1,type:"ai"},
+    {label:"Facebook",angle:235,r:1,type:"pub"},
+  ];
+  const R=isMobile?110:145;
+  const pt=(a)=>[cx+R*Math.cos(a*Math.PI/180), cy+R*Math.sin(a*Math.PI/180)];
+  return(
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{display:"block",maxWidth:W,margin:"0 auto"}} role="img" aria-label="NAP Orbit connecting to 200+ publishers and AI engines">
+      <defs>
+        <radialGradient id="hubGrad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor={T.brand}/><stop offset="100%" stopColor={T.violet}/>
+        </radialGradient>
+        <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor={T.brand} stopOpacity="0.5"/><stop offset="100%" stopColor={T.brand} stopOpacity="0.12"/>
+        </linearGradient>
+      </defs>
+      {/* connection lines + animated pulse dots */}
+      {nodes.map((n,i)=>{const[x,y]=pt(n.angle);const dur=2.4+i*0.18;return(
+        <g key={n.label}>
+          <line x1={cx} y1={cy} x2={x} y2={y} stroke="url(#lineGrad)" strokeWidth="1.5"/>
+          <circle r="3" fill={n.type==="ai"?T.violet:T.brand}>
+            <animateMotion dur={`${dur}s`} repeatCount="indefinite" path={`M${cx},${cy} L${x},${y}`}/>
+            <animate attributeName="opacity" values="0;1;1;0" dur={`${dur}s`} repeatCount="indefinite"/>
+          </circle>
+        </g>);})}
+      {/* outer nodes */}
+      {nodes.map((n)=>{const[x,y]=pt(n.angle);const isAI=n.type==="ai";return(
+        <g key={n.label+"-node"}>
+          <circle cx={x} cy={y} r={isMobile?20:24} fill={isAI?T.violetSoft:T.surface} stroke={isAI?T.violet:T.line} strokeWidth="1.5"/>
+          <text x={x} y={y+3} textAnchor="middle" fontSize={isMobile?7.5:8.5} fontWeight="700" fill={isAI?T.violet:T.sub} fontFamily={FONT_B}>{n.label}</text>
+        </g>);})}
+      {/* center hub */}
+      <circle cx={cx} cy={cy} r={isMobile?40:48} fill="url(#hubGrad)"/>
+      <circle cx={cx} cy={cy} r={isMobile?40:48} fill="none" stroke="#fff" strokeOpacity="0.25" strokeWidth="2">
+        <animate attributeName="r" values={`${isMobile?40:48};${isMobile?46:56};${isMobile?40:48}`} dur="3s" repeatCount="indefinite"/>
+        <animate attributeName="stroke-opacity" values="0.4;0;0.4" dur="3s" repeatCount="indefinite"/>
+      </circle>
+      <text x={cx} y={cy-4} textAnchor="middle" fontSize={isMobile?13:15} fontWeight="800" fill="#fff" fontFamily={FONT_D}>NAP</text>
+      <text x={cx} y={cy+12} textAnchor="middle" fontSize={isMobile?9:10} fontWeight="700" fill="#fff" fillOpacity="0.85" fontFamily={FONT_B}>Orbit</text>
+      {/* badge: 200+ */}
+      <g transform={`translate(${cx-(isMobile?26:30)},${cy+(isMobile?52:64)})`}>
+        <rect width={isMobile?52:60} height={isMobile?22:26} rx={isMobile?11:13} fill={T.ink}/>
+        <text x={isMobile?26:30} y={isMobile?15:17} textAnchor="middle" fontSize={isMobile?10:11} fontWeight="800" fill="#fff" fontFamily={FONT_B}>200+ direct</text>
+      </g>
+    </svg>
+  );
+}
+
 export default function LandingPage(){
   const nav=useNavigate();
   const w=useWindowSize();const isMobile=w<768;const isTab=w>=768&&w<1024;
@@ -169,6 +229,34 @@ export default function LandingPage(){
               </div>
             </Reveal>))}
         </div>
+      </div>
+    </div>
+
+    {/* ── Publisher network + AI-ready data ── */}
+    <div style={{maxWidth:maxW,margin:"0 auto",padding:isMobile?"48px 20px":"84px 40px"}}>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1.05fr",gap:isMobile?32:56,alignItems:"center"}}>
+        {/* Left: copy with the differentiator points */}
+        <div>
+          <Reveal><Eyebrow>Direct publisher network</Eyebrow></Reveal>
+          <Reveal delay={80}><h2 style={{fontFamily:FONT_D,fontSize:isMobile?27:40,fontWeight:800,letterSpacing:"-1.2px",margin:"0 0 16px",lineHeight:1.1}}>200+ direct connections.<br/>Instant, accurate updates.</h2></Reveal>
+          <Reveal delay={140}><p style={{fontSize:isMobile?15.5:17,color:T.sub,lineHeight:1.65,margin:"0 0 22px"}}>NAP Orbit has 200+ direct publisher connections that push accurate updates the moment your details change, instant and precise in a way competitors relying on slow third-party feeds simply can't match.</p></Reveal>
+          {[
+            {t:"Structured for AI search",b:"Your data is structured the way AI engines cite it, optimized for Google, Apple, Yelp, and the AI assistants shaping the future of search."},
+            {t:"Instant propagation",b:"Direct connections mean an address or hours change reaches publishers immediately, not after a monthly batch sync."},
+          ].map((f,i)=>(
+            <Reveal key={f.t} delay={200+i*80}>
+              <div style={{display:"flex",gap:14,marginBottom:16,alignItems:"flex-start"}}>
+                <div style={{width:40,height:40,borderRadius:12,background:T.brandSoft,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Ico d={<path d="M20 6 9 17l-5-5"/>} c={T.brand} s={20}/></div>
+                <div><h3 style={{fontFamily:FONT_D,fontSize:16.5,fontWeight:800,margin:"0 0 4px",letterSpacing:"-.3px"}}>{f.t}</h3><p style={{fontSize:14.5,color:T.sub,lineHeight:1.6,margin:0}}>{f.b}</p></div>
+              </div>
+            </Reveal>))}
+        </div>
+        {/* Right: custom SVG, NAP Orbit hub radiating to publisher + AI nodes */}
+        <Reveal delay={120}>
+          <div className="lift" style={{background:`linear-gradient(160deg,${T.surface},${T.surface2})`,border:`1px solid ${T.line}`,borderRadius:isMobile?20:26,padding:isMobile?20:30,boxShadow:SHADOW}}>
+            <PublisherNetworkSVG isMobile={isMobile}/>
+          </div>
+        </Reveal>
       </div>
     </div>
 
