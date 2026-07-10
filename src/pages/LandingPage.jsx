@@ -9,62 +9,77 @@ import { Orbit, MiniOrbit } from "../components/Orbit";
 import { Reveal } from "../components/Reveal";
 import { useWindowSize, useCounter } from "../hooks";
 
+// Brand logo marks (simple, recognizable SVG paths) drawn inside each node.
+// Kept monochrome-tinted to stay cohesive with the brand, no text-overflow.
+function BrandMark({name,size=22}){
+  const s=size;
+  switch(name){
+    case "Google": return(<svg width={s} height={s} viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.76h3.56c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.56-2.76c-.98.66-2.24 1.06-3.72 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.84 14.09a6.6 6.6 0 0 1 0-4.18V7.07H2.18a11 11 0 0 0 0 9.86l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z"/></svg>);
+    case "Apple": return(<svg width={s} height={s} viewBox="0 0 24 24" fill={T.ink}><path d="M17.05 12.7c-.03-2.7 2.2-4 2.3-4.06-1.25-1.84-3.2-2.09-3.9-2.12-1.66-.17-3.24.97-4.08.97-.84 0-2.14-.95-3.52-.92-1.81.03-3.48 1.05-4.41 2.67-1.88 3.27-.48 8.1 1.35 10.76.9 1.3 1.97 2.76 3.38 2.71 1.35-.05 1.86-.87 3.5-.87s2.1.87 3.53.84c1.46-.03 2.38-1.32 3.27-2.63 1.03-1.5 1.46-2.96 1.48-3.04-.03-.01-2.84-1.09-2.87-4.32M14.6 4.6c.75-.9 1.25-2.16 1.11-3.41-1.08.04-2.38.72-3.15 1.62-.69.8-1.29 2.08-1.13 3.3 1.2.1 2.42-.61 3.17-1.51"/></svg>);
+    case "Yelp": return(<svg width={s} height={s} viewBox="0 0 24 24" fill="#D32323"><path d="M13.4 12.9l3.9-1.9c.5-.2.6-.9.3-1.4-.1-.1-.2-.2-.3-.3l-3.4-2.2c-.5-.3-1.1-.2-1.4.3-.1.2-.2.4-.2.6l.1 4.3c0 .5.4.9.9.9.1 0 .1 0 .1-.2m-1.9 1.7l-4.3-.4c-.5 0-1 .3-1 .9 0 .2 0 .3.1.5l1.9 3.6c.3.5.9.6 1.4.4.2-.1.3-.3.4-.5l1.9-3.9c.2-.5 0-1-.5-1.2 0 .1-.1.1-.2.1M11 11.6l.6-6.9c.1-.6-.4-1.1-1-1.2h-.4L6.4 4.7c-.6.2-.9.8-.7 1.4 0 .2.1.3.2.4l4 4.9c.4.5 1 .5 1.4.1.1-.1.1-.2.2-.3 0-.1.1-.3.1-.4m2.3 4.5l2.8 3.3c.4.4 1 .5 1.4.1.1-.1.2-.3.3-.4l1-3.5c.2-.6-.2-1.2-.7-1.3-.2 0-.3-.1-.5 0l-3.9.6c-.5.1-.9.6-.8 1.1 0 .2.1.3.2.4"/></svg>);
+    case "Bing": return(<svg width={s} height={s} viewBox="0 0 24 24" fill="#008373"><path d="M5.5 2l3.7 1.3v13.4l4.3-2.5-2.1-1-1.3-3.3 6.4 2.3v3.8L9.2 20 5.5 22V2z"/></svg>);
+    case "Facebook": return(<svg width={s} height={s} viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12a12 12 0 1 0-13.9 11.9v-8.4H7.1V12h3V9.4c0-3 1.8-4.6 4.5-4.6 1.3 0 2.7.2 2.7.2v2.9h-1.5c-1.5 0-1.9.9-1.9 1.8V12h3.3l-.5 3.5h-2.8v8.4A12 12 0 0 0 24 12z"/></svg>);
+    case "ChatGPT": return(<svg width={s} height={s} viewBox="0 0 24 24" fill={T.violet}><path d="M22.28 9.82a5.98 5.98 0 0 0-.52-4.91 6.05 6.05 0 0 0-6.51-2.9A6 6 0 0 0 4.98 4.18a5.98 5.98 0 0 0-4 2.9 6.05 6.05 0 0 0 .74 7.1 5.98 5.98 0 0 0 .51 4.9 6.05 6.05 0 0 0 6.52 2.9A6 6 0 0 0 19.02 19.8a5.98 5.98 0 0 0 4-2.9 6.05 6.05 0 0 0-.74-7.08zM12 20.5a4.4 4.4 0 0 1-2.85-1.03l.14-.08 4.74-2.74a.77.77 0 0 0 .39-.67v-6.7l2 1.16v5.53A4.46 4.46 0 0 1 12 20.5zm-9.6-4.1a4.44 4.44 0 0 1-.53-3l.14.09 4.74 2.73a.77.77 0 0 0 .78 0l5.79-3.34v2.31a.07.07 0 0 1 0 .06L8.62 20a4.46 4.46 0 0 1-6.09-1.63zM1.39 7.63a4.44 4.44 0 0 1 2.32-1.95v5.63a.76.76 0 0 0 .39.67l5.77 3.33-2 1.16a.08.08 0 0 1-.07 0l-4.79-2.76a4.46 4.46 0 0 1-1.62-6.08zm16.44 3.83l-5.79-3.36 2-1.15a.08.08 0 0 1 .07 0l4.79 2.76a4.45 4.45 0 0 1-.67 8.02v-5.63a.78.78 0 0 0-.4-.68zm1.99-3l-.14-.09-4.73-2.75a.77.77 0 0 0-.78 0L9.38 8.97V6.66a.07.07 0 0 1 0-.06l4.79-2.76a4.45 4.45 0 0 1 6.61 4.61zM8.3 12.6l-2-1.15a.08.08 0 0 1 0-.07V5.87a4.45 4.45 0 0 1 7.3-3.42l-.14.08-4.74 2.74a.77.77 0 0 0-.39.67l-.03 6.66zm1.08-2.35L12 8.75l2.6 1.5v3l-2.6 1.5-2.6-1.5v-3z"/></svg>);
+    case "Gemini": return(<svg width={s} height={s} viewBox="0 0 24 24" fill={T.violet}><path d="M12 0c.55 6.28 5.72 11.45 12 12-6.28.55-11.45 5.72-12 12-.55-6.28-5.72-11.45-12-12C6.28 11.45 11.45 6.28 12 0z"/></svg>);
+    case "AIO": return(<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={T.violet} strokeWidth="2" strokeLinecap="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/><circle cx="12" cy="12" r="3.5"/></svg>);
+    default: return null;
+  }
+}
+
 // Custom SVG: NAP Orbit hub at center, radiating connection lines to publisher
-// and AI-engine nodes. Animated pulse travels outward to convey "instant push".
+// and AI-engine nodes shown with their real logos. Animated pulse conveys "instant push".
 function PublisherNetworkSVG({isMobile}){
-  const W=isMobile?300:420, H=isMobile?300:380;
+  const W=isMobile?320:460, H=isMobile?340:420;
   const cx=W/2, cy=H/2;
-  // Outer nodes: publishers + AI engines around the hub.
+  const R=isMobile?120:160;
+  const nodeR=isMobile?26:30;
+  // Evenly spaced around the hub. label used only for the small caption under each mark.
   const nodes=[
-    {label:"Google",angle:-90,r:1,type:"pub"},
-    {label:"Apple",angle:-40,r:1,type:"pub"},
-    {label:"Yelp",angle:10,r:1,type:"pub"},
-    {label:"Bing",angle:55,r:1,type:"pub"},
-    {label:"ChatGPT",angle:100,r:1,type:"ai"},
-    {label:"Gemini",angle:150,r:1,type:"ai"},
-    {label:"AI Overviews",angle:200,r:1,type:"ai"},
-    {label:"Facebook",angle:235,r:1,type:"pub"},
+    {mark:"Google",label:"Google",angle:-90,ai:false},
+    {mark:"Apple",label:"Apple",angle:-45,ai:false},
+    {mark:"Yelp",label:"Yelp",angle:0,ai:false},
+    {mark:"Bing",label:"Bing",angle:45,ai:false},
+    {mark:"ChatGPT",label:"ChatGPT",angle:90,ai:true},
+    {mark:"Gemini",label:"Gemini",angle:135,ai:true},
+    {mark:"AIO",label:"AI Overviews",angle:180,ai:true},
+    {mark:"Facebook",label:"Facebook",angle:225,ai:false},
   ];
-  const R=isMobile?110:145;
   const pt=(a)=>[cx+R*Math.cos(a*Math.PI/180), cy+R*Math.sin(a*Math.PI/180)];
+  const hubR=isMobile?42:50;
   return(
     <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{display:"block",maxWidth:W,margin:"0 auto"}} role="img" aria-label="NAP Orbit connecting to 200+ publishers and AI engines">
       <defs>
-        <radialGradient id="hubGrad" cx="50%" cy="50%" r="50%">
+        <radialGradient id="hubGrad" cx="50%" cy="40%" r="60%">
           <stop offset="0%" stopColor={T.brand}/><stop offset="100%" stopColor={T.violet}/>
         </radialGradient>
         <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor={T.brand} stopOpacity="0.5"/><stop offset="100%" stopColor={T.brand} stopOpacity="0.12"/>
+          <stop offset="0%" stopColor={T.brand} stopOpacity="0.45"/><stop offset="100%" stopColor={T.brand} stopOpacity="0.1"/>
         </linearGradient>
       </defs>
       {/* connection lines + animated pulse dots */}
-      {nodes.map((n,i)=>{const[x,y]=pt(n.angle);const dur=2.4+i*0.18;return(
+      {nodes.map((n,i)=>{const[x,y]=pt(n.angle);const dur=2.6+i*0.16;return(
         <g key={n.label}>
           <line x1={cx} y1={cy} x2={x} y2={y} stroke="url(#lineGrad)" strokeWidth="1.5"/>
-          <circle r="3" fill={n.type==="ai"?T.violet:T.brand}>
+          <circle r="3" fill={n.ai?T.violet:T.brand}>
             <animateMotion dur={`${dur}s`} repeatCount="indefinite" path={`M${cx},${cy} L${x},${y}`}/>
             <animate attributeName="opacity" values="0;1;1;0" dur={`${dur}s`} repeatCount="indefinite"/>
           </circle>
         </g>);})}
-      {/* outer nodes */}
-      {nodes.map((n)=>{const[x,y]=pt(n.angle);const isAI=n.type==="ai";return(
+      {/* outer logo nodes, caption sits BELOW the circle so nothing overflows */}
+      {nodes.map((n)=>{const[x,y]=pt(n.angle);return(
         <g key={n.label+"-node"}>
-          <circle cx={x} cy={y} r={isMobile?20:24} fill={isAI?T.violetSoft:T.surface} stroke={isAI?T.violet:T.line} strokeWidth="1.5"/>
-          <text x={x} y={y+3} textAnchor="middle" fontSize={isMobile?7.5:8.5} fontWeight="700" fill={isAI?T.violet:T.sub} fontFamily={FONT_B}>{n.label}</text>
+          <circle cx={x} cy={y} r={nodeR} fill={T.surface} stroke={n.ai?T.violetSoft:T.line} strokeWidth="1.5" style={{filter:"drop-shadow(0 2px 6px rgba(23,23,50,0.06))"}}/>
+          <g transform={`translate(${x-(isMobile?11:13)},${y-(isMobile?11:13)})`}><BrandMark name={n.mark} size={isMobile?22:26}/></g>
+          <text x={x} y={y+nodeR+13} textAnchor="middle" fontSize={isMobile?8.5:9.5} fontWeight="700" fill={n.ai?T.violet:T.faint} fontFamily={FONT_B}>{n.label}</text>
         </g>);})}
       {/* center hub */}
-      <circle cx={cx} cy={cy} r={isMobile?40:48} fill="url(#hubGrad)"/>
-      <circle cx={cx} cy={cy} r={isMobile?40:48} fill="none" stroke="#fff" strokeOpacity="0.25" strokeWidth="2">
-        <animate attributeName="r" values={`${isMobile?40:48};${isMobile?46:56};${isMobile?40:48}`} dur="3s" repeatCount="indefinite"/>
-        <animate attributeName="stroke-opacity" values="0.4;0;0.4" dur="3s" repeatCount="indefinite"/>
+      <circle cx={cx} cy={cy} r={hubR} fill="none" stroke={T.brand} strokeOpacity="0.3" strokeWidth="2">
+        <animate attributeName="r" values={`${hubR};${hubR+10};${hubR}`} dur="3s" repeatCount="indefinite"/>
+        <animate attributeName="stroke-opacity" values="0.35;0;0.35" dur="3s" repeatCount="indefinite"/>
       </circle>
-      <text x={cx} y={cy-4} textAnchor="middle" fontSize={isMobile?13:15} fontWeight="800" fill="#fff" fontFamily={FONT_D}>NAP</text>
-      <text x={cx} y={cy+12} textAnchor="middle" fontSize={isMobile?9:10} fontWeight="700" fill="#fff" fillOpacity="0.85" fontFamily={FONT_B}>Orbit</text>
-      {/* badge: 200+ */}
-      <g transform={`translate(${cx-(isMobile?26:30)},${cy+(isMobile?52:64)})`}>
-        <rect width={isMobile?52:60} height={isMobile?22:26} rx={isMobile?11:13} fill={T.ink}/>
-        <text x={isMobile?26:30} y={isMobile?15:17} textAnchor="middle" fontSize={isMobile?10:11} fontWeight="800" fill="#fff" fontFamily={FONT_B}>200+ direct</text>
-      </g>
+      <circle cx={cx} cy={cy} r={hubR} fill="url(#hubGrad)"/>
+      <text x={cx} y={cy-3} textAnchor="middle" fontSize={isMobile?14:16} fontWeight="800" fill="#fff" fontFamily={FONT_D}>NAP</text>
+      <text x={cx} y={cy+13} textAnchor="middle" fontSize={isMobile?10:11} fontWeight="700" fill="#fff" fillOpacity="0.9" fontFamily={FONT_B}>Orbit</text>
     </svg>
   );
 }
