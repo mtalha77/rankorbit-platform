@@ -29,3 +29,9 @@ export const STAFF_ROLES=["super_admin","manager","agent"];
 // Master switch: flip to false at go-live to hide all demo quick-fill buttons.
 export const SHOW_DEMOS=(import.meta.env.VITE_SHOW_DEMOS!=="false");
 
+// Activity-type → icon.
+export const actIcon=(t)=>({listing_live:"🟢",nap_fix:"🔧",edit_blocked:"🛡️",flagged:"🚩",rejected:"❌",gmb_update:"📍",submitted:"📤",analytics:"📈",client:"👤"}[t]||"⚡");
+// Client-facing anonymizer: clients never see staff names, only "Account Manager".
+// "System" stays as-is. Used everywhere the client can see a "by" attribution.
+export const clientBy=(by)=>(!by||by==="System"?(by||""):"Account Manager");
+
