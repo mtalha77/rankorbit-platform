@@ -84,9 +84,15 @@ export const api={
   async billingStatus(){
     try{
       const r=await fetch("/api/billing-status");
+      if(!r.ok){
+        // API missing (old deploy / Vite without plugin) → treat as not configured.
+        return{configured:false,demo:true,unreachable:true};
+      }
       const j=await r.json().catch(()=>({}));
       return{configured:!!j.configured,demo:!j.configured};
-    }catch{return{configured:false,demo:true};}
+    }catch{
+      return{configured:false,demo:true,unreachable:true};
+    }
   },
   async createCheckout(planId){
     const token=await this._accessToken();

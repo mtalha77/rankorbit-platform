@@ -38,11 +38,11 @@ export function planFromPriceId(priceId) {
 }
 
 export function stripeConfigured() {
+  // Essentials + Growth are enough to go live; GMB price is optional until that plan is sold.
   return !!(
     process.env.STRIPE_SECRET_KEY &&
     process.env.STRIPE_PRICE_ESSENTIALS &&
-    process.env.STRIPE_PRICE_GROWTH &&
-    process.env.STRIPE_PRICE_GMB
+    process.env.STRIPE_PRICE_GROWTH
   );
 }
 
