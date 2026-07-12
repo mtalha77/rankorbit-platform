@@ -51,7 +51,7 @@ export const api={
     if(issues.length)return{error:"Password needs "+issues.join(", ")+"."};
     if(supa){
       // role is NEVER accepted from the client, the DB trigger hardcodes 'client'.
-      const{data,error}=await supa.auth.signUp({email,password,options:{data:{name},emailRedirectTo:window.location.origin+"/login"}});
+      const{data,error}=await supa.auth.signUp({email,password,options:{data:{name},emailRedirectTo:window.location.origin+"/login"+(typeof window!=="undefined"?window.location.search:"")}});
       if(error)return{error:error.message};
       if(data.user){
         await supa.from("profiles").update({name,businessName,phone,avatar:(name||email)[0].toUpperCase()}).eq("id",data.user.id);
@@ -68,9 +68,91 @@ export const api={
   },
   async googleLogin(){
     if(!supa)return{error:"Google sign-in needs the live database. It's disabled in demo mode."};
-    const{error}=await supa.auth.signInWithOAuth({provider:"google",options:{redirectTo:window.location.origin+"/login"}});
+    // Preserve ?plan= so post-OAuth landing still resumes the chosen plan.
+    const qs=typeof window!=="undefined"?window.location.search:"";
+    const{error}=await supa.auth.signInWithOAuth({provider:"google",options:{redirectTo:window.location.origin+"/login"+qs}});
     if(error)return{error:error.message};
     return{redirecting:true};
+  },
+  // Helper: refresh session and return access token for billing API calls.
+  async _accessToken(){
+    if(!supa)return null;
+    let{data:{session}}=await supa.auth.getSession();
+    if(session){const rr=await supa.auth.refreshSession();if(rr.data?.session)session=rr.data.session;}
+    return session?.access_token||null;
+  },
+  async billingStatus(){
+    try{
+      const r=await fetch("/api/billing-status");
+      const j=await r.json().catch(()=>({}));
+      return{configured:!!j.configured,demo:!j.configured};
+    }catch{return{configured:false,demo:true};}
+  },
+  async createCheckout(planId){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/create-checkout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,planId})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not start checkout"};
+      return{url:j.url};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
+  async changeSubscription(planId){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/change-subscription",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,planId})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not change plan"};
+      return{ok:true};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
+  async cancelSubscription({resume=false}={}){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      // Prefer live Stripe cancel; fall back to demo endpoint when Stripe env is unset.
+      let r=await fetch("/api/cancel-subscription",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,resume})});
+      let j=await r.json().catch(()=>({}));
+      if(r.status===503||(r.status===403&&/not configured|Demo/i.test(j.error||""))){
+        r=await fetch("/api/demo-cancel-subscription",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,resume})});
+        j=await r.json().catch(()=>({}));
+      }
+      if(!r.ok)return{error:j.error||"Could not update subscription"};
+      return{ok:true,cancelAtPeriodEnd:j.cancelAtPeriodEnd,currentPeriodEnd:j.currentPeriodEnd};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
+  async createPortalSession(){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/create-portal-session",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not open billing portal"};
+      return{url:j.url};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
+  async demoActivatePlan(planId){
+    const token=await this._accessToken();
+    if(!token){
+      // Local demo (no Supabase): activate on the profile directly.
+      return{local:true};
+    }
+    try{
+      const r=await fetch("/api/demo-activate-plan",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,planId})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not activate plan"};
+      return{ok:true};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
+  async listInvoices(clientId){
+    if(supa){
+      const{data,error}=await supa.from("invoices").select("*").eq("clientId",clientId).order("createdAt",{ascending:false}).limit(24);
+      if(error){console.error("listInvoices:",error.message);return[];}
+      return data||[];
+    }
+    return[];
   },
   async resetPassword(email){
     if(!supa)return{error:"Password reset needs the live database."};

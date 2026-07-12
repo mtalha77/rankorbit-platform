@@ -44,5 +44,5 @@ export const SEED = {
     {id:"a5",clientId:"u6",type:"flagged",desc:"Yelp listing flagged, unauthorized edit detected",date:"Jun 20, 2025",by:"System"},
     {id:"a6",clientId:"u6",type:"rejected",desc:"Manta listing rejected, duplicate found",date:"May 10, 2025",by:"Ali (Agent)"},
   ],
-  settings:{stripe:{essentials:"",growth:"",gmb:"",pubKey:""}},
+  settings:{stripe:{pubKey:""}},
 };

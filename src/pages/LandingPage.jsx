@@ -89,6 +89,11 @@ export default function LandingPage(){
   const nav=useNavigate();
   const w=useWindowSize();const isMobile=w<768;const isTab=w>=768&&w<1024;
   const go=()=>nav("/login");
+  // Remember which plan the visitor picked so /login opens Billing after auth.
+  const goPlan=(planId)=>{
+    try{sessionStorage.setItem("ro_pending_plan",planId);}catch{}
+    nav(`/login?plan=${encodeURIComponent(planId)}`);
+  };
   const pad=isMobile?"0 20px":isTab?"0 32px":"0 40px";
   const maxW=1160;
   // Load which plans are live + any price overrides (set by super-admin control panel).
@@ -367,7 +372,7 @@ export default function LandingPage(){
               <div style={{fontSize:13.5,color:T.sub,fontWeight:700,marginBottom:18}}>{pl.q}</div>
               <div style={{height:1,background:T.line,marginBottom:18}}/>
               <div style={{flex:1}}>{pl.f.map(f=>(<div key={f} style={{display:"flex",gap:9,marginBottom:11,alignItems:"flex-start"}}><Ico d={<path d="M20 6 9 17l-5-5"/>} c={T.green} s={17}/><span style={{fontSize:13.5,color:T.sub,lineHeight:1.5}}>{f}</span></div>))}</div>
-              <Btn size="md" variant={pl.pop?"primary":"ghost"} style={{width:"100%",marginTop:18}} onClick={go}>Choose {pl.n}</Btn>
+              <Btn size="md" variant={pl.pop?"primary":"ghost"} style={{width:"100%",marginTop:18}} onClick={()=>goPlan(pl.id)}>Choose {pl.n}</Btn>
             </div>
           </Reveal>))}
       </div>);})()}

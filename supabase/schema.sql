@@ -1,6 +1,6 @@
 -- Rank Orbit Platform schema + seed (run once in Supabase SQL Editor)
 -- Works WITH Supabase Auth. `profiles` links to auth.users.
-drop table if exists activity, listings, gmb, analytics, settings, profiles cascade;
+drop table if exists invoices, stripe_events, activity, listings, gmb, analytics, settings, profiles cascade;
 
 create table profiles (
   id uuid primary key references auth.users(id) on delete cascade,
@@ -11,6 +11,9 @@ create table profiles (
   website text, category text, status text default 'active', "napScore" int default 0,
   protected boolean default false,
   "gaId" text, "gbpId" text,
+  "stripeCustomerId" text, "stripeSubscriptionId" text, "stripePriceId" text,
+  "subscriptionStatus" text, "cancelAtPeriodEnd" boolean default false, "canceledAt" timestamptz,
+  "currentPeriodEnd" timestamptz, "cardBrand" text, "cardLast4" text,
   "createdAt" timestamptz default now()
 );
 
@@ -58,8 +61,27 @@ create table settings (
   data jsonb not null default '{}'
 );
 
-insert into settings (id,data) values (1,'{"stripe":{"essentials":"","growth":"","gmb":"","pubKey":""}}')
+insert into settings (id,data) values (1,'{"stripe":{"pubKey":""}}')
   on conflict (id) do nothing;
+
+create table stripe_events (
+  id text primary key,
+  type text not null,
+  "processedAt" timestamptz default now()
+);
+
+create table invoices (
+  id text primary key,
+  "clientId" uuid references profiles(id) on delete cascade,
+  "amountCents" int default 0,
+  currency text default 'usd',
+  status text,
+  "hostedInvoiceUrl" text,
+  "invoicePdf" text,
+  "periodStart" timestamptz,
+  "periodEnd" timestamptz,
+  "createdAt" timestamptz default now()
+);
 
 -- ── ROW LEVEL SECURITY ───────────────────────────────────────────────────────
 alter table profiles enable row level security;
@@ -68,6 +90,8 @@ alter table gmb enable row level security;
 alter table analytics enable row level security;
 alter table activity enable row level security;
 alter table settings enable row level security;
+alter table stripe_events enable row level security;
+alter table invoices enable row level security;
 
 -- helper: is the current user staff (admin/manager/agent)?
 create or replace function is_staff() returns boolean as $$
@@ -90,6 +114,32 @@ create policy ac_read on activity for select using ("clientId"=auth.uid() or is_
 create policy ac_write on activity for all using (is_staff());
 create policy s_read on settings for select using (true);
 create policy s_write on settings for update using (is_staff());
+create policy inv_read on invoices for select using ("clientId"=auth.uid() or is_staff());
+
+-- Clients cannot self-write plan / Stripe billing columns (webhook + staff only).
+create or replace function protect_profile_billing() returns trigger as $$
+begin
+  if auth.uid() is null then return new; end if;
+  if exists (select 1 from profiles p where p.id=auth.uid() and p.role in ('super_admin','manager','agent')) then
+    return new;
+  end if;
+  new.plan := old.plan;
+  new."stripeCustomerId" := old."stripeCustomerId";
+  new."stripeSubscriptionId" := old."stripeSubscriptionId";
+  new."stripePriceId" := old."stripePriceId";
+  new."subscriptionStatus" := old."subscriptionStatus";
+  new."cancelAtPeriodEnd" := old."cancelAtPeriodEnd";
+  new."canceledAt" := old."canceledAt";
+  new."currentPeriodEnd" := old."currentPeriodEnd";
+  new."cardBrand" := old."cardBrand";
+  new."cardLast4" := old."cardLast4";
+  return new;
+end;
+$$ language plpgsql security definer;
+drop trigger if exists trg_protect_profile_billing on profiles;
+create trigger trg_protect_profile_billing
+  before update on profiles
+  for each row execute function protect_profile_billing();
 
 -- ── DEMO SEED ────────────────────────────────────────────────────────────────
 -- Demo auth users are created by the SEPARATE seed-demo.sql (needs auth schema access)
