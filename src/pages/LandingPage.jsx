@@ -85,15 +85,18 @@ function PublisherNetworkSVG({isMobile}){
   );
 }
 
-export default function LandingPage(){
+export default function LandingPage({user=null}){
   const nav=useNavigate();
   const w=useWindowSize();const isMobile=w<768;const isTab=w>=768&&w<1024;
   const go=()=>nav("/login");
   // Remember which plan the visitor picked so /login opens Billing after auth.
   const goPlan=(planId)=>{
+    if(user?.plan===planId){nav("/login");return;}
     try{sessionStorage.setItem("ro_pending_plan",planId);}catch{}
     nav(`/login?plan=${encodeURIComponent(planId)}`);
   };
+  const displayName=(user?.name||user?.email||"Account").split(" ")[0];
+  const avatarLetter=(user?.avatar||displayName?.[0]||"U").toString().slice(0,1).toUpperCase();
   const pad=isMobile?"0 20px":isTab?"0 32px":"0 40px";
   const maxW=1160;
   // Load which plans are live + any price overrides (set by super-admin control panel).
@@ -129,8 +132,16 @@ export default function LandingPage(){
           <img src="/nap-orbit-logo.png" alt="NAP Orbit" style={{height:isMobile?26:30,width:"auto",display:"block"}}/>
         </div>
         <div style={{display:"flex",gap:isMobile?8:14,alignItems:"center"}}>
-          {!isMobile&&<button onClick={go} style={{background:"none",border:"none",color:T.sub,fontSize:14.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>Sign in</button>}
-          <Btn size={isMobile?"sm":"md"} onClick={go}>Get started</Btn>
+          {user?(<>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <div style={{width:isMobile?32:36,height:isMobile?32:36,borderRadius:"50%",background:`linear-gradient(135deg,${T.brand},${T.violet})`,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT_D,fontWeight:800,fontSize:isMobile?13:14,flexShrink:0}}>{avatarLetter}</div>
+              {!isMobile&&<span style={{fontSize:14.5,fontWeight:700,color:T.ink}}>{displayName}</span>}
+            </div>
+            <Btn size={isMobile?"sm":"md"} onClick={go}>Dashboard</Btn>
+          </>):(<>
+            {!isMobile&&<button onClick={go} style={{background:"none",border:"none",color:T.sub,fontSize:14.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>Sign in</button>}
+            <Btn size={isMobile?"sm":"md"} onClick={go}>Get started</Btn>
+          </>)}
         </div>
       </div>
     </div>
@@ -363,18 +374,23 @@ export default function LandingPage(){
         ].filter(pl=>planLive(pl.id,cfg));
       const gt=isMobile?"1fr":`repeat(${cards.length},1fr)`;
       return(<div style={{display:"grid",gridTemplateColumns:gt,gap:isMobile?16:22,maxWidth:cards.length===1?420:cards.length===2?720:960,margin:"0 auto"}}>
-        {cards.map((pl,i)=>(
+        {cards.map((pl,i)=>{
+          const current=!!user?.plan&&user.plan===pl.id;
+          return(
           <Reveal key={pl.n} delay={i*100}>
-            <div className="lift" style={{background:T.surface,borderRadius:20,padding:isMobile?26:30,border:pl.pop?`2px solid ${T.brand}`:`1px solid ${T.line}`,boxShadow:pl.pop?SHADOW_LG:SHADOW,position:"relative",height:"100%",display:"flex",flexDirection:"column"}}>
-              {pl.pop&&<div style={{position:"absolute",top:-12,left:"50%",transform:"translateX(-50%)",background:`linear-gradient(135deg,${T.brand},${T.violet})`,color:"#fff",fontSize:11,fontWeight:800,padding:"4px 16px",borderRadius:20,letterSpacing:".4px"}}>MOST POPULAR</div>}
+            <div className="lift" style={{background:T.surface,borderRadius:20,padding:isMobile?26:30,border:current||pl.pop?`2px solid ${T.brand}`:`1px solid ${T.line}`,boxShadow:(current||pl.pop)?SHADOW_LG:SHADOW,position:"relative",height:"100%",display:"flex",flexDirection:"column"}}>
+              {current?<div style={{position:"absolute",top:-12,left:"50%",transform:"translateX(-50%)",background:T.brand,color:"#fff",fontSize:11,fontWeight:800,padding:"4px 16px",borderRadius:20,letterSpacing:".4px"}}>YOUR CURRENT PLAN</div>
+                :pl.pop&&<div style={{position:"absolute",top:-12,left:"50%",transform:"translateX(-50%)",background:`linear-gradient(135deg,${T.brand},${T.violet})`,color:"#fff",fontSize:11,fontWeight:800,padding:"4px 16px",borderRadius:20,letterSpacing:".4px"}}>MOST POPULAR</div>}
               <h3 style={{fontFamily:FONT_D,fontSize:19,fontWeight:800,margin:"0 0 4px"}}>{pl.n}</h3>
               <div style={{margin:"6px 0 4px"}}><span style={{fontFamily:FONT_D,fontSize:44,fontWeight:800,letterSpacing:"-2px"}}>${lprice(pl.id)}</span><span style={{fontSize:15,color:T.faint,fontWeight:600}}>/mo</span></div>
               <div style={{fontSize:13.5,color:T.sub,fontWeight:700,marginBottom:18}}>{pl.q}</div>
               <div style={{height:1,background:T.line,marginBottom:18}}/>
               <div style={{flex:1}}>{pl.f.map(f=>(<div key={f} style={{display:"flex",gap:9,marginBottom:11,alignItems:"flex-start"}}><Ico d={<path d="M20 6 9 17l-5-5"/>} c={T.green} s={17}/><span style={{fontSize:13.5,color:T.sub,lineHeight:1.5}}>{f}</span></div>))}</div>
-              <Btn size="md" variant={pl.pop?"primary":"ghost"} style={{width:"100%",marginTop:18}} onClick={()=>goPlan(pl.id)}>Choose {pl.n}</Btn>
+              {current
+                ?<Btn size="md" variant="ghost" style={{width:"100%",marginTop:18}} onClick={go}>Your current plan</Btn>
+                :<Btn size="md" variant={pl.pop?"primary":"ghost"} style={{width:"100%",marginTop:18}} onClick={()=>goPlan(pl.id)}>Choose {pl.n}</Btn>}
             </div>
-          </Reveal>))}
+          </Reveal>);})}
       </div>);})()}
     </div>
 
@@ -400,7 +416,7 @@ export default function LandingPage(){
         <div style={{display:"flex",alignItems:"center",gap:10}}><img src="/nap-orbit-logo.png" alt="NAP Orbit" style={{height:26,width:"auto",display:"block"}}/></div>
         <div style={{fontSize:13,color:T.faint}}>© {new Date().getFullYear()} NAP Orbit. All rights reserved.</div>
         <div style={{display:"flex",gap:18,fontSize:13.5}}>
-          <button onClick={go} style={{background:"none",border:"none",color:T.sub,cursor:"pointer",fontFamily:FONT_B,fontWeight:700}}>Client login</button>
+          <button onClick={go} style={{background:"none",border:"none",color:T.sub,cursor:"pointer",fontFamily:FONT_B,fontWeight:700}}>{user?"Dashboard":"Client login"}</button>
         </div>
       </div>
     </div>

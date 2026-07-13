@@ -38,11 +38,10 @@ function StaffPortal({user,data,reload,onLogin,onLogout}){
   return <AdminDashboard user={user} data={data} reload={reload} onLogout={async()=>{await onLogout();nav("/admin");}}/>;
 }
 
-// Landing at /. If already signed in, go straight to the right dashboard.
+// Landing at /. Staff still go to admin; clients can view the marketing site while signed in.
 function LandingRoute({user}){
   if(user&&STAFF_ROLES.includes(user.role))return <Navigate to="/admin" replace/>;
-  if(user)return <Navigate to="/login" replace/>;
-  return <LandingPage/>;
+  return <LandingPage user={user}/>;
 }
 
 export default function App(){
