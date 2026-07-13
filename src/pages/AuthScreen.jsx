@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { T, FONT_D, FONT_B, SHADOW_LG } from "../lib/theme";
 import { api } from "../lib/api";
-import { passwordIssues, passwordScore, SHOW_DEMOS, STAFF_ROLES } from "../lib/helpers";
+import { passwordIssues, passwordScore, STAFF_ROLES } from "../lib/helpers";
 import { Btn, Input, Card } from "../components/atoms";
 import { Orbit, MiniOrbit } from "../components/Orbit";
 import { useWindowSize } from "../hooks";
@@ -83,7 +83,6 @@ export default function AuthScreen({onLogin,portal="client",initialMode="login"}
     setBusy(true);const r=await api.resetPassword(email);setBusy(false);
     if(r.error)setError(r.error);else{setError("");setFieldErrors({});setInfo("Password reset link sent. Check your email.");setMode("login");}
   };
-  const staff=[{l:"Super Admin",e:"admin@rankorbit.com",p:"admin123",c:T.brand,s:"Full access"},{l:"Manager",e:"manager@rankorbit.com",p:"manager123",c:T.violet,s:"Ops access"},{l:"Agent",e:"agent@rankorbit.com",p:"agent123",c:T.blue,s:"Listings only"}];
   const w=useWindowSize();const isMobile=w<860;
   return(<div style={{minHeight:"100vh",background:T.bg,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT_B,padding:16,position:"relative",overflow:"hidden"}}>
     <div style={{position:"absolute",top:"-120px",left:"-80px",width:420,height:420,borderRadius:"50%",background:T.brandSoft,filter:"blur(60px)",animation:"blob 14s ease-in-out infinite"}}/>
@@ -161,13 +160,6 @@ export default function AuthScreen({onLogin,portal="client",initialMode="login"}
           </div>)}
           {isStaff&&mode==="forgot"&&(<div style={{marginTop:14,textAlign:"center",fontSize:12}}>
             <span onClick={()=>{setMode("login");setError("");setFieldErrors({});}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>← Back to sign in</span>
-          </div>)}
-          {isStaff&&mode==="login"&&SHOW_DEMOS&&(<div style={{marginTop:20,paddingTop:18,borderTop:`1px solid ${T.line}`}}>
-            <div style={{fontSize:10.5,color:T.faint,fontWeight:800,letterSpacing:".8px",marginBottom:8}}>STAFF DEMO</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:7}}>
-              {staff.map(d=>(<button key={d.l} onClick={()=>{setEmail(d.e);setPassword(d.p);}} style={{padding:"9px 4px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:10,color:d.c,fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:FONT_B,lineHeight:1.5}}>{d.l}<br/><span style={{fontSize:9.5,color:T.faint,fontWeight:500}}>{d.s}</span></button>))}
-            </div>
-            <div style={{marginTop:12,fontSize:11,color:T.faint,textAlign:"center"}}>Demo accounts, removed before go-live</div>
           </div>)}
         </Card>
       </div>
