@@ -100,11 +100,9 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
   const nav=[
     {id:"home",icon:"🏠",label:"Home"},
     {id:"listings",icon:"📋",label:"Listings"},
-    {id:"gmb",icon:"📍",label:"GMB Management",locked:user.plan!=="gmb"},
     {id:"analytics",icon:"📈",label:"Analytics"},
     {id:"billing",icon:"💳",label:"Plan & Billing"},
     {id:"call",icon:"📞",label:"Book a Call"},
-    {id:"legal",icon:"📄",label:"Terms & Privacy"},
   ];
   const growthData=[{m:"Mar",live:Math.max(0,live-6)},{m:"Apr",live:Math.max(0,live-4)},{m:"May",live:Math.max(0,live-2)},{m:"Jun",live:Math.max(0,live-1)},{m:"Jul",live}];
   const planBadge=user.plan?(<div style={{marginTop:14,padding:"10px 13px",background:plan.soft,borderRadius:13}}>
@@ -747,7 +745,7 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
     </div>);
   };
 
-  return(<><Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} planBadge={planBadge}>
+  return(<><Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} planBadge={planBadge} showLegalLinks>
     {page==="home"&&<Home/>}
     {page==="listings"&&<Listings/>}
     {page==="gmb"&&<Gmb/>}

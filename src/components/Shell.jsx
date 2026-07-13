@@ -4,7 +4,7 @@ import { T, FONT_D, FONT_B, SHADOW_LG } from "../lib/theme";
 import { Orbit, MiniOrbit } from "./Orbit";
 import { useWindowSize } from "../hooks";
 
-export default function Shell({user,nav,page,setPage,onLogout,planBadge,badgeCounts={},children,brandTag}){
+export default function Shell({user,nav,page,setPage,onLogout,planBadge,badgeCounts={},children,brandTag,showLegalLinks=false}){
   const w=useWindowSize();const isMobile=w<820;
   const[open,setOpen]=useState(false);
   const Item=({item})=>{
@@ -15,6 +15,7 @@ export default function Shell({user,nav,page,setPage,onLogout,planBadge,badgeCou
       {item.locked&&<span style={{marginLeft:"auto",fontSize:11,color:T.faint}}>🔒</span>}
     </div>);
   };
+  const openLegal=()=>{setPage("legal");setOpen(false);};
   const Side=()=>(<div style={{width:isMobile?272:236,background:T.surface,borderRight:`1px solid ${T.line}`,display:"flex",flexDirection:"column",flexShrink:0,...(isMobile?{position:"fixed",top:0,left:open?0:"-290px",height:"100vh",zIndex:200,transition:"left .28s cubic-bezier(.22,.8,.36,1)",boxShadow:open?SHADOW_LG:"none"}:{})}}>
     <div style={{padding:"20px 18px 16px"}}>
       <div style={{display:"flex",alignItems:"center",gap:10,justifyContent:"space-between"}}>
@@ -40,6 +41,13 @@ export default function Shell({user,nav,page,setPage,onLogout,planBadge,badgeCou
       <button onClick={onLogout} style={{width:"100%",padding:"9px 0",background:T.surface2,border:`1px solid ${T.line}`,borderRadius:10,color:T.sub,fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>
         <span style={{fontSize:13}}>↪</span> Sign Out
       </button>
+      {showLegalLinks&&(
+        <div style={{marginTop:10,textAlign:"center",fontSize:11.5,color:T.faint,lineHeight:1.5}}>
+          <span onClick={openLegal} style={{cursor:"pointer",textDecoration:"underline",color:T.sub}}>Terms</span>
+          <span style={{margin:"0 6px",color:T.line}}>·</span>
+          <span onClick={openLegal} style={{cursor:"pointer",textDecoration:"underline",color:T.sub}}>Privacy</span>
+        </div>
+      )}
     </div>
   </div>);
   return(<div style={{display:"flex",height:"100vh",background:T.bg,color:T.ink,fontFamily:FONT_B,overflow:"hidden"}}>

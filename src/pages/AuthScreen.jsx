@@ -1,5 +1,6 @@
 // ─── AUTH SCREEN ─────────────────────────────────────────────────────────────
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { T, FONT_D, FONT_B, SHADOW_LG } from "../lib/theme";
 import { api } from "../lib/api";
 import { passwordIssues, passwordScore, SHOW_DEMOS, STAFF_ROLES } from "../lib/helpers";
@@ -7,10 +8,12 @@ import { Btn, Input, Card } from "../components/atoms";
 import { Orbit, MiniOrbit } from "../components/Orbit";
 import { useWindowSize } from "../hooks";
 
-export default function AuthScreen({onLogin,portal="client"}){
-  // portal="staff" → /admin (login only, no public signup). portal="client" → /login (+signup).
+export default function AuthScreen({onLogin,portal="client",initialMode="login"}){
+  // portal="staff" → /admin (login only). portal="client" → /login or /signup.
   const isStaff=portal==="staff";
-  const[mode,setMode]=useState("login"); // login | signup | forgot
+  const nav=useNavigate();
+  const[mode,setMode]=useState(isStaff?"login":initialMode); // login | signup | forgot
+  useEffect(()=>{if(!isStaff)setMode(initialMode);},[initialMode,isStaff]);
   const[email,setEmail]=useState("");
   const[password,setPassword]=useState("");
   const[name,setName]=useState("");
@@ -24,7 +27,6 @@ export default function AuthScreen({onLogin,portal="client"}){
     api.setRemember(remember);
     setBusy(true);const r=await api.login(email,password);setBusy(false);
     if(r.error){setError(r.error);return;}
-    // Role-guard: staff portal rejects clients; client portal rejects staff.
     const role=r.user?.role;
     if(isStaff && !STAFF_ROLES.includes(role)){await api.logout();setError("This is the staff portal. Clients sign in at /login.");return;}
     if(!isStaff && STAFF_ROLES.includes(role)){await api.logout();setError("Staff accounts sign in at /admin.");return;}
@@ -37,7 +39,7 @@ export default function AuthScreen({onLogin,portal="client"}){
     api.setRemember(remember);
     setBusy(true);const r=await api.signup({email,password,name,businessName,phone});setBusy(false);
     if(r.error)setError(r.error);
-    else if(r.needsConfirm){setError("");setInfo("Almost there! Check your email and click the verification link, then sign in.");setMode("login");}
+    else if(r.needsConfirm){setError("");setInfo("Almost there! Check your email and click the verification link, then sign in.");nav("/login");}
     else{setError("");onLogin(r.user);}
   };
   const google=async()=>{api.setRemember(remember);setBusy(true);const r=await api.googleLogin();setBusy(false);if(r.error)setError(r.error);};
@@ -112,8 +114,8 @@ export default function AuthScreen({onLogin,portal="client"}){
             </button>
           </>)}
           {!isStaff&&(<div style={{marginTop:16,textAlign:"center",fontSize:12.5,color:T.sub}}>
-            {mode==="login"&&(<>New here? <span onClick={()=>{setMode("signup");setError("");setInfo("");}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>Create an account</span> · <span onClick={()=>{setMode("forgot");setError("");setInfo("");}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>Forgot?</span></>)}
-            {mode==="signup"&&(<>Have an account? <span onClick={()=>{setMode("login");setError("");}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>Sign in</span></>)}
+            {mode==="login"&&(<>New here? <span onClick={()=>{setError("");setInfo("");nav("/signup");}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>Create an account</span> · <span onClick={()=>{setMode("forgot");setError("");setInfo("");}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>Forgot?</span></>)}
+            {mode==="signup"&&(<>Have an account? <span onClick={()=>{setError("");nav("/login");}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>Sign in</span></>)}
             {mode==="forgot"&&(<span onClick={()=>{setMode("login");setError("");}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>← Back to sign in</span>)}
           </div>)}
           {isStaff&&mode==="login"&&(<div style={{marginTop:14,textAlign:"center",fontSize:12,color:T.faint}}>
@@ -141,5 +143,3 @@ export default function AuthScreen({onLogin,portal="client"}){
     </div>
   </div>);
 }
-
-// ─── SHELL ───────────────────────────────────────────────────────────────────

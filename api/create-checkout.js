@@ -39,8 +39,8 @@ export default async function handler(req, res) {
       customer: customerId,
       client_reference_id: profile.id,
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${base}/login?billing=success`,
-      cancel_url: `${base}/login?billing=cancel&plan=${planId}`,
+      success_url: `${base}/dashboard?billing=success`,
+      cancel_url: `${base}/?focus=pricing&billing=cancel&plan=${planId}`,
       metadata: { supabase_user_id: profile.id, plan_id: planId },
       subscription_data: {
         metadata: { supabase_user_id: profile.id, plan_id: planId },

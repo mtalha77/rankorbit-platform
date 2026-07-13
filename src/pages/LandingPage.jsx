@@ -85,16 +85,42 @@ function PublisherNetworkSVG({isMobile}){
   );
 }
 
-export default function LandingPage({user=null}){
+export default function LandingPage({user=null,focusPricing=false,billingFlag=null}){
   const nav=useNavigate();
   const w=useWindowSize();const isMobile=w<768;const isTab=w>=768&&w<1024;
-  const go=()=>nav("/login");
-  // Remember which plan the visitor picked so /login opens Billing after auth.
-  const goPlan=(planId)=>{
-    if(user?.plan===planId){nav("/login");return;}
-    try{sessionStorage.setItem("ro_pending_plan",planId);}catch{}
-    nav(`/login?plan=${encodeURIComponent(planId)}`);
+  const[planBusy,setPlanBusy]=useState(null);
+  const[planErr,setPlanErr]=useState("");
+  const scrollPricing=()=>document.getElementById("pricing")?.scrollIntoView({behavior:"smooth",block:"start"});
+  const goLogin=()=>nav("/login");
+  const goSignup=()=>nav("/signup");
+  const goDash=()=>{
+    if(user?.plan)nav("/dashboard");
+    else scrollPricing();
   };
+  // Logged-in + no plan → Stripe checkout from landing. Guest → signup with plan intent.
+  const goPlan=async(planId)=>{
+    setPlanErr("");
+    if(user?.plan){nav("/dashboard");return;}
+    try{sessionStorage.setItem("ro_pending_plan",planId);}catch{}
+    if(!user){nav(`/signup?plan=${encodeURIComponent(planId)}`);return;}
+    setPlanBusy(planId);
+    const r=await api.createCheckout(planId);
+    setPlanBusy(null);
+    if(r.error){setPlanErr(r.error);scrollPricing();return;}
+    if(r.url)window.location.href=r.url;
+  };
+  useEffect(()=>{
+    if(focusPricing||billingFlag==="cancel"){
+      const t=setTimeout(scrollPricing,120);
+      return()=>clearTimeout(t);
+    }
+    try{
+      if(user&&!user.plan&&sessionStorage.getItem("ro_pending_plan")){
+        const t=setTimeout(scrollPricing,200);
+        return()=>clearTimeout(t);
+      }
+    }catch{}
+  },[focusPricing,billingFlag,user]);
   const displayName=(user?.name||user?.email||"Account").split(" ")[0];
   const avatarLetter=(user?.avatar||displayName?.[0]||"U").toString().slice(0,1).toUpperCase();
   const pad=isMobile?"0 20px":isTab?"0 32px":"0 40px";
@@ -137,10 +163,10 @@ export default function LandingPage({user=null}){
               <div style={{width:isMobile?32:36,height:isMobile?32:36,borderRadius:"50%",background:`linear-gradient(135deg,${T.brand},${T.violet})`,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT_D,fontWeight:800,fontSize:isMobile?13:14,flexShrink:0}}>{avatarLetter}</div>
               {!isMobile&&<span style={{fontSize:14.5,fontWeight:700,color:T.ink}}>{displayName}</span>}
             </div>
-            <Btn size={isMobile?"sm":"md"} onClick={go}>Dashboard</Btn>
+            <Btn size={isMobile?"sm":"md"} onClick={goDash}>{user.plan?"Dashboard":"Choose a plan"}</Btn>
           </>):(<>
-            {!isMobile&&<button onClick={go} style={{background:"none",border:"none",color:T.sub,fontSize:14.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>Sign in</button>}
-            <Btn size={isMobile?"sm":"md"} onClick={go}>Get started</Btn>
+            {!isMobile&&<button onClick={goLogin} style={{background:"none",border:"none",color:T.sub,fontSize:14.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>Sign in</button>}
+            <Btn size={isMobile?"sm":"md"} onClick={goSignup}>Get started</Btn>
           </>)}
         </div>
       </div>
@@ -164,7 +190,7 @@ export default function LandingPage({user=null}){
         </Reveal>
         <Reveal delay={240}>
           <div style={{display:"flex",gap:13,justifyContent:"center",flexWrap:"wrap"}}>
-            <Btn size="lg" onClick={go}>Get found now</Btn>
+            <Btn size="lg" onClick={user?goDash:goSignup}>Get found now</Btn>
             <Btn size="lg" variant="ghost" onClick={()=>document.getElementById("how")?.scrollIntoView({behavior:"smooth"})}>See how it works</Btn>
           </div>
           <div style={{marginTop:18,fontSize:13.5,color:T.faint,fontWeight:600}}>No setup fees. Cancel anytime. Live dashboard from day one.</div>
@@ -361,11 +387,14 @@ export default function LandingPage({user=null}){
     </div>
 
     {/* ── Pricing teaser ── */}
-    <div style={{maxWidth:maxW,margin:"0 auto",padding:isMobile?"48px 20px":"80px 40px"}}>
+    <div id="pricing" style={{maxWidth:maxW,margin:"0 auto",padding:isMobile?"48px 20px":"80px 40px"}}>
       <div style={{textAlign:"center",marginBottom:isMobile?30:44}}>
         <Reveal><Eyebrow>Simple pricing</Eyebrow></Reveal>
         <Reveal delay={80}><h2 style={{fontFamily:FONT_D,fontSize:isMobile?28:42,fontWeight:800,letterSpacing:"-1.2px",margin:"0 0 12px",lineHeight:1.1}}>One flat monthly price. No credits, no games.</h2></Reveal>
         <Reveal delay={140}><p style={{fontSize:isMobile?15.5:17,color:T.sub,maxWidth:520,margin:"0 auto",lineHeight:1.6}}>Pick a plan and we get to work. Cancel anytime before your renewal.</p></Reveal>
+        {billingFlag==="cancel"&&<div style={{marginTop:14,fontSize:13,color:T.amber,fontWeight:700}}>Checkout canceled — pick a plan whenever you're ready.</div>}
+        {planErr&&<div style={{marginTop:14,fontSize:13,color:T.red,fontWeight:700}}>{planErr}</div>}
+        {user&&!user.plan&&<div style={{marginTop:14,fontSize:13,color:T.brand,fontWeight:700}}>Subscribe to a plan to unlock your dashboard.</div>}
       </div>
       {(()=>{const cards=[
           {id:"essentials",n:"Essentials",q:"10 listings a month",pop:false,f:["10 directory submissions monthly","NAP consistency management","Unauthorized edit protection","Helps you get found in AI searches","Live dashboard access"]},
@@ -387,8 +416,8 @@ export default function LandingPage({user=null}){
               <div style={{height:1,background:T.line,marginBottom:18}}/>
               <div style={{flex:1}}>{pl.f.map(f=>(<div key={f} style={{display:"flex",gap:9,marginBottom:11,alignItems:"flex-start"}}><Ico d={<path d="M20 6 9 17l-5-5"/>} c={T.green} s={17}/><span style={{fontSize:13.5,color:T.sub,lineHeight:1.5}}>{f}</span></div>))}</div>
               {current
-                ?<Btn size="md" variant="ghost" style={{width:"100%",marginTop:18}} onClick={go}>Your current plan</Btn>
-                :<Btn size="md" variant={pl.pop?"primary":"ghost"} style={{width:"100%",marginTop:18}} onClick={()=>goPlan(pl.id)}>Choose {pl.n}</Btn>}
+                ?<Btn size="md" variant="ghost" style={{width:"100%",marginTop:18}} onClick={goDash}>Go to dashboard</Btn>
+                :<Btn size="md" variant={pl.pop?"primary":"ghost"} style={{width:"100%",marginTop:18}} onClick={()=>goPlan(pl.id)} disabled={!!planBusy}>{planBusy===pl.id?"Redirecting…":`Choose ${pl.n}`}</Btn>}
             </div>
           </Reveal>);})}
       </div>);})()}
@@ -403,7 +432,7 @@ export default function LandingPage({user=null}){
           <div style={{position:"relative"}}>
             <h2 style={{fontFamily:FONT_D,fontSize:isMobile?28:44,fontWeight:800,color:"#fff",letterSpacing:"-1.5px",margin:"0 0 14px",lineHeight:1.1}}>Ready to get found everywhere?</h2>
             <p style={{fontSize:isMobile?16:18.5,color:"rgba(255,255,255,.9)",margin:"0 auto 28px",maxWidth:500,lineHeight:1.6}}>Set up in minutes. Watch your listings go live and the calls start coming. All tracked in one dashboard.</p>
-            <button onClick={go} style={{background:"#fff",color:T.brand,border:"none",borderRadius:14,padding:isMobile?"15px 32px":"17px 42px",fontSize:isMobile?16:18,fontWeight:800,cursor:"pointer",fontFamily:FONT_B,boxShadow:"0 12px 30px rgba(0,0,0,.2)"}}>Get started now</button>
+            <button onClick={user?goDash:goSignup} style={{background:"#fff",color:T.brand,border:"none",borderRadius:14,padding:isMobile?"15px 32px":"17px 42px",fontSize:isMobile?16:18,fontWeight:800,cursor:"pointer",fontFamily:FONT_B,boxShadow:"0 12px 30px rgba(0,0,0,.2)"}}>Get started now</button>
             <div style={{marginTop:16,fontSize:13.5,color:"rgba(255,255,255,.8)",fontWeight:600}}>No setup fees. Cancel anytime.</div>
           </div>
         </div>
@@ -416,7 +445,7 @@ export default function LandingPage({user=null}){
         <div style={{display:"flex",alignItems:"center",gap:10}}><img src="/nap-orbit-logo.png" alt="NAP Orbit" style={{height:26,width:"auto",display:"block"}}/></div>
         <div style={{fontSize:13,color:T.faint}}>© {new Date().getFullYear()} NAP Orbit. All rights reserved.</div>
         <div style={{display:"flex",gap:18,fontSize:13.5}}>
-          <button onClick={go} style={{background:"none",border:"none",color:T.sub,cursor:"pointer",fontFamily:FONT_B,fontWeight:700}}>{user?"Dashboard":"Client login"}</button>
+          <button onClick={user?goDash:goLogin} style={{background:"none",border:"none",color:T.sub,cursor:"pointer",fontFamily:FONT_B,fontWeight:700}}>{user?.plan?"Dashboard":user?"Choose a plan":"Client login"}</button>
         </div>
       </div>
     </div>
