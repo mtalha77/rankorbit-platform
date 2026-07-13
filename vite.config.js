@@ -1,7 +1,6 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
-import { pathToFileURL } from "url";
 import { existsSync } from "fs";
 
 /**
@@ -35,8 +34,9 @@ function localApiPlugin() {
         }
 
         try {
-          // Bust cache so env/handler edits reload during dev.
-          const mod = await import(`${pathToFileURL(filePath).href}?t=${Date.now()}`);
+          // Use Vite SSR loader so ../server/billing.js and other deps hot-reload
+          // (plain dynamic import() keeps a stale ESM cache of billing.js).
+          const mod = await server.ssrLoadModule(filePath);
           const handler = mod.default;
           if (typeof handler !== "function") {
             res.statusCode = 500;

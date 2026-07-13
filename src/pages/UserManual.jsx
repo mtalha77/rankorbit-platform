@@ -4,13 +4,11 @@ import { T, FONT_D, FONT_B } from "../lib/theme";
 import { Modal, Btn } from "../components/atoms";
 
 export default function UserManual({user,plan,onClose,goTo}){
-  const isGmb=plan?.name==="GMB Pro";
   // Guided walkthrough steps. Each explains one area of the platform.
   const steps=[
     {icon:"👋",name:"Welcome to NAP Orbit",body:`Hi ${user.name?.split(" ")[0]||"there"}! Let's take a quick tour so you know exactly where everything is. It takes about a minute, and you can skip anytime.`,page:null},
     {icon:"🏠",name:"Home",body:"Your starting point every time you log in. See how many listings are live, pending, or need your attention, plus your overall visibility score at a glance.",page:"home"},
     {icon:"📋",name:"Listings",body:"Every directory we're building for you, with live status and a link to each one. Watch for amber \"action needed\" flags, those are the only times we need something from you.",page:"listings"},
-    {icon:"📍",name:"GMB Management",body:isGmb?"Your Google Business Profile performance, views, calls, directions, plus the posts and Q&A we manage. Set your monthly report email here too.":"Available on GMB Pro. Upgrade anytime to unlock full Google Business Profile management and monthly reports.",page:"gmb"},
     {icon:"📈",name:"Analytics",body:"Your growth over time in simple charts. See how your listings and visibility improve month over month, no jargon, just progress.",page:"analytics"},
     {icon:"💳",name:"Plan & Billing",body:"Your plan, next charge, invoices, and secure card management. Cancel anytime and keep access until your period ends. Download all your data whenever you like.",page:"billing"},
     {icon:"📞",name:"Book a Call",body:"Grab a 30-minute slot with your dedicated account manager whenever you want to talk strategy or ask questions.",page:"call"},
