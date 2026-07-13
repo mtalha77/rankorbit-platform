@@ -12,6 +12,59 @@ import Shell from "../components/Shell";
 import UserManual from "./UserManual";
 import { useWindowSize, useToast } from "../hooks";
 
+const ListingsLiveIcon=({size=28})=>(
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 55 55" fill="none" aria-hidden>
+    <path fillRule="evenodd" clipRule="evenodd" d="M23.8889 12.4789L32.9414 39.5596C32.9531 39.5875 32.9625 39.618 32.9695 39.6459C33.0843 39.9554 33.302 40.204 33.5806 40.3435C33.8569 40.483 34.1754 40.5033 34.4681 40.3993C34.4915 40.3892 34.5149 40.379 34.5383 40.3714C35.1424 40.1076 35.4445 39.3744 35.222 38.7098L29.0545 20.2646C29.0405 20.2341 29.0264 20.2037 29.0171 20.1733C29.0054 20.1403 28.996 20.1098 28.9913 20.0743L26.151 11.5681C25.9216 10.8958 25.2355 10.5483 24.6127 10.7893C23.9898 11.0328 23.6644 11.771 23.8821 12.4484L23.8915 12.4788L23.8889 12.4789ZM42.4711 17.1594C45.8335 18.6663 49.7086 17.3218 51.6382 13.9782C53.5699 10.6372 52.9916 6.27401 50.2708 3.6555C47.5522 1.03751 43.4852 0.928402 40.6469 3.39674C37.8113 5.8651 37.034 10.193 38.8089 13.6331C38.8978 13.8107 38.9119 14.0212 38.8416 14.2064L37.5234 18.037V18.0396C37.4836 18.1487 37.4836 18.2679 37.5187 18.3795C37.5444 18.448 37.5796 18.5114 37.6287 18.5647C37.6779 18.618 37.7365 18.6586 37.7997 18.6865C37.9027 18.7245 38.0151 18.7245 38.1158 18.6814L42.0191 17.1441H42.0167C42.1642 17.0857 42.3258 17.0908 42.4686 17.1567L42.4711 17.1594ZM47.983 18.7424V18.7449C46.0887 19.3741 44.054 19.2853 42.2159 18.4913L38.542 19.9423V19.9398C38.1674 20.0946 37.753 20.0946 37.376 19.9449C37.1442 19.851 36.9334 19.7039 36.7579 19.5162C36.5822 19.3259 36.4464 19.1001 36.3598 18.849C36.2193 18.4406 36.2216 17.9941 36.3621 17.5856L37.5938 14.0087V14.0112C36.4956 11.6875 36.3294 8.97814 37.1325 6.51744C37.938 4.05668 39.6426 2.06526 41.8483 1.00993C44.0517 -0.0453969 46.5595 -0.0707895 48.7789 0.941435C51.001 1.95364 52.7384 3.9146 53.5837 6.35757C54.429 8.80307 54.3072 11.515 53.2465 13.8592C52.1858 16.2032 50.2798 17.9714 47.9804 18.7451L47.983 18.7424ZM45.4238 11.4668C45.7563 11.4795 46.0232 11.7738 46.0232 12.1365C46.0232 12.4993 45.7563 12.7935 45.4238 12.8062H40.6658C40.4972 12.8113 40.3357 12.7428 40.2162 12.6185C40.0968 12.4916 40.0289 12.3166 40.0289 12.1365C40.0289 11.9564 40.0968 11.7813 40.2162 11.6545C40.3357 11.5302 40.4972 11.4617 40.6658 11.4667L45.4238 11.4668ZM50.1068 9.01117C50.4416 9.02132 50.7062 9.31813 50.7062 9.68087C50.7062 10.0411 50.4416 10.3379 50.1068 10.348H40.6658C40.4972 10.3556 40.3357 10.2871 40.2162 10.1603C40.0968 10.0335 40.0289 9.86095 40.0289 9.68084C40.0289 9.49819 40.0968 9.32568 40.2162 9.19884C40.3357 9.072 40.4972 9.00603 40.6658 9.01111L50.1068 9.01117ZM50.1068 6.55554C50.4416 6.56569 50.7062 6.8625 50.7062 7.2227C50.7062 7.58547 50.4416 7.88226 50.1068 7.8924H40.6658C40.4972 7.89747 40.3357 7.83151 40.2162 7.70467C40.0968 7.57783 40.0289 7.40532 40.0289 7.22267C40.0289 7.04256 40.0968 6.87005 40.2162 6.74321C40.3357 6.61636 40.4972 6.54787 40.6658 6.55548L50.1068 6.55554ZM31.3351 38.6849C28.9444 37.7665 26.4367 37.2541 23.901 37.1654L18.4102 20.699C20.2904 18.8395 21.9013 16.6832 23.1892 14.3036L31.3354 38.6826L31.3351 38.6849ZM31.9111 40.3516H31.9088C29.2301 39.1694 26.3711 38.5378 23.4797 38.4896C21.7212 38.4591 19.9627 38.6418 18.2393 39.0274L18.7779 40.6256L18.7802 40.6281C18.7919 40.6585 18.8013 40.689 18.8083 40.722C18.9769 41.2547 18.9582 41.8382 18.7545 42.3582C18.5461 42.8859 18.1504 43.3019 17.6563 43.5124C17.6165 43.5327 17.5744 43.548 17.5322 43.5581L16.8227 43.8143L18.6773 49.5019H18.6796C19.1292 50.6207 18.9535 51.917 18.2253 52.8455C17.9256 53.2336 17.5533 53.5481 17.1342 53.7714C16.7151 53.9947 16.2585 54.1215 15.7925 54.1393C14.706 54.1925 13.6875 53.571 13.163 52.5385L13.1419 52.498 7.77753 42.2843C5.67252 42.3325 3.65179 41.4116 2.20938 39.7526C2.19299 39.7348 2.1766 39.7171 2.16021 39.6968C0.130131 37.302 -0.373329 33.8214 0.886428 30.8684C1.71064 28.9556 3.19986 27.4715 5.03093 26.746C6.49905 26.1067 8.04677 25.5765 9.52664 24.9575C12.3576 23.8616 14.9706 22.1949 17.2305 20.0436C19.4385 17.9482 21.2719 15.4316 22.644 12.6206C22.349 11.2583 23.0842 9.88341 24.3206 9.48511C25.5569 9.08429 26.8658 9.79968 27.3084 11.1112L29.9847 19.1226H29.9823C32.6774 18.4199 35.431 20.0055 36.4004 22.8163C36.4145 22.8492 36.4262 22.8848 36.4355 22.9203C37.3628 25.7565 36.1873 28.8945 33.6983 30.2264L36.377 38.2579C36.5995 38.915 36.569 39.643 36.2974 40.2773C36.0235 40.9115 35.527 41.4036 34.9206 41.6421H34.9159C34.3095 41.8806 33.6398 41.8476 33.0567 41.5508C32.5603 41.3022 32.1576 40.8785 31.9094 40.3508L31.9111 40.3516ZM17.0286 39.3343C16.5228 39.4764 16.0194 39.6362 15.5206 39.8138L16.4151 42.5587L17.1855 42.2796C17.3822 42.2035 17.5414 42.0412 17.621 41.8306C17.71 41.6048 17.7147 41.3537 17.6351 41.1229L17.0286 39.3343ZM14.7901 38.6697C15.6026 38.3678 16.4245 38.1091 17.2557 37.896L17.2978 37.8858C19.0329 37.4419 20.8078 37.1983 22.592 37.1578L17.4102 21.6376C15.345 23.4768 13.0199 24.9457 10.5264 25.9883L14.7903 38.675L14.7901 38.6697ZM2.82728 38.4896L4.7801 37.7615C5.10089 37.6423 5.45212 37.83 5.56451 38.1776C5.67456 38.5276 5.50129 38.9082 5.1805 39.0274L3.81777 39.5348C5.49898 40.9503 7.73275 41.3308 9.73477 40.547L13.6264 39.1112L9.36948 26.4472L5.45918 27.9998H5.46152C3.93484 28.6035 2.6915 29.8389 2.00546 31.4347C1.79473 31.9217 1.64018 32.4317 1.54418 32.9568L2.97951 32.3733C3.29561 32.249 3.64685 32.4266 3.76392 32.7691C3.88099 33.1116 3.72177 33.4921 3.40801 33.624L1.42942 34.4282V34.4256C1.44347 34.9482 1.51371 35.4658 1.63782 35.9706L5.95322 34.2252C6.10776 34.1593 6.28103 34.1618 6.43323 34.2328C6.58543 34.3064 6.7025 34.4434 6.76104 34.6108C6.81958 34.7808 6.81256 34.966 6.73997 35.1309C6.66972 35.2932 6.54094 35.4176 6.38406 35.4759L2.07334 37.2187C2.27939 37.6728 2.53226 38.099 2.82728 38.4896ZM33.2716 28.9663L30.4056 20.3893C32.4708 19.9326 34.5337 21.1808 35.2573 23.3244C35.9784 25.4782 35.1332 27.878 33.2717 28.9638L33.2716 28.9663ZM9.10749 42.1225L14.2237 51.864H14.2261C14.5281 52.4678 15.1229 52.8331 15.7574 52.8077C16.0478 52.795 16.3358 52.7164 16.5957 52.5743C16.8603 52.4348 17.0944 52.2369 17.284 51.9934C17.7125 51.4353 17.8109 50.6615 17.5369 49.9994L14.3595 40.2527L10.1471 41.8053C9.8076 41.9372 9.46109 42.0439 9.10749 42.1225Z" fill="#214585" stroke="#214585" strokeWidth="0.4"/>
+  </svg>
+);
+
+/** Shared brand blue for home stat icons (matches ListingsLiveIcon). */
+const ICOL="#214585";
+
+/** NAP Score — clipboard + check: Name / Address / Phone consistency. */
+const NapScoreIcon=({size=28})=>(
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 55 55" fill="none" aria-hidden>
+    <path fillRule="evenodd" clipRule="evenodd" d="M20.5 6.2C20.5 4.29 22.04 2.75 23.95 2.75H31.05C32.96 2.75 34.5 4.29 34.5 6.2V8.1H38.2C40.52 8.1 42.4 9.98 42.4 12.3V46.2C42.4 48.52 40.52 50.4 38.2 50.4H16.8C14.48 50.4 12.6 48.52 12.6 46.2V12.3C12.6 9.98 14.48 8.1 16.8 8.1H20.5V6.2ZM24.3 6.55V9.9H30.7V6.55H24.3ZM16.8 11.9C16.58 11.9 16.4 12.08 16.4 12.3V46.2C16.4 46.42 16.58 46.6 16.8 46.6H38.2C38.42 46.6 38.6 46.42 38.6 46.2V12.3C38.6 12.08 38.42 11.9 38.2 11.9H34.5V14.2C34.5 15.14 33.74 15.9 32.8 15.9H22.2C21.26 15.9 20.5 15.14 20.5 14.2V11.9H16.8Z" fill={ICOL} stroke={ICOL} strokeWidth="0.35"/>
+    <path d="M19.8 22.4H28.6C29.26 22.4 29.8 22.94 29.8 23.6C29.8 24.26 29.26 24.8 28.6 24.8H19.8C19.14 24.8 18.6 24.26 18.6 23.6C18.6 22.94 19.14 22.4 19.8 22.4Z" fill={ICOL}/>
+    <path d="M19.8 29.1H26.4C27.06 29.1 27.6 29.64 27.6 30.3C27.6 30.96 27.06 31.5 26.4 31.5H19.8C19.14 31.5 18.6 30.96 18.6 30.3C18.6 29.64 19.14 29.1 19.8 29.1Z" fill={ICOL}/>
+    <path d="M19.8 35.8H24.2C24.86 35.8 25.4 36.34 25.4 37C25.4 37.66 24.86 38.2 24.2 38.2H19.8C19.14 38.2 18.6 37.66 18.6 37C18.6 36.34 19.14 35.8 19.8 35.8Z" fill={ICOL}/>
+    <path fillRule="evenodd" clipRule="evenodd" d="M39.85 28.15C40.55 28.72 40.65 29.75 40.08 30.45L33.35 38.7C33.02 39.1 32.52 39.35 31.98 39.38C31.44 39.41 30.92 39.2 30.55 38.82L27.05 35.15C26.42 34.49 26.45 33.44 27.12 32.82C27.78 32.19 28.83 32.22 29.46 32.88L31.8 35.35L37.95 27.85C38.52 27.15 39.55 27.05 40.25 27.62L39.85 28.15Z" fill={ICOL} stroke={ICOL} strokeWidth="0.3"/>
+  </svg>
+);
+
+/** Edits Blocked — shield + ban: unauthorized changes stopped. */
+const EditsBlockedIcon=({size=28})=>(
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 55 55" fill="none" aria-hidden>
+    <path fillRule="evenodd" clipRule="evenodd" d="M27.5 2.8C28.15 2.8 28.78 3.02 29.28 3.42L42.55 14.2C43.28 14.8 43.7 15.7 43.7 16.65V30.9C43.7 37.55 39.85 43.55 33.95 46.35L28.55 48.95C27.88 49.28 27.12 49.28 26.45 48.95L21.05 46.35C15.15 43.55 11.3 37.55 11.3 30.9V16.65C11.3 15.7 11.72 14.8 12.45 14.2L25.72 3.42C26.22 3.02 26.85 2.8 27.5 2.8ZM27.5 6.7L15.1 16.75V30.9C15.1 36.05 18.05 40.7 22.55 42.85L27.5 45.2L32.45 42.85C36.95 40.7 39.9 36.05 39.9 30.9V16.75L27.5 6.7Z" fill={ICOL} stroke={ICOL} strokeWidth="0.35"/>
+    <path fillRule="evenodd" clipRule="evenodd" d="M27.5 16.2C32.3 16.2 36.2 20.1 36.2 24.9C36.2 29.7 32.3 33.6 27.5 33.6C22.7 33.6 18.8 29.7 18.8 24.9C18.8 20.1 22.7 16.2 27.5 16.2ZM27.5 19.5C24.52 19.5 22.1 21.92 22.1 24.9C22.1 26.05 22.45 27.1 23.05 27.98L30.58 20.45C29.7 19.85 28.65 19.5 27.5 19.5ZM31.95 21.82L24.42 29.35C25.3 29.95 26.35 30.3 27.5 30.3C30.48 30.3 32.9 27.88 32.9 24.9C32.9 23.75 32.55 22.7 31.95 21.82Z" fill={ICOL} stroke={ICOL} strokeWidth="0.3"/>
+  </svg>
+);
+
+/** Directories — globe of listing nodes: managed directory network. */
+const DirectoriesIcon=({size=28})=>(
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 55 55" fill="none" aria-hidden>
+    <path fillRule="evenodd" clipRule="evenodd" d="M27.5 4C40.48 4 51 14.52 51 27.5C51 40.48 40.48 51 27.5 51C14.52 51 4 40.48 4 27.5C4 14.52 14.52 4 27.5 4ZM27.5 7.6C16.51 7.6 7.6 16.51 7.6 27.5C7.6 38.49 16.51 47.4 27.5 47.4C38.49 47.4 47.4 38.49 47.4 27.5C47.4 16.51 38.49 7.6 27.5 7.6Z" fill={ICOL} stroke={ICOL} strokeWidth="0.35"/>
+    <path fillRule="evenodd" clipRule="evenodd" d="M27.5 7.6C29.9 10.85 31.4 18.2 31.4 27.5C31.4 36.8 29.9 44.15 27.5 47.4C25.1 44.15 23.6 36.8 23.6 27.5C23.6 18.2 25.1 10.85 27.5 7.6ZM27.5 11.85C26.35 14.55 25.4 20.4 25.4 27.5C25.4 34.6 26.35 40.45 27.5 43.15C28.65 40.45 29.6 34.6 29.6 27.5C29.6 20.4 28.65 14.55 27.5 11.85Z" fill={ICOL}/>
+    <path d="M9.2 21.3H45.8C46.52 21.3 47.1 21.88 47.1 22.6C47.1 23.32 46.52 23.9 45.8 23.9H9.2C8.48 23.9 7.9 23.32 7.9 22.6C7.9 21.88 8.48 21.3 9.2 21.3Z" fill={ICOL}/>
+    <path d="M9.2 31.1H45.8C46.52 31.1 47.1 31.68 47.1 32.4C47.1 33.12 46.52 33.7 45.8 33.7H9.2C8.48 33.7 7.9 33.12 7.9 32.4C7.9 31.68 8.48 31.1 9.2 31.1Z" fill={ICOL}/>
+    <circle cx="27.5" cy="27.5" r="3.2" fill={ICOL}/>
+    <circle cx="14.5" cy="16.5" r="2.2" fill={ICOL}/>
+    <circle cx="40.5" cy="16.5" r="2.2" fill={ICOL}/>
+    <circle cx="14.5" cy="38.5" r="2.2" fill={ICOL}/>
+    <circle cx="40.5" cy="38.5" r="2.2" fill={ICOL}/>
+  </svg>
+);
+
+/** Pending — clock: listing awaiting approval. */
+const PendingIcon=({size=28})=>(
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 55 55" fill="none" aria-hidden>
+    <path fillRule="evenodd" clipRule="evenodd" d="M27.5 4C40.48 4 51 14.52 51 27.5C51 40.48 40.48 51 27.5 51C14.52 51 4 40.48 4 27.5C4 14.52 14.52 4 27.5 4ZM27.5 7.7C16.56 7.7 7.7 16.56 7.7 27.5C7.7 38.44 16.56 47.3 27.5 47.3C38.44 47.3 47.3 38.44 47.3 27.5C47.3 16.56 38.44 7.7 27.5 7.7Z" fill={ICOL} stroke={ICOL} strokeWidth="0.35"/>
+    <path fillRule="evenodd" clipRule="evenodd" d="M27.5 13.2C28.52 13.2 29.35 14.03 29.35 15.05V26.35L36.55 30.55C37.42 31.05 37.7 32.17 37.2 33.04C36.7 33.91 35.58 34.19 34.71 33.69L26.66 29.05C26.05 28.7 25.65 28.05 25.65 27.35V15.05C25.65 14.03 26.48 13.2 27.5 13.2Z" fill={ICOL} stroke={ICOL} strokeWidth="0.3"/>
+    <circle cx="27.5" cy="27.5" r="2.6" fill={ICOL}/>
+    <path d="M24.2 8.4H30.8C31.52 8.4 32.1 8.98 32.1 9.7C32.1 10.42 31.52 11 30.8 11H24.2C23.48 11 22.9 10.42 22.9 9.7C22.9 8.98 23.48 8.4 24.2 8.4Z" fill={ICOL}/>
+  </svg>
+);
+
 export default function ClientDashboard({user:userProp,data,reload,onLogout,impersonating=false}){
   const[page,setPage]=useState("home");
   const[toast,Toasts]=useToast();
@@ -62,19 +115,22 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
   },[user.id,impersonating]); // eslint-disable-line react-hooks/exhaustive-deps
   // Detect whether Stripe Checkout is configured (server env).
   useEffect(()=>{(async()=>{const s=await api.billingStatus();setStripeConfigured(!!s.configured);})();},[]);
-  // Load invoices: sync from Stripe first (backfills if webhooks missed), then show local rows.
+  // Load invoices + refresh Stripe subscription period (currentPeriodEnd for days left).
   useEffect(()=>{
     if(page!=="billing"||!user?.id||impersonating)return;
     let cancelled=false;
     (async()=>{
       const synced=await api.syncInvoices();
       if(cancelled)return;
-      if(synced.invoices?.length){setInvoices(synced.invoices);return;}
-      const rows=await api.listInvoices(user.id);
-      if(!cancelled)setInvoices(rows||[]);
+      if(synced.invoices?.length)setInvoices(synced.invoices);
+      else{
+        const rows=await api.listInvoices(user.id);
+        if(!cancelled)setInvoices(rows||[]);
+      }
+      if(!cancelled&&(synced.profile||synced.currentPeriodEnd||!synced.error))await reload();
     })();
     return()=>{cancelled=true;};
-  },[page,user.id,user.plan,user.subscriptionStatus,impersonating]);
+  },[page,user.id,user.plan,user.subscriptionStatus,impersonating]); // eslint-disable-line react-hooks/exhaustive-deps
   // First-login user manual: show once. Never auto-open while staff is impersonating.
   useEffect(()=>{
     if(impersonating)return;
@@ -206,10 +262,10 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
       </Card>)}
     </div>
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:14,marginBottom:22}}>
-      <StatCard label="Listings Live" value={live} sub={`${pending} pending approval`} icon="🟢" color={T.green} soft={T.greenSoft} trend={live>0?12:null} delay={0}/>
-      <StatCard label="NAP Score" value={`${user.napScore||0}%`} sub="Info matches everywhere" icon="✅" delay={80}/>
-      <StatCard label="Edits Blocked" value={myAct.filter(a=>a.type==="edit_blocked").length} sub="Unauthorized changes reverted" icon="🛡️" color={T.amber} soft={T.amberSoft} delay={160}/>
-      <StatCard label="Directories" value={my.length} sub="Managed for you" icon="🌐" color={T.blue} soft={T.blueSoft} delay={240}/>
+      <StatCard label="Listings Live" value={live} sub={`${pending} pending approval`} icon={<ListingsLiveIcon/>} color={T.green} soft={T.greenSoft} trend={live>0?12:null} delay={0}/>
+      <StatCard label="NAP Score" value={`${user.napScore||0}%`} sub="Info matches everywhere" icon={<NapScoreIcon/>} delay={80}/>
+      <StatCard label="Edits Blocked" value={myAct.filter(a=>a.type==="edit_blocked").length} sub="Unauthorized changes reverted" icon={<EditsBlockedIcon/>} color={T.amber} soft={T.amberSoft} delay={160}/>
+      <StatCard label="Directories" value={my.length} sub="Managed for you" icon={<DirectoriesIcon/>} color={T.blue} soft={T.blueSoft} delay={240}/>
     </div>
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1.7fr 1fr",gap:16,marginBottom:16}}>
       <Card className="fadeUp" style={{animationDelay:"120ms"}}>
@@ -260,10 +316,10 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
   const Listings=()=>(<div>
     <PageHead isMobile={isMobile} title="Listings & Citations" sub={`${plan.quota} on your ${plan.name} plan`}/>
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:14,marginBottom:20}}>
-      <StatCard label="Live" value={live} icon="✅" color={T.green} soft={T.greenSoft} delay={0}/>
-      <StatCard label="Pending" value={pending} icon="⏳" color={T.amber} soft={T.amberSoft} delay={70}/>
-      <StatCard label="NAP Score" value={`${user.napScore||0}%`} icon="📊" delay={140}/>
-      <StatCard label="Protected" value={my.length} sub="Monitored 24/7" icon="🛡️" color={T.blue} soft={T.blueSoft} delay={210}/>
+      <StatCard label="Live" value={live} icon={<ListingsLiveIcon/>} color={T.green} soft={T.greenSoft} delay={0}/>
+      <StatCard label="Pending" value={pending} icon={<PendingIcon/>} color={T.amber} soft={T.amberSoft} delay={70}/>
+      <StatCard label="NAP Score" value={`${user.napScore||0}%`} icon={<NapScoreIcon/>} delay={140}/>
+      <StatCard label="Protected" value={my.length} sub="Monitored 24/7" icon={<EditsBlockedIcon/>} color={T.blue} soft={T.blueSoft} delay={210}/>
     </div>
     <Card style={{overflowX:"auto",padding:isMobile?14:22}}>
       <SectionTitle>Your Directories</SectionTitle>
@@ -481,12 +537,23 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
       if(r.error){toast(r.error,"info");return;}
       if(r.url)window.location.href=r.url;
     };
-    const periodLabel=user.currentPeriodEnd
-      ? new Date(user.currentPeriodEnd).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})
-      : "the end of your billing period";
-    const nextChargeLabel=user.currentPeriodEnd
-      ? new Date(user.currentPeriodEnd).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})
-      : "on the 1st of next month";
+    // Monthly renews on the same calendar day next month (Stripe). Fallback matches that, not "1st of month".
+    const periodEndIso=user.currentPeriodEnd||(()=>{const d=new Date();d.setMonth(d.getMonth()+1);return d.toISOString();})();
+    const periodEndDate=new Date(periodEndIso);
+    const periodLabel=Number.isNaN(periodEndDate.getTime())
+      ?"the end of your billing period"
+      :periodEndDate.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"});
+    const nextChargeLabel=Number.isNaN(periodEndDate.getTime())
+      ?"on your next billing date"
+      :periodEndDate.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"});
+    // Calendar-day count (midnight→midnight). Math.ceil + end-of-day was showing 32 for a 31-day month.
+    const daysLeft=(()=>{
+      if(Number.isNaN(periodEndDate.getTime()))return null;
+      const start=new Date();start.setHours(0,0,0,0);
+      const end=new Date(periodEndDate);end.setHours(0,0,0,0);
+      return Math.max(0,Math.round((end-start)/86400000));
+    })();
+    const daysLeftLabel=daysLeft==null?null:daysLeft===0?"Ends today":daysLeft===1?"1 day left":`${daysLeft} days left`;
     // Require core business details before a plan can be selected (captures data upfront, esp. Google signups).
     const profileComplete=!!(user.businessName&&user.phone&&user.address&&user.city&&user.state&&user.category);
     const invoiceRows=invoices.length?invoices:null;
@@ -503,6 +570,12 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
             <div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800,color:plan.color}}>${plan.price}<span style={{fontSize:13,color:T.faint,fontWeight:600}}>/month</span></div>
             <Badge type={user.subscriptionStatus==="past_due"?"pending":"active"}/>
           </div>
+          {daysLeftLabel&&(
+            <div style={{marginTop:10,display:"inline-flex",alignItems:"center",gap:8,padding:"6px 12px",background:user.cancelAtPeriodEnd?T.amberSoft:T.brandSoft,borderRadius:10}}>
+              <span style={{fontSize:12,fontWeight:800,color:user.cancelAtPeriodEnd?T.amber:T.brand}}>{daysLeftLabel}</span>
+              <span style={{fontSize:11.5,color:T.sub}}>in this billing period · renews {periodLabel}</span>
+            </div>
+          )}
           <div style={{marginTop:16}}>
             {plan.features.map((f,i)=>(<div key={i} style={{display:"flex",gap:9,alignItems:"center",marginBottom:8}}>
               <div style={{width:19,height:19,borderRadius:"50%",background:T.greenSoft,color:T.green,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10.5,fontWeight:800,flexShrink:0}}>✓</div>
