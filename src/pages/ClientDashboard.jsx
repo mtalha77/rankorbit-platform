@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { T, FONT_D, FONT_B, SHADOW, SHADOW_LG } from "../lib/theme";
 import { api } from "../lib/api";
-import { downloadBlob } from "../lib/export";
+import { downloadBlob, openExternalFile } from "../lib/export";
 import { PLANS, CATEGORIES, US_CA_STATES, planLive } from "../lib/constants";
 import { nextMonthFirst, actIcon, clientBy } from "../lib/helpers";
 import { Badge, Card, Btn, Input, Select, Confirm, StatCard, ChartTip, SectionTitle, Empty, PageHead } from "../components/atoms";
@@ -21,7 +21,8 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
   const[invoices,setInvoices]=useState([]);
   const w=useWindowSize();const isMobile=w<820;
   // Async action runner: run fn, optionally toast, then refresh data. Used by billing actions.
-  const R=async(fn,msg)=>{try{await fn();if(msg)toast(msg);await reload();}catch(e){toast(e.message||"Something went wrong","info");}};
+  // Returns true on success, false on failure (and toasts the error).
+  const R=async(fn,msg)=>{try{await fn();if(msg)toast(msg);await reload();return true;}catch(e){toast(e.message||"Something went wrong","info");return false;}};
   // Always use the freshest copy of the profile (data.users is refreshed by reload()),
   // so profile edits (e.g. completing the business profile) reflect immediately.
   const user=(data.users||[]).find(u=>u.id===userProp.id)||userProp;
@@ -61,11 +62,19 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
   },[user.id,impersonating]); // eslint-disable-line react-hooks/exhaustive-deps
   // Detect whether Stripe Checkout is configured (server env).
   useEffect(()=>{(async()=>{const s=await api.billingStatus();setStripeConfigured(!!s.configured);})();},[]);
-  // Load real invoices when on billing.
+  // Load invoices: sync from Stripe first (backfills if webhooks missed), then show local rows.
   useEffect(()=>{
-    if(page!=="billing"||!user?.id)return;
-    (async()=>{const rows=await api.listInvoices(user.id);setInvoices(rows||[]);})();
-  },[page,user.id,user.plan,user.subscriptionStatus]);
+    if(page!=="billing"||!user?.id||impersonating)return;
+    let cancelled=false;
+    (async()=>{
+      const synced=await api.syncInvoices();
+      if(cancelled)return;
+      if(synced.invoices?.length){setInvoices(synced.invoices);return;}
+      const rows=await api.listInvoices(user.id);
+      if(!cancelled)setInvoices(rows||[]);
+    })();
+    return()=>{cancelled=true;};
+  },[page,user.id,user.plan,user.subscriptionStatus,impersonating]);
   // First-login user manual: show once. Never auto-open while staff is impersonating.
   useEffect(()=>{
     if(impersonating)return;
@@ -442,22 +451,32 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
       if(r.error){toast(r.error,"info");return;}
       if(r.url)window.location.href=r.url;
     };
-    const doCancel=()=>R(async()=>{
-      if(api.mode==="supabase"){
-        const r=await api.cancelSubscription({resume:false});
-        if(r.error)throw new Error(r.error);
-      }else{
-        await api.patchProfile(user.id,{cancelAtPeriodEnd:true,canceledAt:new Date().toISOString(),currentPeriodEnd:user.currentPeriodEnd||nextMonthFirst()});
+    const doCancel=async()=>{
+      if(api.mode!=="supabase"){
+        const ok=await R(async()=>{
+          await api.patchProfile(user.id,{cancelAtPeriodEnd:true,canceledAt:new Date().toISOString(),currentPeriodEnd:user.currentPeriodEnd||nextMonthFirst()});
+        },"Subscription set to cancel at period end");
+        if(!ok)throw new Error("Cancel failed");
+        return;
       }
-    },"Subscription set to cancel at period end");
-    const doResume=()=>R(async()=>{
-      if(api.mode==="supabase"){
-        const r=await api.cancelSubscription({resume:true});
-        if(r.error)throw new Error(r.error);
-      }else{
-        await api.patchProfile(user.id,{cancelAtPeriodEnd:false,canceledAt:null});
+      const r=await api.cancelSubscription({resume:false});
+      if(r.error){toast(r.error,"info");throw new Error(r.error);}
+      toast("Subscription set to cancel at period end");
+      await reload();
+    };
+    const doResume=async()=>{
+      if(api.mode!=="supabase"){
+        const ok=await R(async()=>{
+          await api.patchProfile(user.id,{cancelAtPeriodEnd:false,canceledAt:null});
+        },"Subscription resumed, you're all set");
+        if(!ok)throw new Error("Resume failed");
+        return;
       }
-    },"Subscription resumed, you're all set");
+      const r=await api.cancelSubscription({resume:true});
+      if(r.error){toast(r.error,"info");throw new Error(r.error);}
+      toast("Subscription resumed, you're all set");
+      await reload();
+    };
     const openPortal=async()=>{
       if(!stripeReady){toast("Card management opens in Stripe once billing is connected","info");return;}
       const r=await api.createPortalSession();
@@ -543,7 +562,7 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
                   <td style={{padding:"12px",fontSize:12.5,color:T.sub,borderBottom:`1px solid ${T.line}`,whiteSpace:"nowrap"}}>{user.cardBrand||"Card"} •••• {last4}</td>
                   <td style={{padding:"12px",fontSize:13,fontWeight:800,borderBottom:`1px solid ${T.line}`}}>${amt}</td>
                   <td style={{padding:"12px",borderBottom:`1px solid ${T.line}`}}><Badge type={paid?"paid":"pending"}/></td>
-                  <td style={{padding:"12px",borderBottom:`1px solid ${T.line}`}}><button onClick={()=>{const u=inv.invoicePdf||inv.hostedInvoiceUrl;if(u)window.open(u,"_blank");else toast("Invoice PDF available in Manage billing","info");}} style={{background:"none",border:"none",color:T.brand,fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>PDF ↓</button></td>
+                  <td style={{padding:"12px",borderBottom:`1px solid ${T.line}`}}><button onClick={()=>{const u=inv.invoicePdf||inv.hostedInvoiceUrl;if(openExternalFile(u))return;toast("Open Manage billing to view invoices in Stripe","info");}} style={{background:"none",border:"none",color:T.brand,fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>PDF ↓</button></td>
                 </tr>);
               }):(
                 <tr><td colSpan={6} style={{padding:"18px 12px",fontSize:13,color:T.sub}}>No invoices yet. They appear here after your first payment.</td></tr>
@@ -558,9 +577,13 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
       <Card style={{marginTop:16}}>
         <SectionTitle sub="Download everything we hold about your account, profile, listings, and activity.">Your Data</SectionTitle>
         <Btn variant="ghost" size="sm" onClick={()=>{
-          const mine={profile:user,listings:my,activity:myAct,exportedAt:new Date().toISOString()};
-          downloadBlob(JSON.stringify(mine,null,2),`naporbit-my-data-${Date.now()}.json`,"application/json");
-          toast("Your data downloaded");
+          try{
+            const mine={profile:user,listings:my,activity:myAct,invoices:invoices||[],exportedAt:new Date().toISOString()};
+            downloadBlob(JSON.stringify(mine,null,2),`naporbit-my-data-${Date.now()}.json`,"application/json");
+            toast("Your data downloaded");
+          }catch(e){
+            toast(e.message||"Download failed","info");
+          }
         }}>⤓ Download my data (JSON)</Btn>
       </Card>
       </>)}

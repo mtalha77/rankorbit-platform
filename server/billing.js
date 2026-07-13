@@ -15,6 +15,29 @@ export function appUrl() {
   return `https://${raw.replace(/\/$/, "")}`;
 }
 
+/** Prefer the browser Origin so Stripe returns to the same host the user started from (custom domain / localhost), not a hardcoded Vercel APP_URL. */
+export function returnBase(req, clientOrigin) {
+  const candidates = [];
+  const push = (v) => {
+    if (!v) return;
+    try {
+      const u = new URL(String(v).startsWith("http") ? String(v) : `https://${v}`);
+      if (u.protocol === "http:" || u.protocol === "https:") candidates.push(u.origin);
+    } catch {
+      /* ignore invalid */
+    }
+  };
+  push(clientOrigin);
+  push(req?.headers?.origin);
+  try {
+    if (req?.headers?.referer) push(new URL(req.headers.referer).origin);
+  } catch {
+    /* ignore */
+  }
+  push(appUrl());
+  return candidates[0] || "http://localhost:5173";
+}
+
 export function priceIdForPlan(planId) {
   const map = {
     essentials: process.env.STRIPE_PRICE_ESSENTIALS,
@@ -61,6 +84,19 @@ export function getAdmin() {
 
 export function readJson(req) {
   return new Promise((resolve) => {
+    // Vercel sometimes pre-parses the body; prefer that over waiting on the stream.
+    if (req.body != null && typeof req.body === "object" && !Buffer.isBuffer(req.body)) {
+      resolve(req.body);
+      return;
+    }
+    if (typeof req.body === "string") {
+      try {
+        resolve(JSON.parse(req.body || "{}"));
+      } catch {
+        resolve({});
+      }
+      return;
+    }
     let data = "";
     req.on("data", (c) => (data += c));
     req.on("end", () => {
@@ -70,6 +106,7 @@ export function readJson(req) {
         resolve({});
       }
     });
+    req.on("error", () => resolve({}));
   });
 }
 
@@ -137,6 +174,51 @@ export async function ensureStripeCustomer(stripe, admin, profile) {
   return customer.id;
 }
 
+/** Resolve a live Stripe subscription id for this profile (DB id, or look up by customer). */
+export async function resolveSubscriptionId(stripe, admin, profile) {
+  if (profile.stripeSubscriptionId) {
+    try {
+      const sub = await stripe.subscriptions.retrieve(profile.stripeSubscriptionId);
+      if (sub && sub.status !== "canceled") return { subscriptionId: sub.id, subscription: sub };
+    } catch {
+      /* stale id — fall through to customer lookup */
+    }
+  }
+  if (!profile.stripeCustomerId) return { subscriptionId: null, subscription: null };
+
+  for (const status of ["active", "trialing", "past_due", "unpaid"]) {
+    const list = await stripe.subscriptions.list({
+      customer: profile.stripeCustomerId,
+      status,
+      limit: 5,
+    });
+    const sub = list.data?.[0];
+    if (sub?.id) {
+      await admin
+        .from("profiles")
+        .update({ stripeSubscriptionId: sub.id })
+        .eq("id", profile.id);
+      return { subscriptionId: sub.id, subscription: sub };
+    }
+  }
+  return { subscriptionId: null, subscription: null };
+}
+
+export async function logBillingActivity(admin, clientId, desc) {
+  try {
+    await admin.from("activity").insert({
+      id: `a${Date.now()}${Math.floor(Math.random() * 1000)}`,
+      clientId,
+      type: "submitted",
+      desc,
+      date: new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }),
+      by: "Billing",
+    });
+  } catch (e) {
+    console.error("logBillingActivity:", e.message);
+  }
+}
+
 export function subscriptionFieldsFromStripe(sub, planId) {
   const item = sub.items?.data?.[0];
   const priceId = item?.price?.id || null;
@@ -144,13 +226,21 @@ export function subscriptionFieldsFromStripe(sub, planId) {
   const periodEnd = sub.current_period_end
     ? new Date(sub.current_period_end * 1000).toISOString()
     : null;
+  const cancelAtPeriodEnd = !!sub.cancel_at_period_end;
+  let canceledAt = null;
+  if (sub.canceled_at) {
+    canceledAt = new Date(sub.canceled_at * 1000).toISOString();
+  } else if (cancelAtPeriodEnd) {
+    // Stripe leaves canceled_at null until the period actually ends; stamp request time.
+    canceledAt = new Date().toISOString();
+  }
   return {
     plan: plan || null,
     stripeSubscriptionId: sub.id,
     stripePriceId: priceId,
     subscriptionStatus: sub.status || null,
-    cancelAtPeriodEnd: !!sub.cancel_at_period_end,
-    canceledAt: sub.canceled_at ? new Date(sub.canceled_at * 1000).toISOString() : null,
+    cancelAtPeriodEnd,
+    canceledAt,
     currentPeriodEnd: periodEnd,
     status: sub.status === "active" || sub.status === "trialing" ? "active" : undefined,
   };
@@ -170,7 +260,21 @@ export async function upsertInvoice(admin, invoice, clientId) {
     periodEnd: invoice.period_end ? new Date(invoice.period_end * 1000).toISOString() : null,
     createdAt: invoice.created ? new Date(invoice.created * 1000).toISOString() : new Date().toISOString(),
   };
-  await admin.from("invoices").upsert(row, { onConflict: "id" });
+  const { error } = await admin.from("invoices").upsert(row, { onConflict: "id" });
+  if (error) console.error("upsertInvoice:", error.message, invoice.id);
+  return !error;
+}
+
+/** Pull invoices from Stripe for a customer and mirror them into Supabase. */
+export async function syncInvoicesForCustomer(stripe, admin, customerId, clientId) {
+  if (!stripe || !admin || !customerId || !clientId) return { synced: 0 };
+  const list = await stripe.invoices.list({ customer: customerId, limit: 24 });
+  let synced = 0;
+  for (const inv of list.data || []) {
+    const ok = await upsertInvoice(admin, inv, clientId);
+    if (ok) synced += 1;
+  }
+  return { synced };
 }
 
 export function nextMonthFirstIso() {

@@ -45,11 +45,14 @@ create policy inv_read on invoices for select using ("clientId"=auth.uid() or is
 -- Writes only via service role (webhook).
 
 -- ── Block clients from self-writing billing / plan fields ────────────────────
--- Staff and service-role (auth.uid() null) may update everything.
+-- Staff and service-role may update everything. Clients cannot change billing cols.
 create or replace function protect_profile_billing() returns trigger as $$
 begin
-  -- service role / postgres: allow
+  -- service role / no JWT / postgres: allow (webhooks + /api billing routes)
   if auth.uid() is null then
+    return new;
+  end if;
+  if coalesce(auth.jwt() ->> 'role', '') = 'service_role' then
     return new;
   end if;
   -- staff: allow

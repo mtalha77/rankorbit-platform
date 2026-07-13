@@ -116,10 +116,11 @@ create policy s_read on settings for select using (true);
 create policy s_write on settings for update using (is_staff());
 create policy inv_read on invoices for select using ("clientId"=auth.uid() or is_staff());
 
--- Clients cannot self-write plan / Stripe billing columns (webhook + staff only).
+-- Clients cannot self-write plan / Stripe billing columns (webhook + staff + service role only).
 create or replace function protect_profile_billing() returns trigger as $$
 begin
   if auth.uid() is null then return new; end if;
+  if coalesce(auth.jwt() ->> 'role', '') = 'service_role' then return new; end if;
   if exists (select 1 from profiles p where p.id=auth.uid() and p.role in ('super_admin','manager','agent')) then
     return new;
   end if;

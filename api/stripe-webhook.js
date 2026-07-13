@@ -9,6 +9,7 @@ import {
   planFromPriceId,
   subscriptionFieldsFromStripe,
   upsertInvoice,
+  syncInvoicesForCustomer,
 } from "../server/billing.js";
 
 export const config = { api: { bodyParser: false } };
@@ -146,7 +147,7 @@ export default async function handler(req, res) {
 
         if (subId) {
           const sub = await stripe.subscriptions.retrieve(subId, {
-            expand: ["default_payment_method"],
+            expand: ["default_payment_method", "latest_invoice"],
           });
           if (userId && !sub.metadata?.supabase_user_id) {
             await stripe.subscriptions.update(subId, {
@@ -154,6 +155,24 @@ export default async function handler(req, res) {
             });
           }
           await syncSubscription(admin, stripe, sub, planId);
+
+          // Persist the first invoice immediately (don't wait only on invoice.* webhooks).
+          const profileId = await findProfileId(admin, {
+            userId: userId || sub.metadata?.supabase_user_id,
+            customerId,
+          });
+          if (profileId) {
+            let inv = sub.latest_invoice;
+            if (typeof inv === "string") {
+              try {
+                inv = await stripe.invoices.retrieve(inv);
+              } catch {
+                inv = null;
+              }
+            }
+            if (inv?.id) await upsertInvoice(admin, inv, profileId);
+            else if (customerId) await syncInvoicesForCustomer(stripe, admin, customerId, profileId);
+          }
         }
         break;
       }
@@ -188,10 +207,32 @@ export default async function handler(req, res) {
       case "invoice.paid":
       case "invoice.payment_failed":
       case "invoice.finalized": {
-        const invoice = event.data.object;
+        let invoice = event.data.object;
+        // Fresh retrieve so PDF / hosted URLs are present (some event payloads omit them).
+        if (invoice?.id && (!invoice.invoice_pdf || !invoice.hosted_invoice_url)) {
+          try {
+            invoice = await stripe.invoices.retrieve(invoice.id);
+          } catch {
+            /* keep event payload */
+          }
+        }
         const customerId = typeof invoice.customer === "string" ? invoice.customer : invoice.customer?.id;
+        let metaUser =
+          invoice.subscription_details?.metadata?.supabase_user_id || invoice.metadata?.supabase_user_id;
+        if (!metaUser && invoice.subscription) {
+          try {
+            const subId =
+              typeof invoice.subscription === "string" ? invoice.subscription : invoice.subscription?.id;
+            if (subId) {
+              const sub = await stripe.subscriptions.retrieve(subId);
+              metaUser = sub.metadata?.supabase_user_id;
+            }
+          } catch {
+            /* optional */
+          }
+        }
         const profileId = await findProfileId(admin, {
-          userId: invoice.subscription_details?.metadata?.supabase_user_id || invoice.metadata?.supabase_user_id,
+          userId: metaUser,
           customerId,
         });
         if (profileId) {
@@ -202,6 +243,8 @@ export default async function handler(req, res) {
               .update({ subscriptionStatus: "past_due" })
               .eq("id", profileId);
           }
+        } else {
+          console.warn("No profile for invoice", invoice.id, customerId);
         }
         break;
       }

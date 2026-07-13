@@ -98,7 +98,8 @@ export const api={
     const token=await this._accessToken();
     if(!token)return{error:"Not signed in"};
     try{
-      const r=await fetch("/api/create-checkout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,planId})});
+      const returnOrigin=typeof window!=="undefined"?window.location.origin:undefined;
+      const r=await fetch("/api/create-checkout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,planId,returnOrigin})});
       const j=await r.json().catch(()=>({}));
       if(!r.ok)return{error:j.error||"Could not start checkout"};
       return{url:j.url};
@@ -133,7 +134,8 @@ export const api={
     const token=await this._accessToken();
     if(!token)return{error:"Not signed in"};
     try{
-      const r=await fetch("/api/create-portal-session",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token})});
+      const returnOrigin=typeof window!=="undefined"?window.location.origin:undefined;
+      const r=await fetch("/api/create-portal-session",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,returnOrigin})});
       const j=await r.json().catch(()=>({}));
       if(!r.ok)return{error:j.error||"Could not open billing portal"};
       return{url:j.url};
@@ -159,6 +161,16 @@ export const api={
       return data||[];
     }
     return[];
+  },
+  async syncInvoices(){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in",invoices:[]};
+    try{
+      const r=await fetch("/api/sync-invoices",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not sync invoices",invoices:[]};
+      return{invoices:j.invoices||[],synced:j.synced||0};
+    }catch(e){return{error:e.message||"Network error",invoices:[]};}
   },
   async resetPassword(email){
     if(!supa)return{error:"Password reset needs the live database."};

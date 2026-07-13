@@ -6,7 +6,9 @@ import {
   priceIdForPlan,
   readJson,
   requireClient,
+  resolveSubscriptionId,
   subscriptionFieldsFromStripe,
+  logBillingActivity,
 } from "../server/billing.js";
 
 export default async function handler(req, res) {
@@ -26,16 +28,17 @@ export default async function handler(req, res) {
   if (auth.error) return res.status(auth.status).json({ error: auth.error });
   const { profile } = auth;
 
-  if (!profile.stripeSubscriptionId) {
-    return res.status(400).json({ error: "No active subscription to change. Subscribe first." });
-  }
-
   try {
-    const sub = await stripe.subscriptions.retrieve(profile.stripeSubscriptionId);
+    const { subscriptionId, subscription: existing } = await resolveSubscriptionId(stripe, admin, profile);
+    if (!subscriptionId) {
+      return res.status(400).json({ error: "No active subscription to change. Subscribe first." });
+    }
+
+    const sub = existing || (await stripe.subscriptions.retrieve(subscriptionId));
     const itemId = sub.items?.data?.[0]?.id;
     if (!itemId) return res.status(500).json({ error: "Subscription has no items" });
 
-    const updated = await stripe.subscriptions.update(profile.stripeSubscriptionId, {
+    const updated = await stripe.subscriptions.update(subscriptionId, {
       items: [{ id: itemId, price: priceId }],
       proration_behavior: "create_prorations",
       metadata: { ...(sub.metadata || {}), supabase_user_id: profile.id, plan_id: planId },
@@ -43,8 +46,16 @@ export default async function handler(req, res) {
     });
 
     const fields = subscriptionFieldsFromStripe(updated, planId);
-    const { error } = await admin.from("profiles").update(fields).eq("id", profile.id);
-    if (error) console.error("change-subscription db:", error.message);
+    fields.canceledAt = null;
+    fields.cancelAtPeriodEnd = false;
+    const clean = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
+    const { error } = await admin.from("profiles").update(clean).eq("id", profile.id);
+    if (error) {
+      console.error("change-subscription db:", error.message);
+      return res.status(500).json({ error: "Stripe updated but DB save failed: " + error.message });
+    }
+
+    await logBillingActivity(admin, profile.id, `Plan changed to ${planId} via Stripe`);
 
     return res.status(200).json({ ok: true, plan: planId });
   } catch (e) {

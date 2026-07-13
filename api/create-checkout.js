@@ -4,7 +4,7 @@ import {
   stripeConfigured,
   PLAN_IDS,
   priceIdForPlan,
-  appUrl,
+  returnBase,
   readJson,
   requireClient,
   ensureStripeCustomer,
@@ -18,7 +18,7 @@ export default async function handler(req, res) {
   const stripe = getStripe();
   if (!admin || !stripe) return res.status(500).json({ error: "Server not configured" });
 
-  const { token, planId } = await readJson(req);
+  const { token, planId, returnOrigin } = await readJson(req);
   if (!PLAN_IDS.includes(planId)) return res.status(400).json({ error: "Invalid plan" });
   const priceId = priceIdForPlan(planId);
   if (!priceId) return res.status(500).json({ error: "Price ID missing for plan" });
@@ -33,7 +33,7 @@ export default async function handler(req, res) {
 
   try {
     const customerId = await ensureStripeCustomer(stripe, admin, profile);
-    const base = appUrl();
+    const base = returnBase(req, returnOrigin);
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: customerId,

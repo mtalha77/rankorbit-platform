@@ -77,7 +77,14 @@ export const Confirm=({data,onClose})=>{
     <div style={{fontSize:13.5,color:T.sub,lineHeight:1.6,marginBottom:20}}>{data.msg}</div>
     <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
       <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-      <Btn variant={data.danger?"danger":"primary"} onClick={async()=>{await data.onYes();onClose();}}>{data.yes||"Confirm"}</Btn>
+      <Btn variant={data.danger?"danger":"primary"} onClick={async()=>{
+        try{
+          await data.onYes();
+          onClose();
+        }catch{
+          /* keep open on failure — caller should toast */
+        }
+      }}>{data.yes||"Confirm"}</Btn>
     </div>
   </Modal>);
 };

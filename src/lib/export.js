@@ -9,10 +9,31 @@ export function rowsToMatrix(rows,cols){
   return[header,...body];
 }
 export function downloadBlob(content,filename,type){
-  const blob=new Blob([content],{type});
+  const blob=content instanceof Blob?content:new Blob([content],{type:type||"application/octet-stream"});
   const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");a.href=url;a.download=filename;a.click();
-  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download=filename||"download";
+  a.rel="noopener";
+  a.style.display="none";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+
+/** Open a remote invoice PDF / hosted invoice URL (cross-origin; cannot force "download" attribute). */
+export function openExternalFile(url){
+  if(!url)return false;
+  const a=document.createElement("a");
+  a.href=url;
+  a.target="_blank";
+  a.rel="noopener noreferrer";
+  a.style.display="none";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  return true;
 }
 export function exportCSV(rows,cols,name){
   const m=rowsToMatrix(rows,cols);
