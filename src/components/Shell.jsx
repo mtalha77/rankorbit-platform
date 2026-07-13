@@ -4,7 +4,7 @@ import { T, FONT_D, FONT_B, SHADOW_LG } from "../lib/theme";
 import { Orbit, MiniOrbit } from "./Orbit";
 import { useWindowSize } from "../hooks";
 
-export default function Shell({user,nav,page,setPage,onLogout,planBadge,badgeCounts={},children,brandTag,showLegalLinks=false}){
+export default function Shell({user,nav,page,setPage,onLogout,planBadge,badgeCounts={},children,brandTag,showLegalLinks=false,headerRight=null}){
   const w=useWindowSize();const isMobile=w<820;
   const[open,setOpen]=useState(false);
   const Item=({item})=>{
@@ -59,8 +59,16 @@ export default function Shell({user,nav,page,setPage,onLogout,planBadge,badgeCou
           <button onClick={()=>setOpen(true)} style={{background:T.surface2,border:"none",color:T.ink,fontSize:17,cursor:"pointer",width:36,height:36,borderRadius:10}}>☰</button>
           <img src="/nap-orbit-logo.png" alt="NAP Orbit" style={{height:20,width:"auto",display:"block"}}/>
         </div>
-        <button onClick={onLogout} style={{background:"none",border:"none",color:T.sub,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>Sign Out ↪</button>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          {headerRight}
+          <button onClick={onLogout} style={{background:"none",border:"none",color:T.sub,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>Sign Out ↪</button>
+        </div>
       </div>)}
+      {!isMobile&&headerRight&&(
+        <div style={{padding:"12px 34px 0",display:"flex",justifyContent:"flex-end",flexShrink:0}}>
+          {headerRight}
+        </div>
+      )}
       <div style={{flex:1,overflow:"auto",padding:isMobile?"18px 16px 40px":"30px 34px 50px"}}>
         <div key={page} className="fadeUp">{children}</div>
       </div>

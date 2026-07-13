@@ -88,6 +88,15 @@ export async function autoAssignLeastLoadedAgent(admin, clientId, opts = {}) {
     body: `${business} subscribed${client.plan ? ` (${client.plan})` : ""} and was assigned to you. Please review their account.`,
   });
 
+  await notifyUser(admin, {
+    userId: clientId,
+    clientId,
+    type: "bdm_assigned",
+    title: "Your BDM has been assigned",
+    body: `${agent.name || "A Business Development Manager"} is now your dedicated contact. You can book a call or send them a message anytime.`,
+    meta: { agentId: agent.id },
+  });
+
   try {
     await admin.from("activity").insert({
       id: uid("a"),
@@ -140,9 +149,14 @@ export async function createNotification(admin, row) {
   };
   const { error } = await admin.from("notifications").insert(payload);
   if (error) {
-    // Table may not exist yet — log and continue so booking still works.
-    console.warn("notifications insert:", error.message);
-    return null;
+    console.error("notifications insert:", error.message);
+    const missing =
+      /does not exist|Could not find the table|schema cache/i.test(error.message || "");
+    throw new Error(
+      missing
+        ? "Notifications table is missing. Run supabase/notifications.sql in the Supabase SQL editor."
+        : `Could not save notification: ${error.message}`
+    );
   }
   return payload;
 }
@@ -157,7 +171,7 @@ export async function notifyUser(admin, { userId, clientId, type, title, body, m
 export async function notifyBdm(admin, { agentId, clientId, type, title, body, meta }) {
   if (!agentId) return { notified: false };
 
-  await createNotification(admin, {
+  const row = await createNotification(admin, {
     userId: agentId,
     clientId,
     type,
@@ -190,7 +204,7 @@ export async function notifyBdm(admin, { agentId, clientId, type, title, body, m
   }
 
   const emailResult = await sendNotifyEmails([...emails], title, body);
-  return { notified: true, emails: [...emails], emailResult };
+  return { notified: true, notificationId: row?.id, emails: [...emails], emailResult };
 }
 
 async function sendNotifyEmails(toList, subject, text) {

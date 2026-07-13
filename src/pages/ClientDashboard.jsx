@@ -155,6 +155,7 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
   const greet=hour<12?"Good morning":hour<17?"Good afternoon":"Good evening";
   const nav=[
     {id:"home",icon:"🏠",label:"Home"},
+    {id:"notifications",icon:"🔔",label:"Notifications"},
     {id:"listings",icon:"📋",label:"Listings"},
     {id:"analytics",icon:"📈",label:"Analytics"},
     {id:"billing",icon:"💳",label:"Plan & Billing"},
@@ -202,48 +203,113 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
       const rows=await api.listMyNotifications();
       if(!cancelled)setSysNotifs(rows||[]);
     })();
-    return()=>{cancelled=true;};
+    const t=setInterval(async()=>{
+      const rows=await api.listMyNotifications();
+      if(!cancelled)setSysNotifs(rows||[]);
+    },30000);
+    return()=>{cancelled=true;clearInterval(t);};
   },[user.id,page]);
-  const recentNotifs=[
-    ...sysNotifs.map(n=>({id:n.id,kind:"sys",type:n.type,title:n.title,desc:n.body||n.title,date:n.createdAt?new Date(n.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"",read:n.read})),
-    ...recentAct.map(a=>({id:a.id,kind:"act",type:a.type,title:a.desc,desc:a.desc,date:a.date,read:true})),
-  ].slice(0,10);
+  const recentNotifs=sysNotifs.slice(0,12).map(n=>({
+    id:n.id,
+    kind:"sys",
+    type:n.type,
+    title:n.title,
+    desc:n.body||n.title,
+    date:n.createdAt?new Date(n.createdAt).toLocaleString():"",
+    read:!!n.read,
+  }));
   const[notifOpen,setNotifOpen]=useState(false);
   const unreadSys=sysNotifs.filter(n=>!n.read).length;
-  const[notifSeen,setNotifSeen]=useState(()=>{try{return localStorage.getItem("ro_notif_seen_"+user.id)===String(myAct.length);}catch{return false;}});
-  const unread=(notifSeen?0:recentAct.length)+unreadSys;
-  const markSeen=async()=>{
-    try{localStorage.setItem("ro_notif_seen_"+user.id,String(myAct.length));}catch{}
-    setNotifSeen(true);
+  const markAllRead=async()=>{
     const ids=sysNotifs.filter(n=>!n.read).map(n=>n.id);
-    if(ids.length){await api.markNotificationsRead(ids);setSysNotifs(prev=>prev.map(n=>({...n,read:true})));}
+    if(!ids.length)return;
+    await api.markNotificationsRead(ids);
+    setSysNotifs(prev=>prev.map(n=>({...n,read:true})));
   };
-  // Route each activity type to the section where the client can act on it.
-  const notifTarget=(t)=>({listing_live:"listings",nap_fix:"listings",edit_blocked:"listings",flagged:"listings",rejected:"listings",submitted:"listings",gmb_update:"gmb",analytics:"analytics",meeting_confirmed:"call",meeting_cancelled:"call",call_booked:"call"}[t]||"listings");
-  const openNotif=(a)=>{setNotifOpen(false);setPage(notifTarget(a.type));};
+  const markOneRead=async(id)=>{
+    const row=sysNotifs.find(n=>n.id===id);
+    if(!row||row.read)return;
+    await api.markNotificationsRead([id]);
+    setSysNotifs(prev=>prev.map(n=>n.id===id?{...n,read:true}:n));
+  };
+  const notifTarget=(t)=>({
+    listing_live:"listings",nap_fix:"listings",edit_blocked:"listings",flagged:"listings",rejected:"listings",submitted:"listings",
+    gmb_update:"gmb",analytics:"analytics",
+    meeting_confirmed:"call",meeting_cancelled:"call",meeting_pending:"call",call_booked:"call",
+    bdm_assigned:"call",message_sent:"call",bdm_message:"call",
+  }[t]||"home");
+  const notifIcon=(t)=>({
+    meeting_confirmed:"✅",meeting_cancelled:"❌",meeting_pending:"📅",call_booked:"📅",
+    bdm_assigned:"👤",message_sent:"💬",bdm_message:"💬",
+  }[t]||"🔔");
+  const openNotif=async(a)=>{
+    setNotifOpen(false);
+    if(a.kind==="sys")await markOneRead(a.id);
+    setPage(notifTarget(a.type));
+  };
   const NotifBell=()=>(
     <div style={{position:"relative"}}>
-      <button onClick={()=>{setNotifOpen(o=>!o);if(!notifOpen)markSeen();}} aria-label="Notifications" style={{position:"relative",width:42,height:42,borderRadius:12,background:notifOpen?T.brandSoft:T.surface,border:`1.5px solid ${notifOpen?T.brand:T.line}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .15s"}}>
+      <button onClick={()=>{setNotifOpen(o=>!o);}} aria-label="Notifications" style={{position:"relative",width:42,height:42,borderRadius:12,background:notifOpen?T.brandSoft:T.surface,border:`1.5px solid ${notifOpen?T.brand:T.line}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .15s"}}>
         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={notifOpen?T.brand:T.sub} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-        {unread>0&&<span style={{position:"absolute",top:-3,right:-3,background:T.red,color:"#fff",borderRadius:10,fontSize:10,fontWeight:800,minWidth:17,height:17,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 4px",border:"2px solid #fff"}}>{unread}</span>}
+        {unreadSys>0&&<span style={{position:"absolute",top:-3,right:-3,background:T.red,color:"#fff",borderRadius:10,fontSize:10,fontWeight:800,minWidth:17,height:17,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 4px",border:"2px solid #fff"}}>{unreadSys}</span>}
       </button>
       {notifOpen&&(<><div style={{position:"fixed",inset:0,zIndex:80}} onClick={()=>setNotifOpen(false)}/>
-        <div className="pop" style={{position:"absolute",top:50,right:0,width:isMobile?280:320,background:T.surface,borderRadius:16,boxShadow:SHADOW_LG,border:`1px solid ${T.line}`,zIndex:90,overflow:"hidden"}}>
-          <div style={{padding:"14px 16px",borderBottom:`1px solid ${T.line}`,fontSize:14.5,fontWeight:800,fontFamily:FONT_D}}>Notifications</div>
-          <div style={{maxHeight:320,overflowY:"auto"}}>
+        <div className="pop" style={{position:"absolute",top:50,right:0,width:isMobile?280:340,background:T.surface,borderRadius:16,boxShadow:SHADOW_LG,border:`1px solid ${T.line}`,zIndex:90,overflow:"hidden"}}>
+          <div style={{padding:"12px 16px",borderBottom:`1px solid ${T.line}`,display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+            <div style={{fontSize:14.5,fontWeight:800,fontFamily:FONT_D}}>Notifications</div>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              {unreadSys>0&&<button onClick={markAllRead} style={{background:"none",border:"none",color:T.brand,fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>Mark all read</button>}
+              <button onClick={()=>{setNotifOpen(false);setPage("notifications");}} style={{background:"none",border:"none",color:T.sub,fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>View all</button>
+            </div>
+          </div>
+          <div style={{maxHeight:360,overflowY:"auto"}}>
             {recentNotifs.length===0?<div style={{padding:"26px 16px",textAlign:"center",fontSize:13,color:T.faint}}>You're all caught up.</div>:
-              recentNotifs.map(a=>(<div key={a.id} onClick={()=>openNotif(a)} className="hoverRow" style={{display:"flex",gap:11,padding:"13px 16px",borderBottom:`1px solid ${T.line}`,alignItems:"flex-start",cursor:"pointer"}}>
-                <span style={{fontSize:16,marginTop:1}}>{a.kind==="sys"?(a.type==="meeting_confirmed"?"✅":a.type==="meeting_cancelled"?"❌":"🔔"):actIcon(a.type)}</span>
-                <div style={{flex:1}}><div style={{fontSize:13,fontWeight:a.read?600:800,lineHeight:1.45,color:T.ink}}>{a.title||a.desc}</div><div style={{fontSize:11,color:T.faint,marginTop:3,display:"flex",justifyContent:"space-between"}}><span>{a.date}</span><span style={{color:T.brand,fontWeight:700}}>View</span></div></div>
+              recentNotifs.map(a=>(<div key={a.id} onClick={()=>openNotif(a)} className="hoverRow" style={{display:"flex",gap:11,padding:"13px 16px",borderBottom:`1px solid ${T.line}`,alignItems:"flex-start",cursor:"pointer",opacity:a.read?0.9:1,background:a.read?"transparent":T.brandSoft}}>
+                <span style={{fontSize:16,marginTop:1}}>{notifIcon(a.type)}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,fontWeight:a.read?600:800,lineHeight:1.45,color:T.ink}}>{a.title}</div>
+                  {a.desc&&a.desc!==a.title&&<div style={{fontSize:12,color:T.sub,marginTop:3,lineHeight:1.4}}>{a.desc}</div>}
+                  <div style={{fontSize:11,color:T.faint,marginTop:4}}>{a.date}</div>
+                </div>
+                {!a.read&&<span style={{width:8,height:8,borderRadius:"50%",background:T.brand,flexShrink:0,marginTop:6}}/>}
               </div>))}
           </div>
         </div></>)}
     </div>
   );
 
+  const NotificationsPage=()=>(
+    <div>
+      <PageHead isMobile={isMobile} title="Notifications" sub="Meeting updates, BDM messages, and account alerts"
+        right={unreadSys>0?<Btn variant="soft" size="sm" onClick={markAllRead}>Mark all read</Btn>:null}/>
+      <Card>
+        {sysNotifs.length===0?(
+          <Empty icon="📭" title="No notifications yet" sub="When your BDM confirms a meeting or updates your account, it shows up here."/>
+        ):(
+          <div>
+            {sysNotifs.map((n,i)=>(
+              <div key={n.id} onClick={async()=>{await markOneRead(n.id);setPage(notifTarget(n.type));}}
+                style={{display:"flex",gap:12,padding:"14px 6px",borderBottom:i<sysNotifs.length-1?`1px solid ${T.line}`:"none",cursor:"pointer",opacity:n.read?0.9:1}}>
+                <div style={{width:36,height:36,borderRadius:10,background:n.read?T.surface2:T.brandSoft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{notifIcon(n.type)}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"flex-start"}}>
+                    <div style={{fontSize:13.5,fontWeight:n.read?600:800,color:T.ink}}>{n.title}</div>
+                    {!n.read&&<span style={{width:8,height:8,borderRadius:"50%",background:T.brand,flexShrink:0,marginTop:5}}/>}
+                  </div>
+                  {n.body&&<div style={{fontSize:12.5,color:T.sub,marginTop:4,lineHeight:1.45}}>{n.body}</div>}
+                  <div style={{fontSize:11,color:T.faint,marginTop:5}}>{n.createdAt?new Date(n.createdAt).toLocaleString():""}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+
   const Home=()=>(<div>
     <PageHead isMobile={isMobile} title={`${greet}, ${(user.name||"there").split(" ")[0]} 👋`} sub={`Here's what we're doing for ${user.businessName||"your business"} right now`}
-      right={<div style={{display:"flex",gap:10,alignItems:"center"}}><NotifBell/><Btn variant="soft" size="sm" onClick={()=>setPage("call")}>📞 Talk to your BDM</Btn></div>}/>
+      right={<Btn variant="soft" size="sm" onClick={()=>setPage("call")}>📞 Talk to your BDM</Btn>}/>
     {!user.plan&&(<Card style={{marginBottom:18,background:`linear-gradient(135deg,${T.brandSoft},#fff)`,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
       <div><div style={{fontFamily:FONT_D,fontSize:16,fontWeight:800}}>Welcome to NAP Orbit 🚀</div><div style={{fontSize:13,color:T.sub,marginTop:3}}>Choose a plan to start getting listed, or your account manager will set you up after your call.</div></div>
       <Btn onClick={()=>setPage("billing")}>Choose a plan</Btn>
@@ -906,8 +972,9 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
     </div>);
   };
 
-  return(<><Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} planBadge={planBadge} showLegalLinks>
+  return(<><Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} planBadge={planBadge} showLegalLinks headerRight={<NotifBell/>} badgeCounts={{notifications:unreadSys}}>
     {page==="home"&&<Home/>}
+    {page==="notifications"&&<NotificationsPage/>}
     {page==="listings"&&<Listings/>}
     {page==="gmb"&&<Gmb/>}
     {page==="analytics"&&<Analytics/>}

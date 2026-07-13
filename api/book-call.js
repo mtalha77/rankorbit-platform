@@ -1,5 +1,5 @@
 import { getAdmin, readJson, requireClient } from "../server/billing.js";
-import { resolveClientAgent, notifyBdm } from "../server/assign.js";
+import { resolveClientAgent, notifyBdm, notifyUser } from "../server/assign.js";
 import { randomUUID } from "crypto";
 
 function uid(prefix = "bk") {
@@ -42,18 +42,33 @@ export default async function handler(req, res) {
       status: "pending",
     });
     if (bErr) {
-      // Table missing → still notify so ops aren't blocked.
-      console.warn("call_bookings insert:", bErr.message);
+      console.error("call_bookings insert:", bErr.message);
+      const missing = /does not exist|Could not find the table|schema cache/i.test(bErr.message || "");
+      return res.status(500).json({
+        error: missing
+          ? "Bookings table is missing. Run supabase/notifications.sql in the Supabase SQL editor."
+          : `Could not save booking: ${bErr.message}`,
+      });
     }
 
     const who = client.businessName || client.name || client.email;
-    await notifyBdm(admin, {
+    const notified = await notifyBdm(admin, {
       agentId: agent.id,
       clientId: client.id,
       type: "call_booked",
       title: "Meeting scheduled — confirm or cancel",
       body: `${who} requested a 30-min call on ${slotDate} at ${slotTime}.${note ? ` Note: ${note}` : ""} Open Notifications to confirm or cancel.`,
       meta: { bookingId, slotDate, slotTime, status: "pending" },
+    });
+
+    // Client dashboard notification — pending until BDM confirms/cancels.
+    await notifyUser(admin, {
+      userId: client.id,
+      clientId: client.id,
+      type: "meeting_pending",
+      title: "Meeting request sent",
+      body: `You requested a 30-min call with ${agent.name || "your BDM"} on ${slotDate} at ${slotTime}. We'll notify you when they confirm or cancel.`,
+      meta: { bookingId, slotDate, slotTime, status: "pending", agentId: agent.id },
     });
 
     try {
@@ -73,6 +88,7 @@ export default async function handler(req, res) {
       ok: true,
       bookingId,
       agent: { id: agent.id, name: agent.name, email: agent.email },
+      notificationId: notified?.notificationId || null,
       slotDate,
       slotTime,
     });
