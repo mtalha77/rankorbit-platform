@@ -100,6 +100,7 @@ export default function LandingPage({user=null,focusPricing=false,billingFlag=nu
   // Logged-in + no plan → Stripe checkout from landing. Guest → signup with plan intent.
   const goPlan=async(planId)=>{
     setPlanErr("");
+    if(user?.plan===planId)return;
     if(user?.plan){nav("/dashboard");return;}
     try{sessionStorage.setItem("ro_pending_plan",planId);}catch{}
     if(!user){nav(`/signup?plan=${encodeURIComponent(planId)}`);return;}
@@ -416,7 +417,7 @@ export default function LandingPage({user=null,focusPricing=false,billingFlag=nu
               <div style={{height:1,background:T.line,marginBottom:18}}/>
               <div style={{flex:1}}>{pl.f.map(f=>(<div key={f} style={{display:"flex",gap:9,marginBottom:11,alignItems:"flex-start"}}><Ico d={<path d="M20 6 9 17l-5-5"/>} c={T.green} s={17}/><span style={{fontSize:13.5,color:T.sub,lineHeight:1.5}}>{f}</span></div>))}</div>
               {current
-                ?<Btn size="md" variant="ghost" style={{width:"100%",marginTop:18}} onClick={goDash}>Go to dashboard</Btn>
+                ?<Btn size="md" variant="ghost" style={{width:"100%",marginTop:18}} disabled title="Already subscribed">Your current plan</Btn>
                 :<Btn size="md" variant={pl.pop?"primary":"ghost"} style={{width:"100%",marginTop:18}} onClick={()=>goPlan(pl.id)} disabled={!!planBusy}>{planBusy===pl.id?"Redirecting…":`Choose ${pl.n}`}</Btn>}
             </div>
           </Reveal>);})}

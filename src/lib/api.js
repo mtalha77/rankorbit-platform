@@ -169,12 +169,25 @@ export const api={
       const r=await fetch("/api/sync-invoices",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token})});
       const j=await r.json().catch(()=>({}));
       if(!r.ok)return{error:j.error||"Could not sync invoices",invoices:[]};
-      return{invoices:j.invoices||[],synced:j.synced||0};
+      return{invoices:j.invoices||[],synced:j.synced||0,profile:j.profile||null,currentPeriodEnd:j.currentPeriodEnd||null};
     }catch(e){return{error:e.message||"Network error",invoices:[]};}
   },
   async resetPassword(email){
     if(!supa)return{error:"Password reset needs the live database."};
-    const{error}=await supa.auth.resetPasswordForEmail(email,{redirectTo:window.location.origin});
+    const{error}=await supa.auth.resetPasswordForEmail(email,{
+      redirectTo:`${window.location.origin}/reset-password`,
+    });
+    if(!error)return{ok:true};
+    const msg=error.message||"";
+    if(/rate limit|too many/i.test(msg)||error.status===429)
+      return{error:"Too many reset emails sent. Please wait a few minutes, then try again — or check your inbox for the earlier link."};
+    return{error:msg};
+  },
+  async updatePassword(password){
+    if(!supa)return{error:"Password update needs the live database."};
+    const issues=passwordIssues(password);
+    if(issues.length)return{error:"Password needs "+issues.join(", ")+"."};
+    const{error}=await supa.auth.updateUser({password});
     return error?{error:error.message}:{ok:true};
   },
   async logout(){if(supa)await supa.auth.signOut();},

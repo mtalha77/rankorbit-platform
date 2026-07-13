@@ -15,14 +15,14 @@ export const Badge=({type,label})=>{
 export const Card=({children,style={},hover=false,className=""})=>(
   <div className={`${hover?"hoverCard ":""}${className}`} style={{background:T.surface,border:`1px solid ${T.line}`,borderRadius:18,padding:22,boxShadow:SHADOW,...style}}>{children}</div>
 );
-export const Btn=({children,onClick,variant="primary",size="md",style={},disabled=false})=>{
+export const Btn=({children,onClick,variant="primary",size="md",style={},disabled=false,title})=>{
   const v={primary:{background:`linear-gradient(135deg,${T.brand},${T.brandDark})`,color:"#fff",border:"none",boxShadow:`0 4px 14px ${T.brandGlow}`},
     ghost:{background:T.surface,color:T.sub,border:`1px solid ${T.line}`},
     soft:{background:T.brandSoft,color:T.brand,border:"none"},
     green:{background:`linear-gradient(135deg,${T.green},#0B8A67)`,color:"#fff",border:"none",boxShadow:"0 4px 14px rgba(15,164,122,.22)"},
     danger:{background:T.redSoft,color:T.red,border:"none"}};
   const s={sm:{padding:"6px 14px",fontSize:12.5},md:{padding:"10px 20px",fontSize:13.5},lg:{padding:"13px 30px",fontSize:15}};
-  return(<button onClick={disabled?undefined:onClick} disabled={disabled} style={{borderRadius:11,fontWeight:700,cursor:disabled?"not-allowed":"pointer",opacity:disabled?.5:1,fontFamily:FONT_B,...v[variant],...s[size],...style}}>{children}</button>);
+  return(<button title={title} onClick={disabled?undefined:onClick} disabled={disabled} style={{borderRadius:11,fontWeight:700,cursor:disabled?"not-allowed":"pointer",opacity:disabled?.5:1,fontFamily:FONT_B,...v[variant],...s[size],...style}}>{children}</button>);
 };
 // Input with optional validation. validate="email" | "usphone". Shows inline error, blocks bad input.
 export const Input=({label,value,onChange,placeholder,type="text",style={},validate,required,error:extError,maxLength})=>{

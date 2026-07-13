@@ -223,9 +223,9 @@ export function subscriptionFieldsFromStripe(sub, planId) {
   const item = sub.items?.data?.[0];
   const priceId = item?.price?.id || null;
   const plan = planId || planFromPriceId(priceId);
-  const periodEnd = sub.current_period_end
-    ? new Date(sub.current_period_end * 1000).toISOString()
-    : null;
+  // Prefer subscription-level period; newer Stripe payloads may only set it on the item.
+  const periodEndUnix = sub.current_period_end || item?.current_period_end || null;
+  const periodEnd = periodEndUnix ? new Date(periodEndUnix * 1000).toISOString() : null;
   const cancelAtPeriodEnd = !!sub.cancel_at_period_end;
   let canceledAt = null;
   if (sub.canceled_at) {
