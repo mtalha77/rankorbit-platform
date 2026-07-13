@@ -53,8 +53,24 @@ export default function AdminDashboard({user,data,reload,onLogout}){
   };
   const R=async(fn,msg)=>{await fn();if(msg)toast(msg);await reload();};
 
+  const[notifBadge,setNotifBadge]=useState(0);
+  useEffect(()=>{
+    let cancelled=false;
+    (async()=>{
+      const rows=await api.listMyNotifications();
+      if(cancelled)return;
+      setNotifBadge((rows||[]).filter(n=>!n.read).length);
+    })();
+    const t=setInterval(async()=>{
+      const rows=await api.listMyNotifications();
+      if(!cancelled)setNotifBadge((rows||[]).filter(n=>!n.read).length);
+    },45000);
+    return()=>{cancelled=true;clearInterval(t);};
+  },[user.id,page]);
+
   const nav=[
     {id:"overview",icon:"📊",label:"Overview",roles:["super_admin","manager","agent"]},
+    {id:"notifications",icon:"🔔",label:"Notifications",roles:["super_admin","manager","agent"]},
     {id:"clients",icon:"👥",label:"Clients",roles:["super_admin","manager","agent"],match:["clientDetail"]},
     {id:"listings",icon:"📋",label:"All Listings",roles:["super_admin","manager","agent"]},
     {id:"gmb",icon:"📍",label:"GMB",roles:["super_admin","manager"]},
@@ -411,11 +427,108 @@ export default function AdminDashboard({user,data,reload,onLogout}){
   };
 
   // ── ADMIN PAGES ──
+  const NotificationsPage=()=>{
+    const[notifs,setNotifs]=useState([]);
+    const[loading,setLoading]=useState(true);
+    const[busyId,setBusyId]=useState(null);
+    const[openId,setOpenId]=useState(null);
+    const load=async()=>{
+      setLoading(true);
+      const rows=await api.listMyNotifications();
+      setNotifs(rows||[]);
+      setNotifBadge((rows||[]).filter(n=>!n.read).length);
+      setLoading(false);
+    };
+    useEffect(()=>{load();},[user.id]);
+    const unread=notifs.filter(n=>!n.read);
+    const markAll=async()=>{
+      const ids=unread.map(n=>n.id);
+      if(!ids.length)return;
+      await api.markNotificationsRead(ids);
+      setNotifs(prev=>prev.map(n=>({...n,read:true})));
+      setNotifBadge(0);
+    };
+    const openOne=async(n)=>{
+      setOpenId(openId===n.id?null:n.id);
+      if(!n.read){
+        await api.markNotificationsRead([n.id]);
+        setNotifs(prev=>prev.map(x=>x.id===n.id?{...x,read:true}:x));
+        setNotifBadge(c=>Math.max(0,c-1));
+      }
+    };
+    const respond=async(n,action)=>{
+      const bookingId=n.meta?.bookingId;
+      if(!bookingId){toast("This notification has no booking linked","info");return;}
+      setBusyId(n.id+action);
+      const r=await api.respondCall({bookingId,action,notificationId:n.id});
+      setBusyId(null);
+      if(r.error){toast(r.error,"info");return;}
+      toast(action==="confirm"?"Meeting confirmed — client notified":"Meeting cancelled — client notified");
+      setNotifs(prev=>prev.map(x=>{
+        if(x.id!==n.id&&x.meta?.bookingId!==bookingId)return x;
+        return{...x,read:true,meta:{...(x.meta||{}),status:r.status,respondedAt:new Date().toISOString()}};
+      }));
+    };
+    const typeIcon=(t)=>({client_assigned:"👤",call_booked:"📅",bdm_message:"💬",meeting_confirmed:"✅",meeting_cancelled:"❌"}[t]||"🔔");
+    const canRespond=(n)=>n.type==="call_booked"&&n.meta?.bookingId&&(!n.meta?.status||n.meta.status==="pending");
+    return(<div>
+      <PageHead isMobile={isMobile} title="Notifications" sub="Client assignments, meeting requests, and messages"
+        right={unread.length>0?<Btn variant="soft" size="sm" onClick={markAll}>Mark all read</Btn>:null}/>
+      <Card>
+        {loading?(<div style={{padding:28,textAlign:"center",color:T.faint,fontSize:13}}>Loading…</div>):
+          notifs.length===0?(<Empty icon="📭" title="No notifications yet" sub="When a client is assigned to you or schedules a meeting, it appears here."/>):(
+          <div>
+            {notifs.map((n,i)=>(
+              <div key={n.id} style={{borderBottom:i<notifs.length-1?`1px solid ${T.line}`:"none"}}>
+                <div onClick={()=>openOne(n)} style={{display:"flex",gap:12,padding:"14px 6px",cursor:"pointer",opacity:n.read?.85:1}}>
+                  <div style={{width:36,height:36,borderRadius:10,background:n.read?T.surface2:T.brandSoft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{typeIcon(n.type)}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"flex-start"}}>
+                      <div style={{fontSize:13.5,fontWeight:n.read?600:800,color:T.ink}}>{n.title}</div>
+                      {!n.read&&<span style={{width:8,height:8,borderRadius:"50%",background:T.brand,flexShrink:0,marginTop:5}}/>}
+                    </div>
+                    {n.body&&<div style={{fontSize:12.5,color:T.sub,marginTop:4,lineHeight:1.45}}>{n.body}</div>}
+                    <div style={{fontSize:11,color:T.faint,marginTop:5}}>
+                      {n.createdAt?new Date(n.createdAt).toLocaleString():""}
+                      {n.meta?.status&&n.meta.status!=="pending"?` · ${n.meta.status}`:""}
+                      {canRespond(n)?" · Action needed":""}
+                    </div>
+                  </div>
+                </div>
+                {openId===n.id&&canRespond(n)&&(
+                  <div style={{padding:"0 6px 14px 54px",display:"flex",gap:8,flexWrap:"wrap"}}>
+                    <Btn variant="green" size="sm" disabled={!!busyId} onClick={()=>respond(n,"confirm")}>
+                      {busyId===n.id+"confirm"?"Confirming…":"Confirm meeting"}
+                    </Btn>
+                    <Btn variant="danger" size="sm" disabled={!!busyId} onClick={()=>respond(n,"cancel")}>
+                      {busyId===n.id+"cancel"?"Cancelling…":"Cancel meeting"}
+                    </Btn>
+                  </div>
+                )}
+                {openId===n.id&&n.type==="call_booked"&&n.meta?.status&&n.meta.status!=="pending"&&(
+                  <div style={{padding:"0 6px 14px 54px",fontSize:12.5,color:n.meta.status==="confirmed"?T.green:T.amber,fontWeight:700}}>
+                    Meeting {n.meta.status}. Client has been notified.
+                  </div>
+                )}
+                {openId===n.id&&n.type==="client_assigned"&&n.clientId&&(
+                  <div style={{padding:"0 6px 14px 54px"}}>
+                    <Btn variant="soft" size="sm" onClick={()=>{setSelClient(n.clientId);setPage("clientDetail");}}>Open client →</Btn>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>);
+  };
+
   const Overview=()=>{
     const revData=[{m:"Mar",r:138},{m:"Apr",r:187},{m:"May",r:236},{m:"Jun",r:revenue},{m:"Jul",r:revenue}];
     const listData=[{m:"Mar",n:12,l:12},{m:"Apr",n:10,l:18},{m:"May",n:8,l:26},{m:"Jun",n:10,l:totalLive}];
     return(<div>
-      <PageHead isMobile={isMobile} title="Platform Overview" sub={`Welcome back, ${user.name.split(" ")[0]}`}/>
+      <PageHead isMobile={isMobile} title="Platform Overview" sub={`Welcome back, ${user.name.split(" ")[0]}`}
+        right={notifBadge>0?<Btn variant="soft" size="sm" onClick={()=>setPage("notifications")}>🔔 {notifBadge} new</Btn>:null}/>
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":`repeat(${isAdmin?4:3},1fr)`,gap:14,marginBottom:20}}>
         {isAdmin&&<StatCard label="Monthly Revenue" value={`$${revenue}`} sub={`${clients.length} active subscriptions`} icon="💰" color={T.green} soft={T.greenSoft} trend={8} delay={0}/>}
         <StatCard label="Clients" value={clients.length} sub="Across all plans" icon="👥" delay={70}/>
@@ -1106,8 +1219,9 @@ export default function AdminDashboard({user,data,reload,onLogout}){
     </>);
   }
 
-  return(<><Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} planBadge={roleBadge} brandTag="ADMIN">
+  return(<><Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} planBadge={roleBadge} brandTag="ADMIN" badgeCounts={{notifications:notifBadge}}>
     {page==="overview"&&<Overview/>}
+    {page==="notifications"&&<NotificationsPage/>}
     {page==="clients"&&<Clients/>}
     {page==="clientDetail"&&<ClientDetail/>}
     {page==="listings"&&<AllListings/>}

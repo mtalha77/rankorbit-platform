@@ -172,6 +172,58 @@ export const api={
       return{invoices:j.invoices||[],synced:j.synced||0,profile:j.profile||null,currentPeriodEnd:j.currentPeriodEnd||null};
     }catch(e){return{error:e.message||"Network error",invoices:[]};}
   },
+  async bookCall({slotDate,slotTime,note}={}){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/book-call",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,slotDate,slotTime,note})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not book call"};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
+  async sendBdmMessage(message){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/bdm-message",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,message})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not send message"};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
+  async getMyBdm(){
+    const token=await this._accessToken();
+    if(!token)return{agent:null};
+    try{
+      const r=await fetch("/api/my-bdm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{agent:null,error:j.error};
+      return{agent:j.agent||null};
+    }catch(e){return{agent:null,error:e.message};}
+  },
+  async listMyNotifications(){
+    if(!supa)return[];
+    const{data:{session}}=await supa.auth.getSession();
+    if(!session)return[];
+    const{data,error}=await supa.from("notifications").select("*").eq("userId",session.user.id).order("createdAt",{ascending:false}).limit(40);
+    if(error){console.warn("notifications:",error.message);return[];}
+    return data||[];
+  },
+  async markNotificationsRead(ids){
+    if(!supa||!ids?.length)return;
+    await supa.from("notifications").update({read:true}).in("id",ids);
+  },
+  async respondCall({bookingId,action,notificationId}={}){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/respond-call",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,bookingId,action,notificationId})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not update meeting"};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
   async resetPassword(email){
     if(!supa)return{error:"Password reset needs the live database."};
     const{error}=await supa.auth.resetPasswordForEmail(email,{

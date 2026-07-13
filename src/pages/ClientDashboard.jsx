@@ -179,23 +179,47 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
   })();
   const visLabel=visScore>=75?"Excellent":visScore>=50?"Good":visScore>=25?"Building":"Getting started";
   const visColor=visScore>=75?T.green:visScore>=50?T.brand:visScore>=25?T.amber:T.faint;
-  // Onboarding checklist: guides brand-new clients through first setup steps.
-  const steps=[
-    {done:!!user.plan,label:"Choose your plan",action:()=>setPage("billing")},
-    {done:!!(user.businessName&&user.phone&&user.city),label:"Complete your business profile",action:()=>setPage("billing")},
-    {done:my.length>0,label:"First listings submitted",action:()=>setPage("listings")},
-    {done:live>0,label:"First listing goes live",action:()=>setPage("listings")},
-  ];
-  const stepsDone=steps.filter(s=>s.done).length;
-  const onboardComplete=stepsDone===steps.length;
+  // Home plan card: days left + renew date (same calendar-day math as Billing).
+  const homePeriodEnd=(()=>{
+    const iso=user.currentPeriodEnd||(()=>{const d=new Date();d.setMonth(d.getMonth()+1);return d.toISOString();})();
+    const end=new Date(iso);
+    if(Number.isNaN(end.getTime()))return{label:null,daysLeft:null,daysLeftLabel:null};
+    const start=new Date();start.setHours(0,0,0,0);
+    const endDay=new Date(end);endDay.setHours(0,0,0,0);
+    const daysLeft=Math.max(0,Math.round((endDay-start)/86400000));
+    return{
+      label:end.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}),
+      daysLeft,
+      daysLeftLabel:daysLeft===0?"Ends today":daysLeft===1?"1 day left":`${daysLeft} days left`,
+    };
+  })();
 
-  const recentNotifs=myAct.slice(0,6);
+  const recentAct=myAct.slice(0,6);
+  const[sysNotifs,setSysNotifs]=useState([]);
+  useEffect(()=>{
+    let cancelled=false;
+    (async()=>{
+      const rows=await api.listMyNotifications();
+      if(!cancelled)setSysNotifs(rows||[]);
+    })();
+    return()=>{cancelled=true;};
+  },[user.id,page]);
+  const recentNotifs=[
+    ...sysNotifs.map(n=>({id:n.id,kind:"sys",type:n.type,title:n.title,desc:n.body||n.title,date:n.createdAt?new Date(n.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"",read:n.read})),
+    ...recentAct.map(a=>({id:a.id,kind:"act",type:a.type,title:a.desc,desc:a.desc,date:a.date,read:true})),
+  ].slice(0,10);
   const[notifOpen,setNotifOpen]=useState(false);
+  const unreadSys=sysNotifs.filter(n=>!n.read).length;
   const[notifSeen,setNotifSeen]=useState(()=>{try{return localStorage.getItem("ro_notif_seen_"+user.id)===String(myAct.length);}catch{return false;}});
-  const unread=notifSeen?0:recentNotifs.length;
-  const markSeen=()=>{try{localStorage.setItem("ro_notif_seen_"+user.id,String(myAct.length));}catch{}setNotifSeen(true);};
+  const unread=(notifSeen?0:recentAct.length)+unreadSys;
+  const markSeen=async()=>{
+    try{localStorage.setItem("ro_notif_seen_"+user.id,String(myAct.length));}catch{}
+    setNotifSeen(true);
+    const ids=sysNotifs.filter(n=>!n.read).map(n=>n.id);
+    if(ids.length){await api.markNotificationsRead(ids);setSysNotifs(prev=>prev.map(n=>({...n,read:true})));}
+  };
   // Route each activity type to the section where the client can act on it.
-  const notifTarget=(t)=>({listing_live:"listings",nap_fix:"listings",edit_blocked:"listings",flagged:"listings",rejected:"listings",submitted:"listings",gmb_update:"gmb",analytics:"analytics"}[t]||"listings");
+  const notifTarget=(t)=>({listing_live:"listings",nap_fix:"listings",edit_blocked:"listings",flagged:"listings",rejected:"listings",submitted:"listings",gmb_update:"gmb",analytics:"analytics",meeting_confirmed:"call",meeting_cancelled:"call",call_booked:"call"}[t]||"listings");
   const openNotif=(a)=>{setNotifOpen(false);setPage(notifTarget(a.type));};
   const NotifBell=()=>(
     <div style={{position:"relative"}}>
@@ -209,8 +233,8 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
           <div style={{maxHeight:320,overflowY:"auto"}}>
             {recentNotifs.length===0?<div style={{padding:"26px 16px",textAlign:"center",fontSize:13,color:T.faint}}>You're all caught up.</div>:
               recentNotifs.map(a=>(<div key={a.id} onClick={()=>openNotif(a)} className="hoverRow" style={{display:"flex",gap:11,padding:"13px 16px",borderBottom:`1px solid ${T.line}`,alignItems:"flex-start",cursor:"pointer"}}>
-                <span style={{fontSize:16,marginTop:1}}>{actIcon(a.type)}</span>
-                <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,lineHeight:1.45,color:T.ink}}>{a.desc}</div><div style={{fontSize:11,color:T.faint,marginTop:3,display:"flex",justifyContent:"space-between"}}><span>{a.date}</span><span style={{color:T.brand,fontWeight:700}}>View</span></div></div>
+                <span style={{fontSize:16,marginTop:1}}>{a.kind==="sys"?(a.type==="meeting_confirmed"?"✅":a.type==="meeting_cancelled"?"❌":"🔔"):actIcon(a.type)}</span>
+                <div style={{flex:1}}><div style={{fontSize:13,fontWeight:a.read?600:800,lineHeight:1.45,color:T.ink}}>{a.title||a.desc}</div><div style={{fontSize:11,color:T.faint,marginTop:3,display:"flex",justifyContent:"space-between"}}><span>{a.date}</span><span style={{color:T.brand,fontWeight:700}}>View</span></div></div>
               </div>))}
           </div>
         </div></>)}
@@ -224,8 +248,8 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
       <div><div style={{fontFamily:FONT_D,fontSize:16,fontWeight:800}}>Welcome to NAP Orbit 🚀</div><div style={{fontSize:13,color:T.sub,marginTop:3}}>Choose a plan to start getting listed, or your account manager will set you up after your call.</div></div>
       <Btn onClick={()=>setPage("billing")}>Choose a plan</Btn>
     </Card>)}
-    {/* Visibility Score hero + onboarding checklist */}
-    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":onboardComplete?"1fr":"1.3fr 1fr",gap:16,marginBottom:22}}>
+    {/* Visibility Score + current plan / billing summary */}
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1.3fr 1fr",gap:16,marginBottom:22}}>
       <Card className="fadeUp" style={{background:`linear-gradient(135deg,${visColor}18,#fff)`,display:"flex",alignItems:"center",gap:22,flexWrap:"wrap"}}>
         <div style={{position:"relative",width:118,height:118,flexShrink:0}}>
           <svg width="118" height="118" viewBox="0 0 118 118">
@@ -245,21 +269,27 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
           <div style={{fontSize:12.5,color:T.sub,lineHeight:1.55}}>One number for your online health, it blends how many directories you're on, how consistent your info is, and how many listings are live. It climbs as we work.</div>
         </div>
       </Card>
-      {!onboardComplete&&(<Card className="fadeUp" style={{animationDelay:"80ms"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-          <div style={{fontSize:13.5,fontWeight:800,fontFamily:FONT_D}}>Getting Started</div>
-          <div style={{fontSize:12,fontWeight:800,color:T.brand}}>{stepsDone}/{steps.length}</div>
-        </div>
-        <div style={{height:6,background:T.surface2,borderRadius:4,overflow:"hidden",marginBottom:14}}>
-          <div style={{width:`${(stepsDone/steps.length)*100}%`,height:"100%",background:`linear-gradient(90deg,${T.brand},${T.green})`,transition:"width .6s"}}/>
-        </div>
-        {steps.map((s,i)=>(
-          <div key={i} onClick={s.done?undefined:s.action} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",cursor:s.done?"default":"pointer",opacity:s.done?.7:1}}>
-            <div style={{width:20,height:20,borderRadius:"50%",flexShrink:0,background:s.done?T.green:T.surface2,border:s.done?"none":`1.5px solid ${T.line}`,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800}}>{s.done?"✓":i+1}</div>
-            <span style={{fontSize:13,color:s.done?T.faint:T.ink,fontWeight:s.done?500:700,textDecoration:s.done?"line-through":"none"}}>{s.label}</span>
-            {!s.done&&<span style={{marginLeft:"auto",fontSize:11,color:T.brand,fontWeight:700}}>→</span>}
-          </div>))}
-      </Card>)}
+      <Card className="fadeUp" style={{animationDelay:"80ms",background:user.cancelAtPeriodEnd?`linear-gradient(135deg,${T.amberSoft},#fff)`:`linear-gradient(135deg,${plan.soft||T.brandSoft},#fff)`,display:"flex",flexDirection:"column",justifyContent:"center"}}>
+        {user.plan?(<>
+          <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".8px",marginBottom:6}}>CURRENT PLAN</div>
+          <div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800,color:plan.color,marginBottom:4}}>{plan.name}</div>
+          <div style={{fontSize:14,color:T.sub,marginBottom:12}}>${plan.price}<span style={{color:T.faint}}>/month</span>
+            {user.cancelAtPeriodEnd&&<span style={{marginLeft:8,fontSize:12,fontWeight:700,color:T.amber}}>Cancels on renewal</span>}
+          </div>
+          {homePeriodEnd.daysLeftLabel&&(
+            <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"6px 12px",background:user.cancelAtPeriodEnd?T.amberSoft:T.brandSoft,borderRadius:10,alignSelf:"flex-start",marginBottom:14}}>
+              <span style={{fontSize:12,fontWeight:800,color:user.cancelAtPeriodEnd?T.amber:T.brand}}>{homePeriodEnd.daysLeftLabel}</span>
+              <span style={{fontSize:11.5,color:T.sub}}>renews {homePeriodEnd.label}</span>
+            </div>
+          )}
+          <Btn variant="soft" size="sm" onClick={()=>setPage("billing")} style={{alignSelf:"flex-start"}}>Manage billing →</Btn>
+        </>):(<>
+          <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".8px",marginBottom:6}}>YOUR PLAN</div>
+          <div style={{fontFamily:FONT_D,fontSize:18,fontWeight:800,marginBottom:6}}>No plan yet</div>
+          <div style={{fontSize:13,color:T.sub,marginBottom:14,lineHeight:1.5}}>Pick a plan to start getting listed and protected across directories.</div>
+          <Btn size="sm" onClick={()=>setPage("billing")} style={{alignSelf:"flex-start"}}>Choose a plan →</Btn>
+        </>)}
+      </Card>
     </div>
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:14,marginBottom:22}}>
       <StatCard label="Listings Live" value={live} sub={`${pending} pending approval`} icon={<ListingsLiveIcon/>} color={T.green} soft={T.greenSoft} trend={live>0?12:null} delay={0}/>
@@ -570,12 +600,6 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
             <div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800,color:plan.color}}>${plan.price}<span style={{fontSize:13,color:T.faint,fontWeight:600}}>/month</span></div>
             <Badge type={user.subscriptionStatus==="past_due"?"pending":"active"}/>
           </div>
-          {daysLeftLabel&&(
-            <div style={{marginTop:10,display:"inline-flex",alignItems:"center",gap:8,padding:"6px 12px",background:user.cancelAtPeriodEnd?T.amberSoft:T.brandSoft,borderRadius:10}}>
-              <span style={{fontSize:12,fontWeight:800,color:user.cancelAtPeriodEnd?T.amber:T.brand}}>{daysLeftLabel}</span>
-              <span style={{fontSize:11.5,color:T.sub}}>in this billing period · renews {periodLabel}</span>
-            </div>
-          )}
           <div style={{marginTop:16}}>
             {plan.features.map((f,i)=>(<div key={i} style={{display:"flex",gap:9,alignItems:"center",marginBottom:8}}>
               <div style={{width:19,height:19,borderRadius:"50%",background:T.greenSoft,color:T.green,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10.5,fontWeight:800,flexShrink:0}}>✓</div>
@@ -588,11 +612,23 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
             <div style={{fontSize:11,fontWeight:800,color:T.amber,letterSpacing:".8px",marginBottom:8}}>SUBSCRIPTION ENDING</div>
             <div style={{fontFamily:FONT_D,fontSize:19,fontWeight:800,color:T.amber}}>Cancels on renewal</div>
             <div style={{fontSize:13,color:T.sub,marginTop:6,lineHeight:1.5}}>You keep full access until <b>{periodLabel}</b>. You won't be charged again.</div>
+            {daysLeftLabel&&(
+              <div style={{marginTop:10,display:"inline-flex",alignItems:"center",gap:8,padding:"6px 12px",background:T.amberSoft,borderRadius:10}}>
+                <span style={{fontSize:12,fontWeight:800,color:T.amber}}>{daysLeftLabel}</span>
+                <span style={{fontSize:11.5,color:T.sub}}>in this billing period · ends {periodLabel}</span>
+              </div>
+            )}
             <Btn variant="green" size="sm" style={{width:"100%",marginTop:12}} onClick={doResume}>Resume subscription</Btn>
           </>):(<>
             <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".8px",marginBottom:8}}>NEXT CHARGE</div>
             <div style={{fontFamily:FONT_D,fontSize:24,fontWeight:800,color:T.brand}}>${plan.price}.00</div>
             <div style={{fontSize:13,color:T.sub,marginTop:3}}>{nextChargeLabel}</div>
+            {daysLeftLabel&&(
+              <div style={{marginTop:10,display:"inline-flex",alignItems:"center",gap:8,padding:"6px 12px",background:T.brandSoft,borderRadius:10}}>
+                <span style={{fontSize:12,fontWeight:800,color:T.brand}}>{daysLeftLabel}</span>
+                <span style={{fontSize:11.5,color:T.sub}}>in this billing period · renews {periodLabel}</span>
+              </div>
+            )}
             <div style={{fontSize:11.5,color:T.faint,marginTop:8,lineHeight:1.5}}>Renews automatically. Cancel before your renewal date to avoid the next charge, you keep access until the period ends.</div>
             <button onClick={()=>setConfirm({title:"Cancel subscription?",msg:`Your ${plan.name} plan will stay active until the end of your current billing period, then cancel. You won't be charged again. No refunds for the current period (see Terms).`,danger:true,yes:"Cancel at period end",onYes:doCancel})} style={{marginTop:12,background:"none",border:"none",color:T.faint,fontSize:11.5,fontWeight:700,cursor:"pointer",textDecoration:"underline",fontFamily:FONT_B,padding:0}}>Cancel subscription</button>
           </>)}
@@ -693,52 +729,104 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
   };
 
   const CallPage=()=>{
+    const now=new Date();
+    const year=now.getFullYear();
+    const month=now.getMonth(); // 0-based
+    const monthName=now.toLocaleString("en-US",{month:"long"});
+    const totalDays=new Date(year,month+1,0).getDate();
+    const firstDay=new Date(year,month,1).getDay();
+    const today=now.getDate();
     const[selDay,setSelDay]=useState(null);
     const[selTime,setSelTime]=useState(null);
-    const[confirmed,setConfirmed]=useState(false);
+    const[note,setNote]=useState("");
+    const[confirmed,setConfirmed]=useState(null); // {slotDate,slotTime,agent}
+    const[busy,setBusy]=useState(false);
+    const[msgBusy,setMsgBusy]=useState(false);
+    const[bdm,setBdm]=useState(null);
+    useEffect(()=>{
+      let cancelled=false;
+      (async()=>{
+        const r=await api.getMyBdm();
+        if(!cancelled)setBdm(r.agent||null);
+      })();
+      return()=>{cancelled=true;};
+    },[user.id,user.assignedAgentId]);
     const times=["9:00 AM","9:30 AM","10:00 AM","10:30 AM","11:00 AM","2:00 PM","2:30 PM","3:00 PM","3:30 PM","4:00 PM"];
-    const unavail=["9:30 AM","10:30 AM","2:30 PM"];
-    const bookedDays=[3,8,14,22,28];const totalDays=31;const firstDay=2;
+    const bdmLabel=bdm?.name||bdm?.email||"your BDM";
+    const slotDateLabel=selDay?`${monthName} ${selDay}, ${year}`:"";
+    const confirmBooking=async()=>{
+      if(!selDay||!selTime)return;
+      setBusy(true);
+      const r=await api.bookCall({slotDate:slotDateLabel,slotTime:selTime,note});
+      setBusy(false);
+      if(r.error){toast(r.error,"info");return;}
+      setConfirmed({slotDate:slotDateLabel,slotTime:selTime,agent:r.agent});
+      if(r.agent)setBdm(r.agent);
+      toast("Request sent — waiting for your BDM to confirm");
+      await reload();
+    };
+    const sendMsg=async()=>{
+      const text=note.trim();
+      if(!text){toast("Write a message first","info");return;}
+      setMsgBusy(true);
+      const r=await api.sendBdmMessage(text);
+      setMsgBusy(false);
+      if(r.error){toast(r.error,"info");return;}
+      setNote("");
+      toast(`Message sent to ${r.agent?.name||"your BDM"}`);
+    };
     return(<div>
-      <PageHead isMobile={isMobile} title="Book a Call" sub="30 minutes with your dedicated Business Development Manager"/>
+      <PageHead isMobile={isMobile} title="Book a Call" sub={bdm?`30 minutes with ${bdm.name||"your BDM"}`:"30 minutes with your dedicated Business Development Manager"}/>
+      {bdm&&(<Card style={{marginBottom:16,padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+        <div>
+          <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".7px"}}>YOUR BDM</div>
+          <div style={{fontFamily:FONT_D,fontSize:16,fontWeight:800}}>{bdm.name||"Assigned manager"}</div>
+          {bdm.email&&<div style={{fontSize:12.5,color:T.sub}}>{bdm.email}</div>}
+        </div>
+        <div style={{fontSize:12,color:T.sub}}>You'll get matched automatically when you subscribe if you don't have one yet.</div>
+      </Card>)}
       {confirmed?(<Card className="pop" style={{textAlign:"center",padding:46,boxShadow:SHADOW_LG}}>
         <div style={{display:"flex",justifyContent:"center",marginBottom:16}}><Orbit size={90} speed={8}/></div>
-        <div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800,color:T.green,marginBottom:8}}>You're booked!</div>
-        <div style={{fontSize:14,color:T.sub,marginBottom:22}}>July {selDay} at {selTime} · calendar invite sent to {user.email}</div>
-        <Btn variant="ghost" onClick={()=>{setConfirmed(false);setSelDay(null);setSelTime(null);}}>Schedule another</Btn>
+        <div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800,color:T.brand,marginBottom:8}}>Request sent</div>
+        <div style={{fontSize:14,color:T.sub,marginBottom:8}}>{confirmed.slotDate} at {confirmed.slotTime}</div>
+        <div style={{fontSize:13,color:T.faint,marginBottom:22}}>Your BDM{confirmed.agent?.name?` (${confirmed.agent.name})`:""} will confirm or cancel. You'll get a notification either way.</div>
+        <Btn variant="ghost" onClick={()=>{setConfirmed(null);setSelDay(null);setSelTime(null);}}>Schedule another</Btn>
       </Card>):(
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr 0.8fr",gap:16}}>
         <Card>
-          <SectionTitle>July 2025</SectionTitle>
+          <SectionTitle>{monthName} {year}</SectionTitle>
           <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4,marginBottom:8}}>
             {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d=><div key={d} style={{textAlign:"center",fontSize:10.5,color:T.faint,fontWeight:800,padding:"3px 0"}}>{d}</div>)}
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4}}>
             {Array.from({length:firstDay}).map((_,i)=><div key={`e${i}`}/>)}
             {Array.from({length:totalDays}).map((_,i)=>{
-              const day=i+1;const isBooked=bookedDays.includes(day);const isSel=selDay===day;const isPast=day<15;const isWknd=(firstDay+i)%7===0||(firstDay+i)%7===6;
-              const dead=isBooked||isPast||isWknd;
-              return(<div key={day} onClick={()=>!dead&&setSelDay(day)} style={{textAlign:"center",padding:"8px 2px",borderRadius:10,fontSize:12.5,fontWeight:isSel?800:600,cursor:dead?"default":"pointer",background:isSel?T.brand:dead?"transparent":T.surface2,color:isSel?"#fff":dead?T.faint:T.ink,position:"relative",transition:"all .15s"}}>
-                {day}{isBooked&&!isSel&&<div style={{position:"absolute",bottom:3,left:"50%",transform:"translateX(-50%)",width:4,height:4,borderRadius:"50%",background:T.red}}/>}
+              const day=i+1;
+              const isSel=selDay===day;
+              const isPast=day<today;
+              const isWknd=(firstDay+i)%7===0||(firstDay+i)%7===6;
+              const dead=isPast||isWknd;
+              return(<div key={day} onClick={()=>!dead&&(setSelDay(day),setSelTime(null))} style={{textAlign:"center",padding:"8px 2px",borderRadius:10,fontSize:12.5,fontWeight:isSel?800:600,cursor:dead?"default":"pointer",background:isSel?T.brand:dead?"transparent":T.surface2,color:isSel?"#fff":dead?T.faint:T.ink,position:"relative",transition:"all .15s"}}>
+                {day}
               </div>);
             })}
           </div>
         </Card>
         <Card>
           {selDay?(<>
-            <SectionTitle sub="Pick a 30-minute slot">July {selDay}, 2025</SectionTitle>
+            <SectionTitle sub="Pick a 30-minute slot">{slotDateLabel}</SectionTitle>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
-              {times.map(t=>{const na=unavail.includes(t);const isSel=selTime===t;
-                return(<div key={t} onClick={()=>!na&&setSelTime(t)} style={{padding:"10px 8px",borderRadius:10,textAlign:"center",border:`1.5px solid ${isSel?T.brand:T.line}`,background:isSel?T.brandSoft:na?T.surface2:T.surface,color:isSel?T.brand:na?T.faint:T.ink,fontSize:12.5,fontWeight:isSel?800:600,cursor:na?"default":"pointer",textDecoration:na?"line-through":"none",transition:"all .15s"}}>{t}</div>);})}
+              {times.map(t=>{const isSel=selTime===t;
+                return(<div key={t} onClick={()=>setSelTime(t)} style={{padding:"10px 8px",borderRadius:10,textAlign:"center",border:`1.5px solid ${isSel?T.brand:T.line}`,background:isSel?T.brandSoft:T.surface,color:isSel?T.brand:T.ink,fontSize:12.5,fontWeight:isSel?800:600,cursor:"pointer",transition:"all .15s"}}>{t}</div>);})}
             </div>
             {selTime&&(<div className="pop" style={{marginTop:14}}>
               <div style={{padding:13,background:T.greenSoft,borderRadius:12,marginBottom:12}}>
-                <div style={{fontSize:13,color:T.green,fontWeight:800}}>✓ July {selDay} at {selTime}</div>
-                <div style={{fontSize:11.5,color:T.sub,marginTop:2}}>30 min with your BDM</div>
+                <div style={{fontSize:13,color:T.green,fontWeight:800}}>✓ {slotDateLabel} at {selTime}</div>
+                <div style={{fontSize:11.5,color:T.sub,marginTop:2}}>30 min with {bdmLabel}</div>
               </div>
-              <Btn variant="green" style={{width:"100%"}} onClick={()=>setConfirmed(true)}>Confirm Booking</Btn>
+              <Btn variant="green" style={{width:"100%"}} onClick={confirmBooking} disabled={busy}>{busy?"Booking…":"Confirm Booking"}</Btn>
             </div>)}
-          </>):(<Empty icon="📅" title="Pick a date" sub="Choose an available day on the calendar to see open times."/>)}
+          </>):(<Empty icon="📅" title="Pick a date" sub="Choose a weekday on the calendar to see open times."/>)}
         </Card>
         <Card>
           <SectionTitle>What we'll cover</SectionTitle>
@@ -747,8 +835,8 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
             <span style={{fontSize:12.5,color:T.sub}}>{item}</span>
           </div>))}
           <div style={{height:1,background:T.line,margin:"14px 0"}}/>
-          <textarea placeholder="Any questions before the call?" style={{width:"100%",padding:"10px 13px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:11,color:T.ink,fontSize:12.5,resize:"none",height:74,boxSizing:"border-box",fontFamily:FONT_B}}/>
-          <Btn variant="soft" size="sm" style={{width:"100%",marginTop:9}} onClick={()=>toast("Message sent to your BDM")}>Send message</Btn>
+          <textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="Any questions for your BDM?" style={{width:"100%",padding:"10px 13px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:11,color:T.ink,fontSize:12.5,resize:"none",height:74,boxSizing:"border-box",fontFamily:FONT_B}}/>
+          <Btn variant="soft" size="sm" style={{width:"100%",marginTop:9}} onClick={sendMsg} disabled={msgBusy}>{msgBusy?"Sending…":"Send message"}</Btn>
         </Card>
       </div>)}
     </div>);

@@ -134,6 +134,26 @@ export function decodeJwt(token) {
   }
 }
 
+/** Verify staff JWT (super_admin | manager | agent) and load profile. */
+export async function requireStaff(admin, token, { roles } = {}) {
+  if (!token) return { error: "Not authenticated", status: 401 };
+  const payload = decodeJwt(token);
+  if (!payload?.sub) return { error: "Session expired or invalid", status: 401 };
+  const { data: profile, error } = await admin
+    .from("profiles")
+    .select("*")
+    .eq("id", payload.sub)
+    .maybeSingle();
+  if (error) return { error: "Profile lookup failed: " + error.message, status: 500 };
+  if (!profile) return { error: "No profile found", status: 401 };
+  if (profile.status === "suspended") return { error: "Account suspended", status: 403 };
+  const allowed = roles?.length ? roles : ["super_admin", "manager", "agent"];
+  if (!allowed.includes(profile.role)) {
+    return { error: "Staff access required", status: 403 };
+  }
+  return { profile };
+}
+
 /** Verify client JWT and load profile. */
 export async function requireClient(admin, token) {
   if (!token) return { error: "Not authenticated", status: 401 };

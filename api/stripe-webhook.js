@@ -11,6 +11,7 @@ import {
   upsertInvoice,
   syncInvoicesForCustomer,
 } from "../server/billing.js";
+import { autoAssignLeastLoadedAgent } from "../server/assign.js";
 
 export const config = { api: { bodyParser: false } };
 
@@ -172,6 +173,11 @@ export default async function handler(req, res) {
             }
             if (inv?.id) await upsertInvoice(admin, inv, profileId);
             else if (customerId) await syncInvoicesForCustomer(stripe, admin, customerId, profileId);
+            try {
+              await autoAssignLeastLoadedAgent(admin, profileId);
+            } catch (e) {
+              console.warn("auto-assign after checkout:", e.message);
+            }
           }
         }
         break;
@@ -180,6 +186,21 @@ export default async function handler(req, res) {
       case "customer.subscription.updated": {
         const sub = event.data.object;
         await syncSubscription(admin, stripe, sub, sub.metadata?.plan_id);
+        // Safety net: assign BDM whenever a paid subscription becomes active.
+        if (sub.status === "active" || sub.status === "trialing") {
+          const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
+          const profileId = await findProfileId(admin, {
+            userId: sub.metadata?.supabase_user_id,
+            customerId,
+          });
+          if (profileId) {
+            try {
+              await autoAssignLeastLoadedAgent(admin, profileId);
+            } catch (e) {
+              console.warn("auto-assign after subscription event:", e.message);
+            }
+          }
+        }
         break;
       }
       case "customer.subscription.deleted": {

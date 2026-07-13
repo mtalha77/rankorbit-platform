@@ -6,6 +6,7 @@ import {
   requireClient,
   nextMonthFirstIso,
 } from "../server/billing.js";
+import { autoAssignLeastLoadedAgent } from "../server/assign.js";
 
 /** Activate a plan without Stripe — only when Stripe env is not configured. */
 export default async function handler(req, res) {
@@ -36,5 +37,19 @@ export default async function handler(req, res) {
     .eq("id", auth.profile.id);
 
   if (error) return res.status(500).json({ error: error.message });
-  return res.status(200).json({ ok: true, plan: planId });
+
+  let assignment = null;
+  try {
+    assignment = await autoAssignLeastLoadedAgent(admin, auth.profile.id);
+  } catch (e) {
+    console.warn("auto-assign after demo activate:", e.message);
+  }
+
+  return res.status(200).json({
+    ok: true,
+    plan: planId,
+    agent: assignment?.agent
+      ? { id: assignment.agent.id, name: assignment.agent.name, email: assignment.agent.email }
+      : null,
+  });
 }
