@@ -25,7 +25,7 @@ export const Btn=({children,onClick,variant="primary",size="md",style={},disable
   return(<button onClick={disabled?undefined:onClick} disabled={disabled} style={{borderRadius:11,fontWeight:700,cursor:disabled?"not-allowed":"pointer",opacity:disabled?.5:1,fontFamily:FONT_B,...v[variant],...s[size],...style}}>{children}</button>);
 };
 // Input with optional validation. validate="email" | "usphone". Shows inline error, blocks bad input.
-export const Input=({label,value,onChange,placeholder,type="text",style={},validate,required,error:extError})=>{
+export const Input=({label,value,onChange,placeholder,type="text",style={},validate,required,error:extError,maxLength})=>{
   const[touched,setTouched]=useState(false);
   const fmtPhone=(raw)=>{
     const d=raw.replace(/\D/g,"").slice(0,11);
@@ -36,7 +36,7 @@ export const Input=({label,value,onChange,placeholder,type="text",style={},valid
   };
   const handle=(v)=>{
     if(validate==="usphone")onChange(fmtPhone(v));
-    else onChange(v);
+    else onChange(maxLength?v.slice(0,maxLength):v);
   };
   let err="";
   if(touched&&value){
@@ -46,7 +46,7 @@ export const Input=({label,value,onChange,placeholder,type="text",style={},valid
   err=extError||err||"";
   return(<div style={{marginBottom:14,...style}}>
     {label&&<label style={{fontSize:11.5,color:T.sub,fontWeight:700,display:"block",marginBottom:6,letterSpacing:".4px"}}>{label.toUpperCase()}{required&&<span style={{color:T.red}}> *</span>}</label>}
-    <input type={validate==="email"?"email":type} inputMode={validate==="usphone"?"tel":undefined} value={value??""} onChange={e=>handle(e.target.value)} onBlur={()=>setTouched(true)} placeholder={placeholder}
+    <input type={validate==="email"?"email":type} inputMode={validate==="usphone"?"tel":undefined} value={value??""} onChange={e=>handle(e.target.value)} onBlur={()=>setTouched(true)} placeholder={placeholder} maxLength={maxLength}
       style={{width:"100%",padding:"11px 15px",background:T.surface,border:`1.5px solid ${err?T.red:T.line}`,borderRadius:11,color:T.ink,fontSize:13.5,boxSizing:"border-box",fontFamily:FONT_B}}/>
     {err&&<div style={{fontSize:11,color:T.red,marginTop:5,fontWeight:600}}>{err}</div>}
   </div>);

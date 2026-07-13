@@ -86,12 +86,12 @@ export default function AuthScreen({onLogin,portal="client"}){
             <Input label="Phone (optional)" value={phone} onChange={setPhone} placeholder="(555) 200-0000" validate="usphone"/>
           </>)}
           <Input label="Email" value={email} onChange={setEmail} placeholder="you@business.com" validate="email"/>
-          {mode!=="forgot"&&<Input label="Password" type="password" value={password} onChange={setPassword} placeholder="••••••••"/>}
+          {mode!=="forgot"&&<Input label="Password" type="password" value={password} onChange={setPassword} placeholder="••••••••" maxLength={mode==="signup"?8:undefined}/>}
           {mode==="signup"&&!isStaff&&password&&(()=>{
             const sc=passwordScore(password);const cols=[T.red,T.red,T.amber,T.blue,T.green];const lbl=["Very weak","Weak","Fair","Good","Strong"];
             return(<div style={{marginTop:-6,marginBottom:12}}>
               <div style={{display:"flex",gap:4,marginBottom:5}}>{[0,1,2,3].map(i=><div key={i} style={{flex:1,height:4,borderRadius:2,background:i<sc?cols[sc]:T.line,transition:"background .2s"}}/>)}</div>
-              <div style={{fontSize:11,color:cols[sc],fontWeight:700}}>{lbl[sc]} · needs 10+ chars, upper, lower, number, symbol</div>
+              <div style={{fontSize:11,color:cols[sc],fontWeight:700}}>{lbl[sc]} · needs exactly 8 chars, upper, lower, number, symbol</div>
             </div>);
           })()}
           {mode!=="forgot"&&(<label style={{display:"flex",alignItems:"center",gap:8,marginBottom:14,cursor:"pointer",fontSize:12.5,color:T.sub}}>

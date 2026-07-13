@@ -5,10 +5,10 @@ export const todayFull=()=>new Date().toLocaleDateString("en-US",{year:"numeric"
 export const nextMonthFirst=()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth()+1,1).toISOString();};
 export const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random());
 
-// Password policy for a paid B2B tool: min 10 chars, upper+lower+number+symbol.
+// Password policy: exactly 8 chars, upper+lower+number+symbol.
 export function passwordIssues(pw){
   const issues=[];
-  if(!pw||pw.length<10)issues.push("at least 10 characters");
+  if(!pw||pw.length!==8)issues.push("exactly 8 characters");
   if(!/[A-Z]/.test(pw))issues.push("an uppercase letter");
   if(!/[a-z]/.test(pw))issues.push("a lowercase letter");
   if(!/[0-9]/.test(pw))issues.push("a number");
@@ -18,7 +18,7 @@ export function passwordIssues(pw){
 export function passwordScore(pw){
   if(!pw)return 0;
   let s=0;
-  if(pw.length>=10)s++; if(pw.length>=14)s++;
+  if(pw.length===8)s++;
   if(/[A-Z]/.test(pw)&&/[a-z]/.test(pw))s++;
   if(/[0-9]/.test(pw))s++;
   if(/[^A-Za-z0-9]/.test(pw))s++;
