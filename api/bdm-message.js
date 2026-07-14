@@ -1,5 +1,5 @@
 import { getAdmin, readJson, requireClient } from "../server/billing.js";
-import { resolveClientAgent, notifyBdm, notifyUser } from "../server/assign.js";
+import { resolveClientAgent, notifyBdm, notifyUser, notifySuperAdmins } from "../server/assign.js";
 import { randomUUID } from "crypto";
 
 function uid(prefix = "a") {
@@ -40,6 +40,14 @@ export default async function handler(req, res) {
       type: "bdm_message",
       title: `Message from ${who}`,
       body: text,
+    });
+
+    await notifySuperAdmins(admin, {
+      clientId: client.id,
+      type: "bdm_message",
+      title: `Client message → ${agent.name || "agent"}`,
+      body: `${who}: ${text.length > 180 ? `${text.slice(0, 180)}…` : text}`,
+      meta: { agentId: agent.id, agentName: agent.name || agent.email || null, reportOnly: true },
     });
 
     await notifyUser(admin, {
