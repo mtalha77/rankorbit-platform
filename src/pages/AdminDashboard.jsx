@@ -4,7 +4,7 @@ import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { T, FONT_D, FONT_B, SHADOW } from "../lib/theme";
 import { api } from "../lib/api";
 import { PLANS, CATEGORIES, US_CA_STATES, livePlanEntries } from "../lib/constants";
-import { today, todayFull, uid, actIcon } from "../lib/helpers";
+import { today, todayFull, uid, actIcon, toDateInputValue, fromDateInputValue } from "../lib/helpers";
 import { Badge, Card, Btn, Input, Select, Modal, Confirm, StatCard, ChartTip, SectionTitle, Empty, ListToolbar, PageHead } from "../components/atoms";
 import Shell from "../components/Shell";
 import ClientDashboard from "./ClientDashboard";
@@ -108,12 +108,25 @@ export default function AdminDashboard({user,data,reload,onLogout}){
     </Modal>);
   };
   const UpdateListingModal=({listing,clientId,onClose})=>{
-    const[f,setF]=useState({status:listing.status,liveLink:listing.liveLink||"",liveDate:listing.liveDate||"",napMatch:listing.napMatch||"–",notes:listing.notes||"",actionNeeded:!!listing.actionNeeded,actionNote:listing.actionNote||""});
+    const[f,setF]=useState({status:listing.status,liveLink:listing.liveLink||"",liveDate:listing.liveDate||"–",napMatch:listing.napMatch||"–",notes:listing.notes||"",actionNeeded:!!listing.actionNeeded,actionNote:listing.actionNote||""});
     const set=(k,v)=>setF(x=>({...x,[k]:v}));
+    const onStatus=(v)=>{
+      setF(x=>{
+        const next={...x,status:v};
+        // When marking live with no date yet, default the calendar to today.
+        if(v==="live"&&(!x.liveDate||x.liveDate==="–"||x.liveDate==="-"))next.liveDate=todayFull();
+        return next;
+      });
+    };
     return(<Modal open onClose={onClose} title={`Update · ${listing.directory}`}>
-      <Select label="Status" value={f.status} onChange={v=>set("status",v)} options={["submitted","pending","live","rejected","flagged"].map(s=>({value:s,label:s[0].toUpperCase()+s.slice(1)}))}/>
+      <Select label="Status" value={f.status} onChange={onStatus} options={["submitted","pending","live","rejected","flagged"].map(s=>({value:s,label:s[0].toUpperCase()+s.slice(1)}))}/>
       <Input label="Live Listing URL" value={f.liveLink} onChange={v=>set("liveLink",v)} placeholder="https://directory.com/business"/>
-      <Input label="Live Date" value={f.liveDate} onChange={v=>set("liveDate",v)} placeholder="e.g. Jul 5"/>
+      <Input
+        label="Live Date"
+        type="date"
+        value={toDateInputValue(f.liveDate)}
+        onChange={v=>set("liveDate",v?fromDateInputValue(v):"–")}
+      />
       <Select label="NAP Match" value={f.napMatch} onChange={v=>set("napMatch",v)} options={[{value:"–",label:"– Pending"},{value:"match",label:"✓ Match"},{value:"mismatch",label:"Mismatch"},{value:"fixed",label:"Fixed"}]}/>
       <div style={{marginBottom:12}}>
         <label style={{fontSize:11.5,color:T.sub,fontWeight:700,display:"block",marginBottom:6,letterSpacing:".4px"}}>NOTES (CLIENT CAN READ)</label>
@@ -129,7 +142,10 @@ export default function AdminDashboard({user,data,reload,onLogout}){
         <div style={{display:"flex",gap:8}}>
           <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
           <Btn onClick={()=>R(async()=>{
-            await api.upsertListing({...listing,status:f.status,liveLink:f.liveLink,liveDate:f.status==="live"?(f.liveDate&&f.liveDate!=="–"?f.liveDate:today()):listing.liveDate,napMatch:f.napMatch,notes:f.notes,actionNeeded:f.actionNeeded,actionNote:f.actionNote});
+            // Always persist the calendar value (previously only saved when status === "live").
+            let liveDate=f.liveDate&&f.liveDate!=="–"&&f.liveDate!=="-"?f.liveDate:"–";
+            if(f.status==="live"&&liveDate==="–")liveDate=todayFull();
+            await api.upsertListing({...listing,status:f.status,liveLink:f.liveLink,liveDate,napMatch:f.napMatch,notes:f.notes,actionNeeded:f.actionNeeded,actionNote:f.actionNote});
             await audit("listing.edit",{targetType:"listing",targetId:listing.id,targetName:listing.directory,detail:`status→${f.status}`});
             await notifyManagersIfAgent("edited",listing);
             if(f.status==="live"&&listing.status!=="live")await addActivity(clientId,"listing_live",`${listing.directory} listing went live`);

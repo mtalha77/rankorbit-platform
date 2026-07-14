@@ -5,6 +5,25 @@ export const todayFull=()=>new Date().toLocaleDateString("en-US",{year:"numeric"
 export const nextMonthFirst=()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth()+1,1).toISOString();};
 export const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random());
 
+/** Convert stored liveDate display ("Jul 5" / "Jul 5, 2026") → YYYY-MM-DD for <input type="date"/>. */
+export function toDateInputValue(display){
+  if(!display||display==="–"||display==="-")return"";
+  if(/^\d{4}-\d{2}-\d{2}$/.test(display))return display;
+  const d=new Date(display);
+  if(Number.isNaN(d.getTime()))return"";
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,"0");
+  const day=String(d.getDate()).padStart(2,"0");
+  return`${y}-${m}-${day}`;
+}
+/** Convert YYYY-MM-DD from calendar → display string stored in DB. */
+export function fromDateInputValue(iso){
+  if(!iso)return"–";
+  const[y,m,d]=iso.split("-").map(Number);
+  if(!y||!m||!d)return"–";
+  return new Date(y,m-1,d).toLocaleDateString("en-US",{year:"numeric",month:"short",day:"numeric"});
+}
+
 // Password policy: exactly 8 chars, upper+lower+number+symbol.
 export function passwordIssues(pw){
   const issues=[];
