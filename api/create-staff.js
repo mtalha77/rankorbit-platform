@@ -11,6 +11,7 @@
 // their role. Managers may only create agents; super_admins may create either.
 
 import { createClient } from "@supabase/supabase-js";
+import { notifySuperAdmins } from "../server/assign.js";
 
 // Sanitize env values against stray copy-paste characters (arrows, newlines) that
 // break HTTP headers. URL keeps its structure; the key is base64url only.
@@ -97,6 +98,21 @@ export default async function handler(req, res) {
     createdByRole: callerRole === "super_admin" ? "Super Admin" : "Manager",
   }, { onConflict: "id" });
   if (profErr) return res.status(400).json({ error: "Account created but profile failed: " + profErr.message });
+
+  const roleLabel = role === "super_admin" ? "Super Admin" : role === "manager" ? "Manager" : "Agent";
+  const { data: callerProfile } = await admin.from("profiles").select("name,email").eq("id", callerId).maybeSingle();
+  const byWhom = callerProfile?.name || callerProfile?.email || "Staff";
+  try {
+    await notifySuperAdmins(admin, {
+      type: "staff_created",
+      title: `New ${roleLabel.toLowerCase()} added`,
+      body: `${name} (${email}) was created as ${roleLabel} by ${byWhom}.`,
+      meta: { staffId: newId, role, email, name, createdBy: callerId },
+      excludeUserId: null,
+    });
+  } catch (e) {
+    console.warn("create-staff notify:", e.message);
+  }
 
   return res.status(200).json({ ok: true, id: newId, email, role });
 }

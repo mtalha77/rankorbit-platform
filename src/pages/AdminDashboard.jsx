@@ -475,14 +475,36 @@ export default function AdminDashboard({user,data,reload,onLogout}){
         return{...x,read:true,meta:{...(x.meta||{}),status:r.status,meetingUrl:r.meetingUrl||meetingUrl||null,respondedAt:new Date().toISOString()}};
       }));
     };
-    const typeIcon=(t)=>({client_assigned:"👤",call_booked:"📅",bdm_message:"💬",meeting_confirmed:"✅",meeting_cancelled:"❌"}[t]||"🔔");
-    const canRespond=(n)=>n.type==="call_booked"&&n.meta?.bookingId&&(!n.meta?.status||n.meta.status==="pending");
+    const typeIcon=(t)=>({
+      staff_created:"🔑",
+      client_assigned:"👤",
+      client_unassigned:"👤",
+      call_booked:"📅",
+      bdm_message:"💬",
+      meeting_confirmed:"✅",
+      meeting_cancelled:"❌",
+    }[t]||"🔔");
+    const typeLabel=(t)=>({
+      staff_created:"Staff",
+      client_assigned:"Assignment",
+      client_unassigned:"Assignment",
+      call_booked:"Meeting",
+      bdm_message:"Message",
+      meeting_confirmed:"Meeting",
+      meeting_cancelled:"Meeting",
+    }[t]||"Update");
+    // Super admins get report copies — agents act on call_booked.
+    const canRespond=(n)=>!isAdmin&&n.type==="call_booked"&&n.meta?.bookingId&&(!n.meta?.status||n.meta.status==="pending")&&!n.meta?.reportOnly;
+    const emptySub=isAdmin
+      ?"When staff are added, clients are assigned, or meetings are booked, it shows here."
+      :"When a client is assigned to you or schedules a meeting, it appears here.";
     return(<div>
-      <PageHead isMobile={isMobile} title="Notifications" sub="Client assignments, meeting requests, and messages"
+      <PageHead isMobile={isMobile} title="Notifications"
+        sub={isAdmin?"Staff adds, client assignments, and meeting activity across the platform":"Client assignments, meeting requests, and messages"}
         right={unread.length>0?<Btn variant="soft" size="sm" onClick={markAll}>Mark all read</Btn>:null}/>
       <Card>
         {loading?(<div style={{padding:28,textAlign:"center",color:T.faint,fontSize:13}}>Loading…</div>):
-          notifs.length===0?(<Empty icon="📭" title="No notifications yet" sub="When a client is assigned to you or schedules a meeting, it appears here."/>):(
+          notifs.length===0?(<Empty icon="📭" title="No notifications yet" sub={emptySub}/>):(
           <div>
             {notifs.map((n,i)=>(
               <div key={n.id} style={{borderBottom:i<notifs.length-1?`1px solid ${T.line}`:"none"}}>
@@ -495,9 +517,12 @@ export default function AdminDashboard({user,data,reload,onLogout}){
                     </div>
                     {n.body&&<div style={{fontSize:12.5,color:T.sub,marginTop:4,lineHeight:1.45}}>{n.body}</div>}
                     <div style={{fontSize:11,color:T.faint,marginTop:5}}>
-                      {n.createdAt?new Date(n.createdAt).toLocaleString():""}
+                      {typeLabel(n.type)}
+                      {n.meta?.agentName?` · ${n.meta.agentName}`:""}
+                      {n.createdAt?` · ${new Date(n.createdAt).toLocaleString()}`:""}
                       {n.meta?.status&&n.meta.status!=="pending"?` · ${n.meta.status}`:""}
                       {canRespond(n)?" · Action needed":""}
+                      {isAdmin&&n.type==="call_booked"&&(!n.meta?.status||n.meta.status==="pending")?" · Awaiting agent":""}
                     </div>
                   </div>
                 </div>
@@ -524,7 +549,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
                 )}
                 {openId===n.id&&n.type==="call_booked"&&n.meta?.status&&n.meta.status!=="pending"&&(
                   <div style={{padding:"0 6px 14px 54px",fontSize:12.5,color:n.meta.status==="confirmed"?T.green:T.amber,fontWeight:700}}>
-                    Meeting {n.meta.status}. Client has been notified.
+                    Meeting {n.meta.status}.{isAdmin?"":" Client has been notified."}
                     {n.meta.meetingUrl&&(
                       <div style={{marginTop:6,fontWeight:600}}>
                         Link: <a href={n.meta.meetingUrl} target="_blank" rel="noreferrer" style={{color:T.brand}}>{n.meta.meetingUrl}</a>
@@ -532,9 +557,14 @@ export default function AdminDashboard({user,data,reload,onLogout}){
                     )}
                   </div>
                 )}
-                {openId===n.id&&n.type==="client_assigned"&&n.clientId&&(
-                  <div style={{padding:"0 6px 14px 54px"}}>
+                {openId===n.id&&(n.type==="client_assigned"||n.type==="client_unassigned"||n.type==="call_booked"||n.type==="bdm_message"||n.type==="meeting_confirmed"||n.type==="meeting_cancelled")&&n.clientId&&(
+                  <div style={{padding:"0 6px 14px 54px",display:"flex",gap:8,flexWrap:"wrap"}}>
                     <Btn variant="soft" size="sm" onClick={()=>{setSelClient(n.clientId);setPage("clientDetail");}}>Open client →</Btn>
+                  </div>
+                )}
+                {openId===n.id&&n.type==="staff_created"&&isAdmin&&(
+                  <div style={{padding:"0 6px 14px 54px"}}>
+                    <Btn variant="soft" size="sm" onClick={()=>setPage("team")}>Open Team →</Btn>
                   </div>
                 )}
               </div>

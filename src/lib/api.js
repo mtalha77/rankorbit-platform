@@ -275,9 +275,20 @@ export const api={
     const allU=LS("ro3_users")||[];
     return{users:allU.filter(x=>!x.deletedAt),trashedUsers:allU.filter(x=>x.deletedAt),listings,trashedListings:flatAll.filter(x=>x.deletedAt),gmb:LS("ro3_gmb")||{},analytics:LS("ro3_analytics")||{},activity:LS("ro3_activity")||[],audit:LS("ro3_audit")||[],settings:LS("ro3_settings")||SEED.settings};
   },
-  // Assign a client to an agent (stored on the client profile as assignedAgentId).
+  // Assign a client to an agent (notifies agent + super admins via API).
   async assignClient(clientId,agentId){
-    if(supa){const{error}=await supa.from("profiles").update({assignedAgentId:agentId||null}).eq("id",clientId);if(error)throw error;return;}
+    if(supa){
+      const token=await this._accessToken();
+      if(!token)throw new Error("Not signed in");
+      const r=await fetch("/api/assign-client",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({token,clientId,agentId:agentId||null}),
+      });
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)throw new Error(j.error||"Could not assign client");
+      return j;
+    }
     const us=LS("ro3_users")||[];const i=us.findIndex(x=>x.id===clientId);if(i>=0){us[i].assignedAgentId=agentId||null;LSet("ro3_users",us);}
   },
   // Grant/revoke a manager's ability to open (read-only) client accounts.
