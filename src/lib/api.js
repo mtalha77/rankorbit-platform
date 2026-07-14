@@ -308,10 +308,15 @@ export const api={
     if(supa){const{error}=await supa.from("profiles").update({canImpersonate:!!allowed}).eq("id",managerId);if(error)throw error;return;}
     const us=LS("ro3_users")||[];const i=us.findIndex(x=>x.id===managerId);if(i>=0){us[i].canImpersonate=!!allowed;LSet("ro3_users",us);}
   },
-  // Audit log: every sensitive staff action records who/what/when. Fire-and-forget.
+  // Audit log: every sensitive staff action records who/what/when. Fire-and-forget
+  // (never throw — missing audit table must not break listing/assign saves).
   async logAudit({actor,action,targetType,targetId,targetName,detail}){
     const row={id:uid(),actorId:actor?.id||"",actorName:actor?.name||actor?.email||"Unknown",actorRole:actor?.role||"",action,targetType:targetType||"",targetId:targetId||"",targetName:targetName||"",detail:detail||"",createdAt:new Date().toISOString()};
-    if(supa){await supa.from("audit").insert(row);return;}
+    if(supa){
+      const{error}=await supa.from("audit").insert(row);
+      if(error)console.error("logAudit:",error.message);
+      return;
+    }
     LSet("ro3_audit",[row,...(LS("ro3_audit")||[])]);
   },
   // Partial update: writes only the given fields to a profile by id. Avoids resending

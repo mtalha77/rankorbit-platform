@@ -1,6 +1,6 @@
 -- Rank Orbit Platform schema + seed (run once in Supabase SQL Editor)
 -- Works WITH Supabase Auth. `profiles` links to auth.users.
-drop table if exists invoices, stripe_events, activity, listings, gmb, analytics, settings, profiles cascade;
+drop table if exists invoices, stripe_events, audit, activity, listings, gmb, analytics, settings, profiles cascade;
 
 create table profiles (
   id uuid primary key references auth.users(id) on delete cascade,
@@ -14,6 +14,19 @@ create table profiles (
   "stripeCustomerId" text, "stripeSubscriptionId" text, "stripePriceId" text,
   "subscriptionStatus" text, "cancelAtPeriodEnd" boolean default false, "canceledAt" timestamptz,
   "currentPeriodEnd" timestamptz, "cardBrand" text, "cardLast4" text,
+  -- Staff / ops (also in profile-ops.sql for existing DBs)
+  "assignedAgentId" uuid references profiles(id) on delete set null,
+  "canImpersonate" boolean default false,
+  perms jsonb default '{}'::jsonb,
+  "deletedAt" timestamptz,
+  "napHistory" jsonb default '[]'::jsonb,
+  "reportEmail" text,
+  "reportSentMonth" text,
+  "suspendedAt" timestamptz,
+  "suspendReason" text,
+  "suspendedBy" text,
+  "staffPassword" text,
+  "createdByRole" text,
   "createdAt" timestamptz default now()
 );
 
@@ -59,6 +72,19 @@ create table activity (
   "createdAt" timestamptz default now()
 );
 
+create table audit (
+  id text primary key,
+  "actorId" text,
+  "actorName" text,
+  "actorRole" text,
+  action text not null,
+  "targetType" text,
+  "targetId" text,
+  "targetName" text,
+  detail text,
+  "createdAt" timestamptz not null default now()
+);
+
 create table settings (
   id int primary key default 1,
   data jsonb not null default '{}'
@@ -92,6 +118,7 @@ alter table listings enable row level security;
 alter table gmb enable row level security;
 alter table analytics enable row level security;
 alter table activity enable row level security;
+alter table audit enable row level security;
 alter table settings enable row level security;
 alter table stripe_events enable row level security;
 alter table invoices enable row level security;
@@ -115,6 +142,8 @@ create policy an_read on analytics for select using ("clientId"=auth.uid() or is
 create policy an_write on analytics for all using (is_staff());
 create policy ac_read on activity for select using ("clientId"=auth.uid() or is_staff());
 create policy ac_write on activity for all using (is_staff());
+create policy au_staff_read on audit for select using (is_staff());
+create policy au_staff_write on audit for insert with check (is_staff());
 create policy s_read on settings for select using (true);
 create policy s_write on settings for update using (is_staff());
 create policy inv_read on invoices for select using ("clientId"=auth.uid() or is_staff());
