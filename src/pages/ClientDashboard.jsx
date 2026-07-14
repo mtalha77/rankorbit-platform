@@ -1,5 +1,5 @@
 // ─── CLIENT DASHBOARD ────────────────────────────────────────────────────────
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { T, FONT_D, FONT_B, SHADOW, SHADOW_LG } from "../lib/theme";
 import { api } from "../lib/api";
@@ -65,6 +65,302 @@ const PendingIcon=({size=28})=>(
   </svg>
 );
 
+/** Stable module-level components (hooks) — must NOT be declared inside ClientDashboard. */
+function ProfileGate({user,onSaved,toast,isMobile}){
+  const[f,setF]=useState({businessName:user.businessName||"",phone:user.phone||"",address:user.address||"",city:user.city||"",state:user.state||"",category:user.category||"Home Services",website:user.website||"",gbpId:user.gbpId||""});
+  const set=(k,v)=>setF(x=>({...x,[k]:v}));
+  const[saving,setSaving]=useState(false);
+  const[tried,setTried]=useState(false);
+  const ok=f.businessName&&f.phone.replace(/\D/g,"").length>=10&&f.address&&f.city&&f.state;
+  const save=async()=>{if(!ok){setTried(true);return;}setSaving(true);try{await api.patchProfile(user.id,f);await onSaved();toast("Business profile saved");}catch(e){toast("Could not save: "+(e.message||"unknown error"),"info");}setSaving(false);};
+  const req=(k)=>tried&&!f[k]?`Required`:"";
+  return(<Card style={{marginBottom:20,background:`linear-gradient(135deg,${T.brandSoft},#fff)`,maxWidth:640}}>
+    <SectionTitle sub="Tell us about your business so we can list it correctly everywhere. Takes one minute, then choose your plan.">First, complete your business profile</SectionTitle>
+    <Input label="Business Name" value={f.businessName} onChange={v=>set("businessName",v)} placeholder="Mike's Plumbing" error={req("businessName")}/>
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12}}>
+      <Input label="Phone" value={f.phone} onChange={v=>set("phone",v)} placeholder="(555) 200-0000" validate="usphone" error={tried&&f.phone.replace(/\D/g,"").length<10?"Valid US/Canada number required":""}/>
+      <Select label="Category" value={f.category} onChange={v=>set("category",v)} options={CATEGORIES.map(o=>({value:o,label:o}))}/>
+    </div>
+    <Input label="Street Address" value={f.address} onChange={v=>set("address",v)} placeholder="123 Main St" error={req("address")}/>
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12}}>
+      <Input label="City" value={f.city} onChange={v=>set("city",v)} placeholder="Austin" error={req("city")}/>
+      <Select label="State / Province" value={f.state} onChange={v=>set("state",v)} options={[{value:"",label:"Select…"},...US_CA_STATES.map(s=>({value:s.code,label:`${s.code} — ${s.name}`}))]}/>
+    </div>
+    {tried&&!f.state&&<div style={{fontSize:11,color:T.red,marginTop:-8,marginBottom:10,fontWeight:600}}>State / Province is required</div>}
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12}}>
+      <Input label="Website (optional)" value={f.website} onChange={v=>set("website",v)} placeholder="mikesplumbing.com"/>
+      <Input label="Google Business Profile link (optional)" value={f.gbpId} onChange={v=>set("gbpId",v)} placeholder="Paste your GMB link"/>
+    </div>
+    <Btn style={{marginTop:6}} onClick={save} disabled={saving}>{saving?"Saving…":"Save & continue to plans →"}</Btn>
+    {tried&&!ok&&<div style={{fontSize:11.5,color:T.red,marginTop:8,fontWeight:600}}>Please fill all required fields (marked *) to continue.</div>}
+  </Card>);
+}
+
+function ReportCard({user,reload,toast}){
+  const[email,setEmail]=useState(user.reportEmail||user.email||"");
+  const[saving,setSaving]=useState(false);
+  const sent=user.reportSentMonth;
+  const save=async()=>{setSaving(true);try{await api.patchProfile(user.id,{reportEmail:email});await reload();toast("Report email saved");}catch(e){toast("Could not save","info");}setSaving(false);};
+  return(<Card style={{marginBottom:16}}>
+    <SectionTitle sub="Your detailed monthly GMB performance report, delivered to your inbox by your account manager.">Monthly Report</SectionTitle>
+    {sent&&<div style={{padding:"11px 14px",background:T.greenSoft,borderRadius:11,marginBottom:14,fontSize:12.5,color:T.green,fontWeight:700,display:"flex",alignItems:"center",gap:8}}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+      Report sent for {sent}
+    </div>}
+    <div style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
+      <div style={{flex:"1 1 240px"}}><Input label="Send my report to" value={email} onChange={setEmail} placeholder="you@business.com" validate="email"/></div>
+      <Btn onClick={save} disabled={saving} style={{marginBottom:14}}>{saving?"Saving…":"Save email"}</Btn>
+    </div>
+  </Card>);
+}
+
+function ClientCallPage({user,isMobile,toast,reload}){
+  const now=new Date();
+  const year=now.getFullYear();
+  const month=now.getMonth();
+  const monthName=now.toLocaleString("en-US",{month:"long"});
+  const totalDays=new Date(year,month+1,0).getDate();
+  const firstDay=new Date(year,month,1).getDay();
+  const today=now.getDate();
+  const[selDay,setSelDay]=useState(null);
+  const[selTime,setSelTime]=useState(null);
+  const[note,setNote]=useState("");
+  const[busy,setBusy]=useState(false);
+  const[msgBusy,setMsgBusy]=useState(false);
+  const[bdm,setBdm]=useState(null);
+  const[bookings,setBookings]=useState([]);
+  const[showScheduler,setShowScheduler]=useState(false);
+  const[loadingCall,setLoadingCall]=useState(true);
+  const loadCall=async()=>{
+    setLoadingCall(true);
+    try{
+      const r=await api.getMyBdm();
+      setBdm(r.agent||null);
+      const rows=r.bookings||[];
+      setBookings(rows);
+      // Confirmed/pending meeting → never open calendar first.
+      if(rows.some(b=>b.status==="pending"||b.status==="confirmed"))setShowScheduler(false);
+    }finally{
+      setLoadingCall(false);
+    }
+  };
+  useEffect(()=>{
+    let cancelled=false;
+    (async()=>{
+      setLoadingCall(true);
+      const r=await api.getMyBdm();
+      if(cancelled)return;
+      setBdm(r.agent||null);
+      const rows=r.bookings||[];
+      setBookings(rows);
+      if(rows.some(b=>b.status==="pending"||b.status==="confirmed"))setShowScheduler(false);
+      setLoadingCall(false);
+    })();
+    return()=>{cancelled=true;};
+  },[user.id,user.assignedAgentId]);
+  const activeBooking=bookings.find(b=>b.status==="confirmed")||bookings.find(b=>b.status==="pending")||null;
+  const showCalendar=!loadingCall&&(showScheduler||!activeBooking);
+  const times=["9:00 AM","9:30 AM","10:00 AM","10:30 AM","11:00 AM","2:00 PM","2:30 PM","3:00 PM","3:30 PM","4:00 PM"];
+  const bdmLabel=bdm?.name||bdm?.email||"your BDM";
+  const slotDateLabel=selDay?`${monthName} ${selDay}, ${year}`:"";
+  const confirmBooking=async()=>{
+    if(!selDay||!selTime)return;
+    setBusy(true);
+    const r=await api.bookCall({slotDate:slotDateLabel,slotTime:selTime,note});
+    setBusy(false);
+    if(r.error){toast(r.error,"info");return;}
+    if(r.agent)setBdm(r.agent);
+    toast("Request sent — waiting for your BDM to confirm");
+    setSelDay(null);setSelTime(null);setNote("");
+    setShowScheduler(false);
+    await loadCall();
+    await reload();
+  };
+  const sendMsg=async()=>{
+    const text=note.trim();
+    if(!text){toast("Write a message first","info");return;}
+    setMsgBusy(true);
+    const r=await api.sendBdmMessage(text);
+    setMsgBusy(false);
+    if(r.error){toast(r.error,"info");return;}
+    setNote("");
+    toast(`Message sent to ${r.agent?.name||"your BDM"}`);
+  };
+  const statusLabel=(s)=>({pending:"Awaiting BDM confirmation",confirmed:"Confirmed"}[s]||s);
+  const statusColor=(s)=>s==="confirmed"?T.green:T.amber;
+  return(<div>
+    <PageHead isMobile={isMobile} title="Book a Call" sub={bdm?`30 minutes with ${bdm.name||"your BDM"}`:"30 minutes with your dedicated Business Development Manager"}/>
+    {loadingCall&&(
+      <Card style={{marginBottom:16,padding:28,textAlign:"center",color:T.faint,fontSize:13}}>
+        Loading your meeting…
+      </Card>
+    )}
+
+    {!loadingCall&&bdm&&(<Card style={{marginBottom:16,padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+      <div>
+        <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".7px"}}>YOUR BDM</div>
+        <div style={{fontFamily:FONT_D,fontSize:16,fontWeight:800}}>{bdm.name||"Assigned manager"}</div>
+        {bdm.email&&<div style={{fontSize:12.5,color:T.sub}}>{bdm.email}</div>}
+      </div>
+      <div style={{fontSize:12,color:T.sub}}>You'll get matched automatically when you subscribe if you don't have one yet.</div>
+    </Card>)}
+
+    {!loadingCall&&activeBooking&&(
+      <Card style={{marginBottom:16,background:`linear-gradient(135deg,${activeBooking.status==="confirmed"?T.greenSoft:T.amberSoft},#fff)`,border:`1.5px solid ${activeBooking.status==="confirmed"?T.green:T.amber}33`}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap",marginBottom:12}}>
+          <div>
+            <div style={{fontSize:11,fontWeight:800,letterSpacing:".7px",color:statusColor(activeBooking.status)}}>YOUR MEETING</div>
+            <div style={{fontFamily:FONT_D,fontSize:20,fontWeight:800,marginTop:4}}>
+              {activeBooking.slotDate} · {activeBooking.slotTime}
+            </div>
+          </div>
+          <span style={{fontSize:11.5,fontWeight:800,color:statusColor(activeBooking.status),background:"#fff",padding:"5px 12px",borderRadius:20}}>
+            {statusLabel(activeBooking.status)}
+          </span>
+        </div>
+        <div style={{fontSize:13.5,color:T.ink,marginBottom:6}}>
+          With <b>{activeBooking.agent?.name||bdmLabel}</b>
+          {activeBooking.agent?.email?` · ${activeBooking.agent.email}`:""}
+        </div>
+        {activeBooking.note&&<div style={{fontSize:12.5,color:T.sub,marginBottom:10}}>Note: {activeBooking.note}</div>}
+        {activeBooking.status==="pending"&&(
+          <div style={{fontSize:12.5,color:T.sub,marginBottom:12}}>Your BDM will confirm soon. When they share a Zoom link, it will appear here.</div>
+        )}
+        {activeBooking.meetingUrl?(
+          <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
+            <a href={activeBooking.meetingUrl} target="_blank" rel="noreferrer"
+              style={{display:"inline-flex",alignItems:"center",gap:8,padding:"11px 18px",background:T.brand,color:"#fff",borderRadius:12,fontWeight:800,fontSize:13.5,textDecoration:"none",fontFamily:FONT_B}}>
+              Join Zoom meeting →
+            </a>
+            <button type="button" onClick={()=>{navigator.clipboard?.writeText(activeBooking.meetingUrl);toast("Meeting link copied");}}
+              style={{background:T.surface,border:`1px solid ${T.line}`,borderRadius:12,padding:"11px 14px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B,color:T.sub}}>
+              Copy link
+            </button>
+          </div>
+        ):activeBooking.status==="confirmed"?(
+          <div style={{fontSize:12.5,color:T.amber,fontWeight:700}}>Confirmed — waiting for your BDM to share the Zoom link.</div>
+        ):null}
+        {!showScheduler&&(
+          <Btn variant="soft" size="sm" style={{marginTop:14}} onClick={()=>setShowScheduler(true)}>Schedule another time</Btn>
+        )}
+      </Card>
+    )}
+
+    {showCalendar&&(
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr 0.8fr",gap:16}}>
+      <Card>
+        <SectionTitle>{monthName} {year}</SectionTitle>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4,marginBottom:8}}>
+          {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d=><div key={d} style={{textAlign:"center",fontSize:10.5,color:T.faint,fontWeight:800,padding:"3px 0"}}>{d}</div>)}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4}}>
+          {Array.from({length:firstDay}).map((_,i)=><div key={`e${i}`}/>)}
+          {Array.from({length:totalDays}).map((_,i)=>{
+            const day=i+1;
+            const isSel=selDay===day;
+            const isPast=day<today;
+            const isWknd=(firstDay+i)%7===0||(firstDay+i)%7===6;
+            const dead=isPast||isWknd;
+            return(<div key={day} onClick={()=>!dead&&(setSelDay(day),setSelTime(null))} style={{textAlign:"center",padding:"8px 2px",borderRadius:10,fontSize:12.5,fontWeight:isSel?800:600,cursor:dead?"default":"pointer",background:isSel?T.brand:dead?"transparent":T.surface2,color:isSel?"#fff":dead?T.faint:T.ink,position:"relative",transition:"all .15s"}}>
+              {day}
+            </div>);
+          })}
+        </div>
+      </Card>
+      <Card>
+        {selDay?(<>
+          <SectionTitle sub="Pick a 30-minute slot">{slotDateLabel}</SectionTitle>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
+            {times.map(t=>{const isSel=selTime===t;
+              return(<div key={t} onClick={()=>setSelTime(t)} style={{padding:"10px 8px",borderRadius:10,textAlign:"center",border:`1.5px solid ${isSel?T.brand:T.line}`,background:isSel?T.brandSoft:T.surface,color:isSel?T.brand:T.ink,fontSize:12.5,fontWeight:isSel?800:600,cursor:"pointer",transition:"all .15s"}}>{t}</div>);})}
+          </div>
+          {selTime&&(<div className="pop" style={{marginTop:14}}>
+            <div style={{padding:13,background:T.greenSoft,borderRadius:12,marginBottom:12}}>
+              <div style={{fontSize:13,color:T.green,fontWeight:800}}>✓ {slotDateLabel} at {selTime}</div>
+              <div style={{fontSize:11.5,color:T.sub,marginTop:2}}>30 min with {bdmLabel}</div>
+            </div>
+            <Btn variant="green" style={{width:"100%"}} onClick={confirmBooking} disabled={busy}>{busy?"Booking…":"Confirm Booking"}</Btn>
+          </div>)}
+        </>):(<Empty icon="📅" title="Pick a date" sub="Choose a weekday on the calendar to see open times."/>)}
+      </Card>
+      <Card>
+        <SectionTitle>What we'll cover</SectionTitle>
+        {["Your listings progress","NAP score walkthrough","Next month's targets","Plan questions"].map((item,i)=>(<div key={i} style={{display:"flex",gap:9,marginBottom:10,alignItems:"center"}}>
+          <div style={{width:19,height:19,borderRadius:"50%",background:T.greenSoft,color:T.green,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>✓</div>
+          <span style={{fontSize:12.5,color:T.sub}}>{item}</span>
+        </div>))}
+        <div style={{height:1,background:T.line,margin:"14px 0"}}/>
+        <textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="Any questions for your BDM?" style={{width:"100%",padding:"10px 13px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:11,color:T.ink,fontSize:12.5,resize:"none",height:74,boxSizing:"border-box",fontFamily:FONT_B}}/>
+        <Btn variant="soft" size="sm" style={{width:"100%",marginTop:9}} onClick={sendMsg} disabled={msgBusy}>{msgBusy?"Sending…":"Send message"}</Btn>
+      </Card>
+    </div>)}
+  </div>);
+}
+
+function ClientLegalPage({isMobile}){
+  const[tab,setTab]=useState("terms");
+  const co="NAP Orbit";const eff=new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"});
+  const H=({children})=>(<div style={{fontSize:14,fontWeight:800,fontFamily:FONT_D,color:T.ink,margin:"18px 0 7px"}}>{children}</div>);
+  const P=({children})=>(<p style={{fontSize:13,color:T.sub,lineHeight:1.65,margin:"0 0 10px"}}>{children}</p>);
+  return(<div>
+    <PageHead isMobile={isMobile} title="Terms & Privacy" sub={`Effective ${eff}`}/>
+    <div style={{display:"flex",gap:8,marginBottom:16}}>
+      {[["terms","Terms of Service"],["privacy","Privacy Policy"]].map(([id,l])=>(
+        <button key={id} onClick={()=>setTab(id)} style={{padding:"8px 18px",borderRadius:20,border:`1.5px solid ${tab===id?T.brand:T.line}`,background:tab===id?T.brandSoft:T.surface,color:tab===id?T.brand:T.sub,fontSize:13,fontWeight:tab===id?800:600,cursor:"pointer",fontFamily:FONT_B}}>{l}</button>))}
+    </div>
+    <Card style={{maxWidth:820}}>
+      <div style={{padding:"11px 15px",background:T.amberSoft,borderRadius:11,marginBottom:18,fontSize:11.5,color:T.amber,lineHeight:1.5}}>
+        <b>Template notice:</b> This is a starting-point document. Have it reviewed by a qualified lawyer in your jurisdiction before relying on it for real clients.
+      </div>
+      {tab==="terms"?(<div>
+        <H>1. Agreement</H>
+        <P>These Terms of Service govern your use of the {co} platform and services ("Services"). By creating an account or subscribing, you agree to these terms. If you are accepting on behalf of a business, you confirm you are authorized to bind that business.</P>
+        <H>2. The Services</H>
+        <P>{co} provides local business visibility services, including directory listing submissions and management, NAP (Name, Address, Phone) consistency monitoring, unauthorized-edit protection, and, on eligible plans, Google Business Profile management. Deliverables and volumes depend on your selected plan.</P>
+        <H>3. Subscriptions and Billing</H>
+        <P>Services are billed as recurring monthly subscriptions via our payment processor (Stripe). Your subscription renews automatically each month until cancelled. By subscribing, you authorize {co} to charge your payment method on each renewal date.</P>
+        <H>4. Cancellation</H>
+        <P>You may cancel at any time from your billing dashboard. Cancellation takes effect at the end of your current billing period: you retain full access until that date, and you will not be charged for the following period. To avoid the next charge, you must cancel before your renewal date.</P>
+        <H>5. No Refunds</H>
+        <P><b>All fees are non-refundable.</b> Due to the nature of the Services, which involve immediate allocation of work, third-party submissions, and labor performed on your behalf, any amount you have already paid is not refundable, in whole or in part, including for partial billing periods, unused quota, or after cancellation. This clause applies to the fullest extent permitted by law.</P>
+        <H>6. Client Responsibilities</H>
+        <P>You agree to provide accurate business information and to hold the necessary rights to the data you submit. You are responsible for maintaining the confidentiality of your account credentials. Results such as search rankings and visibility depend on third-party platforms and are not guaranteed.</P>
+        <H>7. Third-Party Platforms</H>
+        <P>The Services interact with third-party directories and platforms (e.g., Google, Apple, Bing). {co} is not responsible for changes, outages, policy decisions, or removals made by those platforms.</P>
+        <H>8. Limitation of Liability</H>
+        <P>To the maximum extent permitted by law, {co}'s total liability for any claim arising from the Services is limited to the amount you paid in the one (1) month preceding the claim. {co} is not liable for indirect, incidental, or consequential damages.</P>
+        <H>9. Suspension and Termination</H>
+        <P>{co} may suspend or terminate accounts that violate these terms, misuse the Services, or fail payment. Fees already paid remain non-refundable per Section 5.</P>
+        <H>10. Changes to Terms</H>
+        <P>{co} may update these terms. Material changes will be communicated by email or in-platform notice. Continued use after changes constitutes acceptance.</P>
+        <H>11. Contact</H>
+        <P>Questions about these terms: info@naporbit.com.</P>
+      </div>):(<div>
+        <H>1. Overview</H>
+        <P>This Privacy Policy explains how {co} collects, uses, and protects information when you use our Services. We are committed to handling your data responsibly and transparently.</P>
+        <H>2. Information We Collect</H>
+        <P>Account information (name, business name, email, phone), business listing data you provide (address, categories, website), billing information processed securely by our payment processor, and usage data such as activity logs and platform interactions. We do not store full card numbers on our servers; payment details are handled by Stripe.</P>
+        <H>3. How We Use Information</H>
+        <P>To deliver the Services (submit and manage listings, monitor consistency), to communicate about your account and subscription, to process payments, to provide support, and to improve the platform.</P>
+        <H>4. Data Sharing</H>
+        <P>We share your business information with third-party directories and platforms strictly as needed to deliver the Services. We use trusted processors (e.g., Stripe for payments, our hosting and database providers). We do not sell your personal data.</P>
+        <H>5. Data Security</H>
+        <P>We use industry-standard measures including encryption in transit (HTTPS), access controls and row-level security on our database, hashed credentials, and restricted staff access. No system is perfectly secure, but we work continuously to protect your data.</P>
+        <H>6. Data Retention</H>
+        <P>We retain account data for as long as your account is active. Deleted items are held in a recoverable state for 30 days, then permanently purged. You may request export or deletion of your data at any time.</P>
+        <H>7. Your Rights</H>
+        <P>You can access, export, or request deletion of your personal data. Use the "Download my data" option in Billing, or contact us. Depending on your jurisdiction, you may have additional rights under laws such as GDPR.</P>
+        <H>8. Cookies and Sessions</H>
+        <P>We use essential cookies and local session storage to keep you signed in and operate the platform. We do not use them to sell your data.</P>
+        <H>9. Changes</H>
+        <P>We may update this policy and will notify you of material changes by email or in-platform notice.</P>
+        <H>10. Contact</H>
+        <P>Privacy questions or data requests: info@naporbit.com.</P>
+      </div>)}
+    </Card>
+  </div>);
+}
+
 export default function ClientDashboard({user:userProp,data,reload,onLogout,impersonating=false}){
   const[page,setPage]=useState("home");
   const[toast,Toasts]=useToast();
@@ -72,16 +368,21 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
   const[confirm,setConfirm]=useState(null);
   const[stripeConfigured,setStripeConfigured]=useState(null); // null=loading, true/false
   const[invoices,setInvoices]=useState([]);
+  const[sysNotifs,setSysNotifs]=useState([]);
+  const[notifOpen,setNotifOpen]=useState(false);
+  const notifSig=useRef("");
+  const billingSyncedFor=useRef(null);
   const w=useWindowSize();const isMobile=w<820;
   // Async action runner: run fn, optionally toast, then refresh data. Used by billing actions.
   // Returns true on success, false on failure (and toasts the error).
   const R=async(fn,msg)=>{try{await fn();if(msg)toast(msg);await reload();return true;}catch(e){toast(e.message||"Something went wrong","info");return false;}};
-  // Always use the freshest copy of the profile (data.users is refreshed by reload()),
-  // so profile edits (e.g. completing the business profile) reflect immediately.
-  const user=(data.users||[]).find(u=>u.id===userProp.id)||userProp;
+  // Always use the freshest copy of the profile (data.users is refreshed by reload()).
+  // Safe fallbacks — never crash if a field is briefly missing during load.
+  const user=(data?.users||[]).find(u=>u.id===userProp?.id)||userProp||{};
+  const userId=user.id||userProp?.id||null;
   // Resume plan intent from landing (?plan= or sessionStorage) and checkout return (?billing=success).
   useEffect(()=>{
-    if(impersonating)return;
+    if(impersonating||!userId)return;
     let planIntent=null;
     let billingFlag=null;
     try{
@@ -90,8 +391,9 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
       billingFlag=sp.get("billing");
       if(!planIntent)planIntent=sessionStorage.getItem("ro_pending_plan");
       if(planIntent&&["essentials","growth","gmb"].includes(planIntent)){
-        try{sessionStorage.setItem("ro_pending_plan",planIntent);}catch{}
         setPage("billing");
+        // Consume once so remounts don't keep forcing Billing.
+        if(!billingFlag){try{sessionStorage.removeItem("ro_pending_plan");}catch{}}
       }
       if(billingFlag==="success"){
         setPage("billing");
@@ -112,35 +414,66 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
         window.history.replaceState(null,"",url.pathname+(url.search||""));
       }
     }catch{}
-  },[user.id,impersonating]); // eslint-disable-line react-hooks/exhaustive-deps
+  },[userId,impersonating]); // eslint-disable-line react-hooks/exhaustive-deps
   // Detect whether Stripe Checkout is configured (server env).
   useEffect(()=>{(async()=>{const s=await api.billingStatus();setStripeConfigured(!!s.configured);})();},[]);
-  // Load invoices + refresh Stripe subscription period (currentPeriodEnd for days left).
+  // Load invoices + refresh Stripe period once per visit to Billing (avoids reload loops / flicker).
   useEffect(()=>{
-    if(page!=="billing"||!user?.id||impersonating)return;
+    if(page!=="billing"||!userId||impersonating){
+      if(page!=="billing")billingSyncedFor.current=null;
+      return;
+    }
+    if(billingSyncedFor.current===userId)return;
+    billingSyncedFor.current=userId;
     let cancelled=false;
     (async()=>{
       const synced=await api.syncInvoices();
       if(cancelled)return;
       if(synced.invoices?.length)setInvoices(synced.invoices);
       else{
-        const rows=await api.listInvoices(user.id);
+        const rows=await api.listInvoices(userId);
         if(!cancelled)setInvoices(rows||[]);
       }
-      if(!cancelled&&(synced.profile||synced.currentPeriodEnd||!synced.error))await reload();
+      const p=synced.profile;
+      if(!cancelled&&p&&(
+        p.plan!==user.plan||
+        p.subscriptionStatus!==user.subscriptionStatus||
+        p.currentPeriodEnd!==user.currentPeriodEnd||
+        !!p.cancelAtPeriodEnd!==!!user.cancelAtPeriodEnd
+      ))await reload();
     })();
     return()=>{cancelled=true;};
-  },[page,user.id,user.plan,user.subscriptionStatus,impersonating]); // eslint-disable-line react-hooks/exhaustive-deps
+  },[page,userId,impersonating]); // eslint-disable-line react-hooks/exhaustive-deps
   // First-login user manual: show once. Never auto-open while staff is impersonating.
   useEffect(()=>{
-    if(impersonating)return;
-    try{const key="ro_manual_seen_"+user.id;if(!localStorage.getItem(key)){setShowManual(true);localStorage.setItem(key,"1");}}catch{}
-  },[user.id,impersonating]);
-  const my=data.listings[user.id]||[];
-  const myGmb=data.gmb[user.id];
-  const myAnalytics=data.analytics[user.id];
-  const myAct=data.activity.filter(a=>a.clientId===user.id);
-  const settings=data.settings;
+    if(impersonating||!userId)return;
+    try{const key="ro_manual_seen_"+userId;if(!localStorage.getItem(key)){setShowManual(true);localStorage.setItem(key,"1");}}catch{}
+  },[userId,impersonating]);
+  useEffect(()=>{
+    if(!userId)return;
+    let cancelled=false;
+    const pull=async()=>{
+      const rows=await api.listMyNotifications();
+      if(cancelled)return;
+      const next=rows||[];
+      const sig=next.map(n=>`${n.id}:${n.read?1:0}`).join("|");
+      if(sig===notifSig.current)return;
+      notifSig.current=sig;
+      setSysNotifs(next);
+    };
+    pull();
+    const t=setInterval(pull,30000);
+    return()=>{cancelled=true;clearInterval(t);};
+  },[userId]);
+
+  if(!data||!userId){
+    return(<div style={{padding:40,textAlign:"center",color:T.sub,fontFamily:FONT_B}}>Loading your dashboard…</div>);
+  }
+  const my=(data.listings&&data.listings[userId])||[];
+  const myGmb=(data.gmb&&data.gmb[userId])||null;
+  const myAnalytics=(data.analytics&&data.analytics[userId])||null;
+  const myAct=(Array.isArray(data.activity)?data.activity:[]).filter(a=>a.clientId===userId);
+  const settings=data.settings||{};
   const cfg=settings?.config||{};
   // Client-visible prices honor the super-admin control-panel overrides, falling back to defaults.
   const priceOf=(id)=>{const m={essentials:"priceEssentials",growth:"priceGrowth",gmb:"priceGmb"};const v=cfg[m[id]];return v!=null&&v!==""?Number(v):PLANS[id]?.price;};
@@ -196,19 +529,6 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
   })();
 
   const recentAct=myAct.slice(0,6);
-  const[sysNotifs,setSysNotifs]=useState([]);
-  useEffect(()=>{
-    let cancelled=false;
-    (async()=>{
-      const rows=await api.listMyNotifications();
-      if(!cancelled)setSysNotifs(rows||[]);
-    })();
-    const t=setInterval(async()=>{
-      const rows=await api.listMyNotifications();
-      if(!cancelled)setSysNotifs(rows||[]);
-    },30000);
-    return()=>{cancelled=true;clearInterval(t);};
-  },[user.id,page]);
   const recentNotifs=sysNotifs.slice(0,12).map(n=>({
     id:n.id,
     kind:"sys",
@@ -218,7 +538,6 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
     date:n.createdAt?new Date(n.createdAt).toLocaleString():"",
     read:!!n.read,
   }));
-  const[notifOpen,setNotifOpen]=useState(false);
   const unreadSys=sysNotifs.filter(n=>!n.read).length;
   const markAllRead=async()=>{
     const ids=sysNotifs.filter(n=>!n.read).map(n=>n.id);
@@ -316,7 +635,7 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
     </Card>)}
     {/* Visibility Score + current plan / billing summary */}
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1.3fr 1fr",gap:16,marginBottom:22}}>
-      <Card className="fadeUp" style={{background:`linear-gradient(135deg,${visColor}18,#fff)`,display:"flex",alignItems:"center",gap:22,flexWrap:"wrap"}}>
+      <Card style={{background:`linear-gradient(135deg,${visColor}18,#fff)`,display:"flex",alignItems:"center",gap:22,flexWrap:"wrap"}}>
         <div style={{position:"relative",width:118,height:118,flexShrink:0}}>
           <svg width="118" height="118" viewBox="0 0 118 118">
             <circle cx="59" cy="59" r="50" fill="none" stroke={T.line} strokeWidth="11"/>
@@ -335,7 +654,7 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
           <div style={{fontSize:12.5,color:T.sub,lineHeight:1.55}}>One number for your online health, it blends how many directories you're on, how consistent your info is, and how many listings are live. It climbs as we work.</div>
         </div>
       </Card>
-      <Card className="fadeUp" style={{animationDelay:"80ms",background:user.cancelAtPeriodEnd?`linear-gradient(135deg,${T.amberSoft},#fff)`:`linear-gradient(135deg,${plan.soft||T.brandSoft},#fff)`,display:"flex",flexDirection:"column",justifyContent:"center"}}>
+      <Card style={{background:user.cancelAtPeriodEnd?`linear-gradient(135deg,${T.amberSoft},#fff)`:`linear-gradient(135deg,${plan.soft||T.brandSoft},#fff)`,display:"flex",flexDirection:"column",justifyContent:"center"}}>
         {user.plan?(<>
           <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".8px",marginBottom:6}}>CURRENT PLAN</div>
           <div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800,color:plan.color,marginBottom:4}}>{plan.name}</div>
@@ -364,25 +683,27 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
       <StatCard label="Directories" value={my.length} sub="Managed for you" icon={<DirectoriesIcon/>} color={T.blue} soft={T.blueSoft} delay={240}/>
     </div>
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1.7fr 1fr",gap:16,marginBottom:16}}>
-      <Card className="fadeUp" style={{animationDelay:"120ms"}}>
+      <Card>
         <SectionTitle sub="Directories live for your business over time">Your Visibility Is Growing</SectionTitle>
-        <ResponsiveContainer width="100%" height={200}>
+        <div style={{width:"100%",height:200,minWidth:0}}>
+        <ResponsiveContainer width="100%" height="100%" debounce={50}>
           <AreaChart data={growthData}>
             <defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={T.green} stopOpacity={.28}/><stop offset="100%" stopColor={T.green} stopOpacity={0}/></linearGradient></defs>
             <CartesianGrid strokeDasharray="3 3" stroke={T.line} vertical={false}/>
             <XAxis dataKey="m" tick={{fill:T.faint,fontSize:11}} axisLine={false} tickLine={false}/>
             <YAxis tick={{fill:T.faint,fontSize:11}} axisLine={false} tickLine={false} width={28}/>
             <Tooltip content={<ChartTip/>}/>
-            <Area type="monotone" dataKey="live" name="Live listings" stroke={T.green} strokeWidth={2.5} fill="url(#lg)" dot={{fill:T.green,r:4,strokeWidth:2,stroke:"#fff"}} animationDuration={1200}/>
+            <Area type="monotone" dataKey="live" name="Live listings" stroke={T.green} strokeWidth={2.5} fill="url(#lg)" dot={{fill:T.green,r:4,strokeWidth:2,stroke:"#fff"}} isAnimationActive={false}/>
           </AreaChart>
         </ResponsiveContainer>
+        </div>
       </Card>
-      <Card className="fadeUp" style={{animationDelay:"200ms"}}>
+      <Card>
         <SectionTitle sub="of 60 target directories">Coverage Progress</SectionTitle>
         <div style={{display:"flex",justifyContent:"center",margin:"6px 0 14px"}}>
-          <div style={{position:"relative",width:150,height:150}}>
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart><Pie data={[{v:live},{v:pending},{v:Math.max(0,60-live-pending)}]} cx="50%" cy="50%" innerRadius={52} outerRadius={70} dataKey="v" strokeWidth={0} startAngle={90} endAngle={-270} animationDuration={1100}>
+          <div style={{position:"relative",width:150,height:150,minWidth:150}}>
+            <ResponsiveContainer width="100%" height="100%" debounce={50}>
+              <PieChart><Pie data={[{v:live},{v:pending},{v:Math.max(0,60-live-pending)}]} cx="50%" cy="50%" innerRadius={52} outerRadius={70} dataKey="v" strokeWidth={0} startAngle={90} endAngle={-270} isAnimationActive={false}>
                 <Cell fill={T.green}/><Cell fill={T.amber}/><Cell fill={T.line}/>
               </Pie></PieChart>
             </ResponsiveContainer>
@@ -399,7 +720,7 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
           </div>))}
       </Card>
     </div>
-    <Card className="fadeUp" style={{animationDelay:"280ms"}}>
+    <Card>
       <SectionTitle sub="Every action we take on your account, logged with dates">Recent Activity</SectionTitle>
       {myAct.length===0?<Empty icon="🛰️" title="Work starting" sub="Your first listings are being prepared, check back soon."/>:
         myAct.slice(0,5).map((a,i)=>(<div key={a.id} className="hoverRow" style={{display:"flex",gap:13,padding:"11px 8px",borderRadius:10,borderBottom:i<Math.min(myAct.length,5)-1?`1px solid ${T.line}`:"none",alignItems:"flex-start"}}>
@@ -469,25 +790,6 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
     </div>);
   };
 
-  // GMB Pro monthly report: client sets a delivery email; manager marks it sent each month.
-  const ReportCard=()=>{
-    const[email,setEmail]=useState(user.reportEmail||user.email||"");
-    const[saving,setSaving]=useState(false);
-    const sent=user.reportSentMonth; // e.g. "March 2026"
-    const save=async()=>{setSaving(true);try{await api.patchProfile(user.id,{reportEmail:email});await reload();toast("Report email saved");}catch(e){toast("Could not save","info");}setSaving(false);};
-    return(<Card style={{marginBottom:16}}>
-      <SectionTitle sub="Your detailed monthly GMB performance report, delivered to your inbox by your account manager.">Monthly Report</SectionTitle>
-      {sent&&<div style={{padding:"11px 14px",background:T.greenSoft,borderRadius:11,marginBottom:14,fontSize:12.5,color:T.green,fontWeight:700,display:"flex",alignItems:"center",gap:8}}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-        Report sent for {sent}
-      </div>}
-      <div style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
-        <div style={{flex:"1 1 240px"}}><Input label="Send my report to" value={email} onChange={setEmail} placeholder="you@business.com" validate="email"/></div>
-        <Btn onClick={save} disabled={saving} style={{marginBottom:14}}>{saving?"Saving…":"Save email"}</Btn>
-      </div>
-    </Card>);
-  };
-
   const Gmb=()=>{
     if(user.plan!=="gmb")return(<div>
       <PageHead isMobile={isMobile} title="GMB Management"/>
@@ -508,7 +810,7 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
         </div>
         <div><div style={{fontSize:14,fontWeight:800,fontFamily:FONT_D}}>Now visible in AI searches</div><div style={{fontSize:12.5,color:T.sub,lineHeight:1.5,marginTop:2}}>Your managed profile and consistent data help you appear in ChatGPT, Gemini and Google AI Overviews, not just traditional search.</div></div>
       </Card>
-      <ReportCard/>
+      <ReportCard user={user} reload={reload} toast={toast}/>
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:14,marginBottom:20}}>
         <StatCard label="Profile Views" value={d.views} icon="👁️" color={T.green} soft={T.greenSoft} trend={18} delay={0}/>
         <StatCard label="Calls From Google" value={d.calls} icon="📞" trend={12} delay={80}/>
@@ -655,7 +957,7 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
     const invoiceRows=invoices.length?invoices:null;
     return(<div>
       <PageHead isMobile={isMobile} title="Plan & Billing" sub="Everything about what you pay and what you get"/>
-      {!profileComplete&&!user.plan&&<ProfileGate user={user} onSaved={reload}/>}
+      {!profileComplete&&!user.plan&&<ProfileGate user={user} onSaved={reload} toast={toast} isMobile={isMobile}/>}
       {(profileComplete||user.plan)&&(<>
       {user.plan&&(<div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1.4fr 1fr",gap:16,marginBottom:20}}>
         <Card className="fadeUp" style={{position:"relative",overflow:"hidden"}}>
@@ -763,224 +1065,19 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
     </div>);
   };
 
-  // Required business-details form shown before plan selection (captures data upfront).
-  const ProfileGate=({user,onSaved})=>{
-    const[f,setF]=useState({businessName:user.businessName||"",phone:user.phone||"",address:user.address||"",city:user.city||"",state:user.state||"",category:user.category||"Home Services",website:user.website||"",gbpId:user.gbpId||""});
-    const set=(k,v)=>setF(x=>({...x,[k]:v}));
-    const[saving,setSaving]=useState(false);
-    const[tried,setTried]=useState(false);
-    const ok=f.businessName&&f.phone.replace(/\D/g,"").length>=10&&f.address&&f.city&&f.state;
-    const save=async()=>{if(!ok){setTried(true);return;}setSaving(true);try{await api.patchProfile(user.id,f);await onSaved();toast("Business profile saved");}catch(e){toast("Could not save: "+(e.message||"unknown error"),"info");}setSaving(false);};
-    const req=(k)=>tried&&!f[k]?`Required`:"";
-    return(<Card style={{marginBottom:20,background:`linear-gradient(135deg,${T.brandSoft},#fff)`,maxWidth:640}}>
-      <SectionTitle sub="Tell us about your business so we can list it correctly everywhere. Takes one minute, then choose your plan.">First, complete your business profile</SectionTitle>
-      <Input label="Business Name" value={f.businessName} onChange={v=>set("businessName",v)} placeholder="Mike's Plumbing" error={req("businessName")}/>
-      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12}}>
-        <Input label="Phone" value={f.phone} onChange={v=>set("phone",v)} placeholder="(555) 200-0000" validate="usphone" error={tried&&f.phone.replace(/\D/g,"").length<10?"Valid US/Canada number required":""}/>
-        <Select label="Category" value={f.category} onChange={v=>set("category",v)} options={CATEGORIES.map(o=>({value:o,label:o}))}/>
-      </div>
-      <Input label="Street Address" value={f.address} onChange={v=>set("address",v)} placeholder="123 Main St" error={req("address")}/>
-      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12}}>
-        <Input label="City" value={f.city} onChange={v=>set("city",v)} placeholder="Austin" error={req("city")}/>
-        <Select label="State / Province" value={f.state} onChange={v=>set("state",v)} options={[{value:"",label:"Select…"},...US_CA_STATES.map(s=>({value:s.code,label:`${s.code} — ${s.name}`}))]}/>
-      </div>
-      {tried&&!f.state&&<div style={{fontSize:11,color:T.red,marginTop:-8,marginBottom:10,fontWeight:600}}>State / Province is required</div>}
-      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12}}>
-        <Input label="Website (optional)" value={f.website} onChange={v=>set("website",v)} placeholder="mikesplumbing.com"/>
-        <Input label="Google Business Profile link (optional)" value={f.gbpId} onChange={v=>set("gbpId",v)} placeholder="Paste your GMB link"/>
-      </div>
-      <Btn style={{marginTop:6}} onClick={save} disabled={saving}>{saving?"Saving…":"Save & continue to plans →"}</Btn>
-      {tried&&!ok&&<div style={{fontSize:11.5,color:T.red,marginTop:8,fontWeight:600}}>Please fill all required fields (marked *) to continue.</div>}
-    </Card>);
-  };
-
-  const CallPage=()=>{
-    const now=new Date();
-    const year=now.getFullYear();
-    const month=now.getMonth(); // 0-based
-    const monthName=now.toLocaleString("en-US",{month:"long"});
-    const totalDays=new Date(year,month+1,0).getDate();
-    const firstDay=new Date(year,month,1).getDay();
-    const today=now.getDate();
-    const[selDay,setSelDay]=useState(null);
-    const[selTime,setSelTime]=useState(null);
-    const[note,setNote]=useState("");
-    const[confirmed,setConfirmed]=useState(null); // {slotDate,slotTime,agent}
-    const[busy,setBusy]=useState(false);
-    const[msgBusy,setMsgBusy]=useState(false);
-    const[bdm,setBdm]=useState(null);
-    useEffect(()=>{
-      let cancelled=false;
-      (async()=>{
-        const r=await api.getMyBdm();
-        if(!cancelled)setBdm(r.agent||null);
-      })();
-      return()=>{cancelled=true;};
-    },[user.id,user.assignedAgentId]);
-    const times=["9:00 AM","9:30 AM","10:00 AM","10:30 AM","11:00 AM","2:00 PM","2:30 PM","3:00 PM","3:30 PM","4:00 PM"];
-    const bdmLabel=bdm?.name||bdm?.email||"your BDM";
-    const slotDateLabel=selDay?`${monthName} ${selDay}, ${year}`:"";
-    const confirmBooking=async()=>{
-      if(!selDay||!selTime)return;
-      setBusy(true);
-      const r=await api.bookCall({slotDate:slotDateLabel,slotTime:selTime,note});
-      setBusy(false);
-      if(r.error){toast(r.error,"info");return;}
-      setConfirmed({slotDate:slotDateLabel,slotTime:selTime,agent:r.agent});
-      if(r.agent)setBdm(r.agent);
-      toast("Request sent — waiting for your BDM to confirm");
-      await reload();
-    };
-    const sendMsg=async()=>{
-      const text=note.trim();
-      if(!text){toast("Write a message first","info");return;}
-      setMsgBusy(true);
-      const r=await api.sendBdmMessage(text);
-      setMsgBusy(false);
-      if(r.error){toast(r.error,"info");return;}
-      setNote("");
-      toast(`Message sent to ${r.agent?.name||"your BDM"}`);
-    };
-    return(<div>
-      <PageHead isMobile={isMobile} title="Book a Call" sub={bdm?`30 minutes with ${bdm.name||"your BDM"}`:"30 minutes with your dedicated Business Development Manager"}/>
-      {bdm&&(<Card style={{marginBottom:16,padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-        <div>
-          <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".7px"}}>YOUR BDM</div>
-          <div style={{fontFamily:FONT_D,fontSize:16,fontWeight:800}}>{bdm.name||"Assigned manager"}</div>
-          {bdm.email&&<div style={{fontSize:12.5,color:T.sub}}>{bdm.email}</div>}
-        </div>
-        <div style={{fontSize:12,color:T.sub}}>You'll get matched automatically when you subscribe if you don't have one yet.</div>
-      </Card>)}
-      {confirmed?(<Card className="pop" style={{textAlign:"center",padding:46,boxShadow:SHADOW_LG}}>
-        <div style={{display:"flex",justifyContent:"center",marginBottom:16}}><Orbit size={90} speed={8}/></div>
-        <div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800,color:T.brand,marginBottom:8}}>Request sent</div>
-        <div style={{fontSize:14,color:T.sub,marginBottom:8}}>{confirmed.slotDate} at {confirmed.slotTime}</div>
-        <div style={{fontSize:13,color:T.faint,marginBottom:22}}>Your BDM{confirmed.agent?.name?` (${confirmed.agent.name})`:""} will confirm or cancel. You'll get a notification either way.</div>
-        <Btn variant="ghost" onClick={()=>{setConfirmed(null);setSelDay(null);setSelTime(null);}}>Schedule another</Btn>
-      </Card>):(
-      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr 0.8fr",gap:16}}>
-        <Card>
-          <SectionTitle>{monthName} {year}</SectionTitle>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4,marginBottom:8}}>
-            {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d=><div key={d} style={{textAlign:"center",fontSize:10.5,color:T.faint,fontWeight:800,padding:"3px 0"}}>{d}</div>)}
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4}}>
-            {Array.from({length:firstDay}).map((_,i)=><div key={`e${i}`}/>)}
-            {Array.from({length:totalDays}).map((_,i)=>{
-              const day=i+1;
-              const isSel=selDay===day;
-              const isPast=day<today;
-              const isWknd=(firstDay+i)%7===0||(firstDay+i)%7===6;
-              const dead=isPast||isWknd;
-              return(<div key={day} onClick={()=>!dead&&(setSelDay(day),setSelTime(null))} style={{textAlign:"center",padding:"8px 2px",borderRadius:10,fontSize:12.5,fontWeight:isSel?800:600,cursor:dead?"default":"pointer",background:isSel?T.brand:dead?"transparent":T.surface2,color:isSel?"#fff":dead?T.faint:T.ink,position:"relative",transition:"all .15s"}}>
-                {day}
-              </div>);
-            })}
-          </div>
-        </Card>
-        <Card>
-          {selDay?(<>
-            <SectionTitle sub="Pick a 30-minute slot">{slotDateLabel}</SectionTitle>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
-              {times.map(t=>{const isSel=selTime===t;
-                return(<div key={t} onClick={()=>setSelTime(t)} style={{padding:"10px 8px",borderRadius:10,textAlign:"center",border:`1.5px solid ${isSel?T.brand:T.line}`,background:isSel?T.brandSoft:T.surface,color:isSel?T.brand:T.ink,fontSize:12.5,fontWeight:isSel?800:600,cursor:"pointer",transition:"all .15s"}}>{t}</div>);})}
-            </div>
-            {selTime&&(<div className="pop" style={{marginTop:14}}>
-              <div style={{padding:13,background:T.greenSoft,borderRadius:12,marginBottom:12}}>
-                <div style={{fontSize:13,color:T.green,fontWeight:800}}>✓ {slotDateLabel} at {selTime}</div>
-                <div style={{fontSize:11.5,color:T.sub,marginTop:2}}>30 min with {bdmLabel}</div>
-              </div>
-              <Btn variant="green" style={{width:"100%"}} onClick={confirmBooking} disabled={busy}>{busy?"Booking…":"Confirm Booking"}</Btn>
-            </div>)}
-          </>):(<Empty icon="📅" title="Pick a date" sub="Choose a weekday on the calendar to see open times."/>)}
-        </Card>
-        <Card>
-          <SectionTitle>What we'll cover</SectionTitle>
-          {["Your listings progress","NAP score walkthrough","Next month's targets","Plan questions"].map((item,i)=>(<div key={i} style={{display:"flex",gap:9,marginBottom:10,alignItems:"center"}}>
-            <div style={{width:19,height:19,borderRadius:"50%",background:T.greenSoft,color:T.green,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>✓</div>
-            <span style={{fontSize:12.5,color:T.sub}}>{item}</span>
-          </div>))}
-          <div style={{height:1,background:T.line,margin:"14px 0"}}/>
-          <textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="Any questions for your BDM?" style={{width:"100%",padding:"10px 13px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:11,color:T.ink,fontSize:12.5,resize:"none",height:74,boxSizing:"border-box",fontFamily:FONT_B}}/>
-          <Btn variant="soft" size="sm" style={{width:"100%",marginTop:9}} onClick={sendMsg} disabled={msgBusy}>{msgBusy?"Sending…":"Send message"}</Btn>
-        </Card>
-      </div>)}
-    </div>);
-  };
-
-  const LegalPage=()=>{
-    const[tab,setTab]=useState("terms");
-    const co="NAP Orbit";const eff=new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"});
-    const H=({children})=>(<div style={{fontSize:14,fontWeight:800,fontFamily:FONT_D,color:T.ink,margin:"18px 0 7px"}}>{children}</div>);
-    const P=({children})=>(<p style={{fontSize:13,color:T.sub,lineHeight:1.65,margin:"0 0 10px"}}>{children}</p>);
-    return(<div>
-      <PageHead isMobile={isMobile} title="Terms & Privacy" sub={`Effective ${eff}`}/>
-      <div style={{display:"flex",gap:8,marginBottom:16}}>
-        {[["terms","Terms of Service"],["privacy","Privacy Policy"]].map(([id,l])=>(
-          <button key={id} onClick={()=>setTab(id)} style={{padding:"8px 18px",borderRadius:20,border:`1.5px solid ${tab===id?T.brand:T.line}`,background:tab===id?T.brandSoft:T.surface,color:tab===id?T.brand:T.sub,fontSize:13,fontWeight:tab===id?800:600,cursor:"pointer",fontFamily:FONT_B}}>{l}</button>))}
-      </div>
-      <Card style={{maxWidth:820}}>
-        <div style={{padding:"11px 15px",background:T.amberSoft,borderRadius:11,marginBottom:18,fontSize:11.5,color:T.amber,lineHeight:1.5}}>
-          <b>Template notice:</b> This is a starting-point document. Have it reviewed by a qualified lawyer in your jurisdiction before relying on it for real clients.
-        </div>
-        {tab==="terms"?(<div>
-          <H>1. Agreement</H>
-          <P>These Terms of Service govern your use of the {co} platform and services ("Services"). By creating an account or subscribing, you agree to these terms. If you are accepting on behalf of a business, you confirm you are authorized to bind that business.</P>
-          <H>2. The Services</H>
-          <P>{co} provides local business visibility services, including directory listing submissions and management, NAP (Name, Address, Phone) consistency monitoring, unauthorized-edit protection, and, on eligible plans, Google Business Profile management. Deliverables and volumes depend on your selected plan.</P>
-          <H>3. Subscriptions and Billing</H>
-          <P>Services are billed as recurring monthly subscriptions via our payment processor (Stripe). Your subscription renews automatically each month until cancelled. By subscribing, you authorize {co} to charge your payment method on each renewal date.</P>
-          <H>4. Cancellation</H>
-          <P>You may cancel at any time from your billing dashboard. Cancellation takes effect at the end of your current billing period: you retain full access until that date, and you will not be charged for the following period. To avoid the next charge, you must cancel before your renewal date.</P>
-          <H>5. No Refunds</H>
-          <P><b>All fees are non-refundable.</b> Due to the nature of the Services, which involve immediate allocation of work, third-party submissions, and labor performed on your behalf, any amount you have already paid is not refundable, in whole or in part, including for partial billing periods, unused quota, or after cancellation. This clause applies to the fullest extent permitted by law.</P>
-          <H>6. Client Responsibilities</H>
-          <P>You agree to provide accurate business information and to hold the necessary rights to the data you submit. You are responsible for maintaining the confidentiality of your account credentials. Results such as search rankings and visibility depend on third-party platforms and are not guaranteed.</P>
-          <H>7. Third-Party Platforms</H>
-          <P>The Services interact with third-party directories and platforms (e.g., Google, Apple, Bing). {co} is not responsible for changes, outages, policy decisions, or removals made by those platforms.</P>
-          <H>8. Limitation of Liability</H>
-          <P>To the maximum extent permitted by law, {co}'s total liability for any claim arising from the Services is limited to the amount you paid in the one (1) month preceding the claim. {co} is not liable for indirect, incidental, or consequential damages.</P>
-          <H>9. Suspension and Termination</H>
-          <P>{co} may suspend or terminate accounts that violate these terms, misuse the Services, or fail payment. Fees already paid remain non-refundable per Section 5.</P>
-          <H>10. Changes to Terms</H>
-          <P>{co} may update these terms. Material changes will be communicated by email or in-platform notice. Continued use after changes constitutes acceptance.</P>
-          <H>11. Contact</H>
-          <P>Questions about these terms: info@naporbit.com.</P>
-        </div>):(<div>
-          <H>1. Overview</H>
-          <P>This Privacy Policy explains how {co} collects, uses, and protects information when you use our Services. We are committed to handling your data responsibly and transparently.</P>
-          <H>2. Information We Collect</H>
-          <P>Account information (name, business name, email, phone), business listing data you provide (address, categories, website), billing information processed securely by our payment processor, and usage data such as activity logs and platform interactions. We do not store full card numbers on our servers; payment details are handled by Stripe.</P>
-          <H>3. How We Use Information</H>
-          <P>To deliver the Services (submit and manage listings, monitor consistency), to communicate about your account and subscription, to process payments, to provide support, and to improve the platform.</P>
-          <H>4. Data Sharing</H>
-          <P>We share your business information with third-party directories and platforms strictly as needed to deliver the Services. We use trusted processors (e.g., Stripe for payments, our hosting and database providers). We do not sell your personal data.</P>
-          <H>5. Data Security</H>
-          <P>We use industry-standard measures including encryption in transit (HTTPS), access controls and row-level security on our database, hashed credentials, and restricted staff access. No system is perfectly secure, but we work continuously to protect your data.</P>
-          <H>6. Data Retention</H>
-          <P>We retain account data for as long as your account is active. Deleted items are held in a recoverable state for 30 days, then permanently purged. You may request export or deletion of your data at any time.</P>
-          <H>7. Your Rights</H>
-          <P>You can access, export, or request deletion of your personal data. Use the "Download my data" option in Billing, or contact us. Depending on your jurisdiction, you may have additional rights under laws such as GDPR.</P>
-          <H>8. Cookies and Sessions</H>
-          <P>We use essential cookies and local session storage to keep you signed in and operate the platform. We do not use them to sell your data.</P>
-          <H>9. Changes</H>
-          <P>We may update this policy and will notify you of material changes by email or in-platform notice.</P>
-          <H>10. Contact</H>
-          <P>Privacy questions or data requests: info@naporbit.com.</P>
-        </div>)}
-      </Card>
-    </div>);
-  };
-
-  return(<><Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} planBadge={planBadge} showLegalLinks headerRight={<NotifBell/>} badgeCounts={{notifications:unreadSys}}>
-    {page==="home"&&<Home/>}
-    {page==="notifications"&&<NotificationsPage/>}
-    {page==="listings"&&<Listings/>}
-    {page==="gmb"&&<Gmb/>}
-    {page==="analytics"&&<Analytics/>}
-    {page==="billing"&&<Billing/>}
-    {page==="call"&&<CallPage/>}
-    {page==="legal"&&<LegalPage/>}
+  // IMPORTANT: call page bodies as functions (Home()), not <Home/>.
+  // Inner `const Home=()=>` recreated each render would remount the whole page (flicker).
+  return(<><Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} planBadge={planBadge} showLegalLinks headerRight={NotifBell()} badgeCounts={{notifications:unreadSys}}>
+    {page==="home"&&Home()}
+    {page==="notifications"&&NotificationsPage()}
+    {page==="listings"&&Listings()}
+    {page==="gmb"&&Gmb()}
+    {page==="analytics"&&Analytics()}
+    {page==="billing"&&Billing()}
+    {page==="call"&&(
+      <ClientCallPage user={user} isMobile={isMobile} toast={toast} reload={reload}/>
+    )}
+    {page==="legal"&&<ClientLegalPage isMobile={isMobile}/>}
   </Shell>
   {/* Floating Help button, reopens the user manual anytime */}
   <button onClick={()=>setShowManual(true)} title="How to use your dashboard" style={{position:"fixed",bottom:isMobile?18:24,right:isMobile?18:24,zIndex:900,background:`linear-gradient(135deg,${T.brand},${T.violet})`,color:"#fff",border:"none",borderRadius:isMobile?"50%":24,width:isMobile?52:"auto",height:52,padding:isMobile?0:"0 20px",boxShadow:SHADOW_LG,cursor:"pointer",fontFamily:FONT_B,fontSize:14,fontWeight:800,display:"flex",alignItems:"center",gap:8}}>

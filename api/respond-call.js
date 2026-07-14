@@ -12,7 +12,8 @@ function uid(prefix = "a") {
 
 /**
  * Agent confirms or cancels a client call booking.
- * Body: { token, bookingId, action: "confirm"|"cancel", notificationId? }
+ * Body: { token, bookingId, action: "confirm"|"cancel", notificationId?, meetingUrl? }
+ * meetingUrl = Zoom (or other) link shared with the client on confirm.
  */
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -20,10 +21,26 @@ export default async function handler(req, res) {
   const admin = getAdmin();
   if (!admin) return res.status(500).json({ error: "Server not configured" });
 
-  const { token, bookingId, action, notificationId } = await readJson(req);
+  const { token, bookingId, action, notificationId, meetingUrl } = await readJson(req);
   if (!bookingId) return res.status(400).json({ error: "bookingId required" });
   if (!["confirm", "cancel"].includes(action)) {
     return res.status(400).json({ error: "action must be confirm or cancel" });
+  }
+
+  const cleanMeetingUrl = (() => {
+    const raw = String(meetingUrl || "").trim();
+    if (!raw) return null;
+    if (raw.length > 500) return null;
+    try {
+      const u = new URL(raw);
+      if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+      return u.toString();
+    } catch {
+      return null;
+    }
+  })();
+  if (action === "confirm" && meetingUrl && String(meetingUrl).trim() && !cleanMeetingUrl) {
+    return res.status(400).json({ error: "Enter a valid meeting link (https://…)" });
   }
 
   const auth = await requireStaff(admin, token, { roles: ["agent", "manager", "super_admin"] });
@@ -48,9 +65,11 @@ export default async function handler(req, res) {
     }
 
     const nextStatus = action === "confirm" ? "confirmed" : "cancelled";
+    const update = { status: nextStatus };
+    if (action === "confirm" && cleanMeetingUrl) update.meetingUrl = cleanMeetingUrl;
     const { error: upErr } = await admin
       .from("call_bookings")
-      .update({ status: nextStatus })
+      .update(update)
       .eq("id", bookingId);
     if (upErr) return res.status(500).json({ error: upErr.message });
 
@@ -71,6 +90,7 @@ export default async function handler(req, res) {
             slotDate: booking.slotDate,
             slotTime: booking.slotTime,
             status: nextStatus,
+            meetingUrl: cleanMeetingUrl || booking.meetingUrl || null,
             respondedAt: new Date().toISOString(),
           },
         })
@@ -90,7 +110,12 @@ export default async function handler(req, res) {
             .from("notifications")
             .update({
               read: true,
-              meta: { ...n.meta, status: nextStatus, respondedAt: new Date().toISOString() },
+              meta: {
+                ...n.meta,
+                status: nextStatus,
+                meetingUrl: cleanMeetingUrl || n.meta?.meetingUrl || null,
+                respondedAt: new Date().toISOString(),
+              },
             })
             .eq("id", n.id);
         }
@@ -101,6 +126,7 @@ export default async function handler(req, res) {
 
     const when = `${booking.slotDate} at ${booking.slotTime}`;
     const agentName = auth.profile.name || "Your BDM";
+    const link = cleanMeetingUrl || booking.meetingUrl || null;
     await notifyUser(admin, {
       userId: booking.clientId,
       clientId: booking.clientId,
@@ -108,9 +134,15 @@ export default async function handler(req, res) {
       title: action === "confirm" ? "Your meeting is confirmed" : "Your meeting was cancelled",
       body:
         action === "confirm"
-          ? `${agentName} confirmed your call for ${when}.`
+          ? `${agentName} confirmed your call for ${when}.${link ? ` Join link: ${link}` : " Open Book a Call to see details."}`
           : `${agentName} cancelled your call for ${when}. Please book another time if you still need to talk.`,
-      meta: { bookingId, slotDate: booking.slotDate, slotTime: booking.slotTime, status: nextStatus },
+      meta: {
+        bookingId,
+        slotDate: booking.slotDate,
+        slotTime: booking.slotTime,
+        status: nextStatus,
+        meetingUrl: link,
+      },
     });
 
     try {
@@ -129,7 +161,12 @@ export default async function handler(req, res) {
       /* optional */
     }
 
-    return res.status(200).json({ ok: true, status: nextStatus, bookingId });
+    return res.status(200).json({
+      ok: true,
+      status: nextStatus,
+      bookingId,
+      meetingUrl: cleanMeetingUrl || booking.meetingUrl || null,
+    });
   } catch (e) {
     console.error("respond-call:", e.message);
     return res.status(500).json({ error: e.message || "Could not update meeting" });

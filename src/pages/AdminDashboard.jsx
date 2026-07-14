@@ -56,17 +56,16 @@ export default function AdminDashboard({user,data,reload,onLogout}){
   const[notifBadge,setNotifBadge]=useState(0);
   useEffect(()=>{
     let cancelled=false;
-    (async()=>{
+    const pull=async()=>{
       const rows=await api.listMyNotifications();
       if(cancelled)return;
-      setNotifBadge((rows||[]).filter(n=>!n.read).length);
-    })();
-    const t=setInterval(async()=>{
-      const rows=await api.listMyNotifications();
-      if(!cancelled)setNotifBadge((rows||[]).filter(n=>!n.read).length);
-    },45000);
+      const n=(rows||[]).filter(x=>!x.read).length;
+      setNotifBadge(prev=>prev===n?prev:n);
+    };
+    pull();
+    const t=setInterval(pull,45000);
     return()=>{cancelled=true;clearInterval(t);};
-  },[user.id,page]);
+  },[user.id]);
 
   const nav=[
     {id:"overview",icon:"📊",label:"Overview",roles:["super_admin","manager","agent"]},
@@ -432,6 +431,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
     const[loading,setLoading]=useState(true);
     const[busyId,setBusyId]=useState(null);
     const[openId,setOpenId]=useState(null);
+    const[zoomByNotif,setZoomByNotif]=useState({}); // notificationId -> zoom url
     const load=async()=>{
       setLoading(true);
       const rows=await api.listMyNotifications();
@@ -459,14 +459,20 @@ export default function AdminDashboard({user,data,reload,onLogout}){
     const respond=async(n,action)=>{
       const bookingId=n.meta?.bookingId;
       if(!bookingId){toast("This notification has no booking linked","info");return;}
+      const meetingUrl=(zoomByNotif[n.id]||"").trim();
+      if(action==="confirm"&&meetingUrl){
+        try{new URL(meetingUrl);}catch{toast("Enter a valid Zoom link (https://…)","info");return;}
+      }
       setBusyId(n.id+action);
-      const r=await api.respondCall({bookingId,action,notificationId:n.id});
+      const r=await api.respondCall({bookingId,action,notificationId:n.id,meetingUrl:action==="confirm"?meetingUrl:undefined});
       setBusyId(null);
       if(r.error){toast(r.error,"info");return;}
-      toast(action==="confirm"?"Meeting confirmed — client notified":"Meeting cancelled — client notified");
+      toast(action==="confirm"
+        ?(meetingUrl?"Meeting confirmed — Zoom link shared with client":"Meeting confirmed — client notified")
+        :"Meeting cancelled — client notified");
       setNotifs(prev=>prev.map(x=>{
         if(x.id!==n.id&&x.meta?.bookingId!==bookingId)return x;
-        return{...x,read:true,meta:{...(x.meta||{}),status:r.status,respondedAt:new Date().toISOString()}};
+        return{...x,read:true,meta:{...(x.meta||{}),status:r.status,meetingUrl:r.meetingUrl||meetingUrl||null,respondedAt:new Date().toISOString()}};
       }));
     };
     const typeIcon=(t)=>({client_assigned:"👤",call_booked:"📅",bdm_message:"💬",meeting_confirmed:"✅",meeting_cancelled:"❌"}[t]||"🔔");
@@ -480,7 +486,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
           <div>
             {notifs.map((n,i)=>(
               <div key={n.id} style={{borderBottom:i<notifs.length-1?`1px solid ${T.line}`:"none"}}>
-                <div onClick={()=>openOne(n)} style={{display:"flex",gap:12,padding:"14px 6px",cursor:"pointer",opacity:n.read?.85:1}}>
+                <div onClick={()=>openOne(n)} style={{display:"flex",gap:12,padding:"14px 6px",cursor:"pointer",opacity:n.read?0.85:1}}>
                   <div style={{width:36,height:36,borderRadius:10,background:n.read?T.surface2:T.brandSoft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{typeIcon(n.type)}</div>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"flex-start"}}>
@@ -496,18 +502,34 @@ export default function AdminDashboard({user,data,reload,onLogout}){
                   </div>
                 </div>
                 {openId===n.id&&canRespond(n)&&(
-                  <div style={{padding:"0 6px 14px 54px",display:"flex",gap:8,flexWrap:"wrap"}}>
-                    <Btn variant="green" size="sm" disabled={!!busyId} onClick={()=>respond(n,"confirm")}>
-                      {busyId===n.id+"confirm"?"Confirming…":"Confirm meeting"}
-                    </Btn>
-                    <Btn variant="danger" size="sm" disabled={!!busyId} onClick={()=>respond(n,"cancel")}>
-                      {busyId===n.id+"cancel"?"Cancelling…":"Cancel meeting"}
-                    </Btn>
+                  <div style={{padding:"0 6px 14px 54px"}}>
+                    <div style={{marginBottom:10}}>
+                      <div style={{fontSize:11.5,fontWeight:700,color:T.sub,marginBottom:6}}>Zoom / meeting link (optional, shared with client)</div>
+                      <input
+                        value={zoomByNotif[n.id]||""}
+                        onChange={e=>setZoomByNotif(prev=>({...prev,[n.id]:e.target.value}))}
+                        placeholder="https://zoom.us/j/…"
+                        style={{width:"100%",maxWidth:420,padding:"10px 12px",borderRadius:10,border:`1.5px solid ${T.line}`,background:T.surface,color:T.ink,fontSize:13,fontFamily:FONT_B,boxSizing:"border-box"}}
+                      />
+                    </div>
+                    <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                      <Btn variant="green" size="sm" disabled={!!busyId} onClick={()=>respond(n,"confirm")}>
+                        {busyId===n.id+"confirm"?"Confirming…":"Confirm + share link"}
+                      </Btn>
+                      <Btn variant="danger" size="sm" disabled={!!busyId} onClick={()=>respond(n,"cancel")}>
+                        {busyId===n.id+"cancel"?"Cancelling…":"Cancel meeting"}
+                      </Btn>
+                    </div>
                   </div>
                 )}
                 {openId===n.id&&n.type==="call_booked"&&n.meta?.status&&n.meta.status!=="pending"&&(
                   <div style={{padding:"0 6px 14px 54px",fontSize:12.5,color:n.meta.status==="confirmed"?T.green:T.amber,fontWeight:700}}>
                     Meeting {n.meta.status}. Client has been notified.
+                    {n.meta.meetingUrl&&(
+                      <div style={{marginTop:6,fontWeight:600}}>
+                        Link: <a href={n.meta.meetingUrl} target="_blank" rel="noreferrer" style={{color:T.brand}}>{n.meta.meetingUrl}</a>
+                      </div>
+                    )}
                   </div>
                 )}
                 {openId===n.id&&n.type==="client_assigned"&&n.clientId&&(
@@ -623,7 +645,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         {filtered.map((c,idx)=>{
           const cl=listings[c.id]||[];const lv=cl.filter(l=>l.status==="live").length;const pd=cl.filter(l=>l.status==="pending").length;const fl=cl.filter(l=>l.status==="flagged"||l.status==="rejected").length;const an=cl.filter(l=>l.actionNeeded).length;
-          return(<Card key={c.id} hover className="fadeUp" style={{animationDelay:`${idx*50}ms`,cursor:"pointer"}}>
+          return(<Card key={c.id} hover style={{cursor:"pointer"}}>
             <div onClick={()=>{setSelClient(c.id);setPage("clientDetail");}} style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
               <div style={{display:"flex",gap:14,alignItems:"center"}}>
                 <div style={{width:46,height:46,borderRadius:14,background:`linear-gradient(135deg,${PLANS[c.plan]?.color||T.faint},${T.violet})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,fontWeight:800,color:"#fff",flexShrink:0}}>{c.avatar}</div>
@@ -866,7 +888,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
     }
     return(<div>
       <PageHead isMobile={isMobile} title="Team" sub={`${visibleStaff.length} team members`} right={isStaffMgr&&<Btn onClick={()=>setModal({type:"team"})}>+ Add Member</Btn>}/>
-      {visibleStaff.map((m,i)=>(<Card key={m.id} hover className="fadeUp" style={{animationDelay:`${i*60}ms`,marginBottom:12}}>
+      {visibleStaff.map((m)=>(<Card key={m.id} hover style={{marginBottom:12}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
           <div style={{display:"flex",gap:13,alignItems:"center"}}>
             <div style={{width:42,height:42,borderRadius:"50%",background:m.role==="super_admin"?`linear-gradient(135deg,${T.brand},${T.violet})`:m.role==="manager"?`linear-gradient(135deg,${T.amber},#E8A33D)`:`linear-gradient(135deg,${T.blue},#5B9FE8)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:800,color:"#fff"}}>{m.avatar}</div>

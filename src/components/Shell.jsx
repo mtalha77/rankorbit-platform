@@ -70,7 +70,7 @@ export default function Shell({user,nav,page,setPage,onLogout,planBadge,badgeCou
         </div>
       )}
       <div style={{flex:1,overflow:"auto",padding:isMobile?"18px 16px 40px":"30px 34px 50px"}}>
-        <div key={page} className="fadeUp">{children}</div>
+        <div key={page}>{children}</div>
       </div>
     </div>
   </div>);
