@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { T, FONT_B } from "./lib/theme";
 import { STAFF_ROLES } from "./lib/helpers";
@@ -26,6 +26,13 @@ const urlLooksLikeRecovery=()=>{
   return /type=recovery/i.test(hash)||/type=recovery/i.test(search);
 };
 
+/** Keep last non-null data so admin/client dashboards don't unmount during a soft reload. */
+function useStableData(data){
+  const ref=useRef(data);
+  if(data)ref.current=data;
+  return data||ref.current;
+}
+
 // /login and /signup — auth only. After success → landing (/). Never the dashboard.
 function ClientAuth({mode="login",user,onLogin,passwordRecovery}){
   const nav=useNavigate();
@@ -43,9 +50,11 @@ function ClientDashboardRoute({user,data,reload,onLogin,onLogout,passwordRecover
   const billing=params.get("billing");
   const awaitingPlan=billing==="success"&&user&&!user.plan;
   const[waitDone,setWaitDone]=useState(!awaitingPlan);
+  const viewData=useStableData(data);
 
   useEffect(()=>{
     if(!awaitingPlan){setWaitDone(true);return;}
+    setWaitDone(false);
     let cancelled=false;let n=0;
     const tick=async()=>{
       const fresh=await api.currentUser();
@@ -63,18 +72,20 @@ function ClientDashboardRoute({user,data,reload,onLogin,onLogout,passwordRecover
   if(!user)return <Navigate to="/login" replace/>;
   if(awaitingPlan&&!waitDone)return <Loading label="Activating your plan…"/>;
   if(!hasClientPlan(user))return <Navigate to="/?focus=pricing" replace/>;
-  if(!data)return <Loading label="Loading your dashboard…"/>;
-  return <ClientDashboard user={user} data={data} reload={reload} onLogout={async()=>{await onLogout();nav("/");}}/>;
+  if(!viewData)return <Loading label="Loading your dashboard…"/>;
+  const handleLogout=useCallback(async()=>{await onLogout();nav("/");},[onLogout,nav]);
+  return <ClientDashboard user={user} data={viewData} reload={reload} onLogout={handleLogout}/>;
 }
 
 // /admin — staff (super_admin, manager, agent). Unchanged access rules.
 function StaffPortal({user,data,reload,onLogin,onLogout,passwordRecovery}){
   const nav=useNavigate();
+  const viewData=useStableData(data);
   if(passwordRecovery)return <Navigate to="/reset-password" replace/>;
   if(user&&!STAFF_ROLES.includes(user.role))return <Navigate to="/" replace/>;
   if(!user)return <AuthScreen portal="staff" onLogin={async(u)=>{await onLogin(u);}}/>;
-  if(!data)return <Loading label="Loading admin…"/>;
-  return <AdminDashboard user={user} data={data} reload={reload} onLogout={async()=>{await onLogout();nav("/admin");}}/>;
+  if(!viewData)return <Loading label="Loading admin…"/>;
+  return <AdminDashboard user={user} data={viewData} reload={reload} onLogout={async()=>{await onLogout();nav("/admin");}}/>;
 }
 
 function LandingRoute({user,passwordRecovery}){
@@ -98,14 +109,54 @@ export default function App(){
   const[currentUser,setCurrentUser]=useState(null);
   const[data,setData]=useState(null);
   const[passwordRecovery,setPasswordRecovery]=useState(()=>isPasswordRecovery()||urlLooksLikeRecovery());
-  const loadedForRef=useState({id:null})[0];
-  const reload=useCallback(async()=>{const d=await api.loadAll();setData(d);},[]);
-  const applyUser=useCallback(async(prof)=>{
-    if(!prof){return;}
-    loadedForRef.id=prof.id;
-    setCurrentUser(prof);
-    await reload();
-  },[reload,loadedForRef]);
+  const loadedForRef=useRef({id:null});
+  const loadGenRef=useRef(0);
+
+  const reload=useCallback(async()=>{
+    const gen=++loadGenRef.current;
+    try{
+      const d=await api.loadAll();
+      if(gen!==loadGenRef.current)return d;
+      // Never wipe a good payload with an empty/invalid one.
+      if(d&&typeof d==="object"){
+        setData({
+          users:d.users||[],
+          trashedUsers:d.trashedUsers||[],
+          listings:d.listings||{},
+          trashedListings:d.trashedListings||[],
+          gmb:d.gmb||{},
+          analytics:d.analytics||{},
+          activity:Array.isArray(d.activity)?d.activity:[],
+          audit:Array.isArray(d.audit)?d.audit:[],
+          settings:d.settings||{},
+        });
+      }
+      return d;
+    }catch(e){
+      console.error("reload failed:",e);
+      return null;
+    }
+  },[]);
+
+  /**
+   * Attach a profile + load platform data.
+   * - Same user without forceReload → no second fetch (stops admin/client flicker).
+   * - forceReload → used by login / init / plan activation (flows stay correct).
+   * - Different user → keep previous viewData until new load finishes (no blank crash).
+   */
+  const applyUser=useCallback(async(prof,{forceReload=false}={})=>{
+    if(!prof)return;
+    const sameId=loadedForRef.current.id===prof.id;
+    loadedForRef.current.id=prof.id;
+    setCurrentUser(prev=>{
+      if(!prev||prev.id!==prof.id)return prof;
+      const keys=["plan","role","name","email","subscriptionStatus","currentPeriodEnd","cancelAtPeriodEnd","assignedAgentId","status","businessName","napScore","canImpersonate"];
+      if(keys.every(k=>prev[k]===prof[k]))return prev;
+      return prof;
+    });
+    if(!sameId||forceReload)await reload();
+  },[reload]);
+
   const enterRecovery=useCallback(()=>{
     markPasswordRecovery();
     setPasswordRecovery(true);
@@ -114,46 +165,86 @@ export default function App(){
     clearPasswordRecovery();
     setPasswordRecovery(false);
   },[]);
+
   useEffect(()=>{
     if(urlLooksLikeRecovery())enterRecovery();
   },[enterRecovery]);
+
   useEffect(()=>{(async()=>{
-    await api.init();
-    const existing=await api.currentUser();
-    if(existing){await applyUser(existing);}else{await reload();}
-    setReady(true);
+    try{
+      await api.init();
+      const existing=await api.currentUser();
+      if(existing){await applyUser(existing,{forceReload:true});}
+      else{await reload();}
+    }catch(e){
+      console.error("boot failed:",e);
+    }finally{
+      setReady(true);
+    }
   })();/* eslint-disable-next-line */},[]);
+
   useEffect(()=>{
     if(!supa)return;
     const{data:{subscription}}=supa.auth.onAuthStateChange(async(event,session)=>{
-      if(event==="PASSWORD_RECOVERY"){
-        enterRecovery();
-      }
+      if(event==="PASSWORD_RECOVERY")enterRecovery();
+      // Token refresh must not remount admin/client dashboards.
+      if(event==="TOKEN_REFRESHED")return;
+
       if((event==="SIGNED_IN"||event==="INITIAL_SESSION"||event==="PASSWORD_RECOVERY")&&session){
         if(event==="SIGNED_IN"&&(urlLooksLikeRecovery()||isPasswordRecovery()))enterRecovery();
-        if(loadedForRef.id===session.user.id&&event==="INITIAL_SESSION")return;
-        let{data:prof}=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
-        if(!prof){
-          const m=session.user.user_metadata||{};
-          const name=m.full_name||m.name||session.user.email?.split("@")[0]||"there";
-          await supa.from("profiles").upsert({id:session.user.id,email:session.user.email,role:"client",name,avatar:name[0].toUpperCase(),status:"active"},{onConflict:"id"});
-          const r=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
-          prof=r.data;
-        }
-        await applyUser(prof);
-        if(typeof window!=="undefined"&&window.location.hash.includes("access_token")){
+
+        const scrubHash=()=>{
+          if(typeof window==="undefined"||!window.location.hash.includes("access_token"))return;
           const path=(isPasswordRecovery()||urlLooksLikeRecovery()||event==="PASSWORD_RECOVERY")
             ?"/reset-password"
             :(window.location.pathname+window.location.search);
           window.history.replaceState(null,"",path);
+        };
+
+        // Already hydrated for this user — do not reload again (fixes admin flicker).
+        if(loadedForRef.current.id===session.user.id&&(event==="INITIAL_SESSION"||event==="SIGNED_IN")){
+          scrubHash();
+          return;
         }
+
+        try{
+          let{data:prof}=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
+          if(!prof){
+            const m=session.user.user_metadata||{};
+            const name=m.full_name||m.name||session.user.email?.split("@")[0]||"there";
+            await supa.from("profiles").upsert({id:session.user.id,email:session.user.email,role:"client",name,avatar:(name[0]||"U").toUpperCase(),status:"active"},{onConflict:"id"});
+            const r=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
+            prof=r.data;
+          }
+          if(prof)await applyUser(prof,{forceReload:false});
+        }catch(e){
+          console.error("auth hydrate failed:",e);
+        }
+        scrubHash();
       }
-      if(event==="SIGNED_OUT"){loadedForRef.id=null;setCurrentUser(null);}
+      if(event==="SIGNED_OUT"){
+        loadedForRef.current.id=null;
+        loadGenRef.current+=1;
+        setCurrentUser(null);
+        setData(null);
+      }
     });
     return()=>subscription?.unsubscribe();
   /* eslint-disable-next-line */},[]);
-  const onLogin=async(u)=>{await applyUser(u);};
-  const onLogout=async()=>{loadedForRef.id=null;await api.logout();setCurrentUser(null);};
+
+  const onLogin=useCallback(async(u)=>{
+    // Explicit login / plan activation: always refresh data so flows stay correct.
+    await applyUser(u,{forceReload:true});
+  },[applyUser]);
+
+  const onLogout=useCallback(async()=>{
+    loadedForRef.current.id=null;
+    loadGenRef.current+=1;
+    await api.logout();
+    setCurrentUser(null);
+    setData(null);
+  },[]);
+
   if(!ready)return(<><GlobalStyle/><Loading/></>);
   const shared={user:currentUser,data,reload,onLogin,onLogout,passwordRecovery};
   return(<><GlobalStyle/>

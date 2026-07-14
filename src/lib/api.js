@@ -194,13 +194,17 @@ export const api={
   },
   async getMyBdm(){
     const token=await this._accessToken();
-    if(!token)return{agent:null};
+    if(!token)return{agent:null,bookings:[]};
     try{
       const r=await fetch("/api/my-bdm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token})});
       const j=await r.json().catch(()=>({}));
-      if(!r.ok)return{agent:null,error:j.error};
-      return{agent:j.agent||null};
-    }catch(e){return{agent:null,error:e.message};}
+      if(!r.ok)return{agent:null,bookings:[],error:j.error};
+      return{agent:j.agent||null,bookings:j.bookings||[]};
+    }catch(e){return{agent:null,bookings:[],error:e.message};}
+  },
+  async listMyBookings(){
+    const r=await this.getMyBdm();
+    return{bookings:r.bookings||[],error:r.error};
   },
   async listMyNotifications(){
     if(!supa)return[];
@@ -214,11 +218,11 @@ export const api={
     if(!supa||!ids?.length)return;
     await supa.from("notifications").update({read:true}).in("id",ids);
   },
-  async respondCall({bookingId,action,notificationId}={}){
+  async respondCall({bookingId,action,notificationId,meetingUrl}={}){
     const token=await this._accessToken();
     if(!token)return{error:"Not signed in"};
     try{
-      const r=await fetch("/api/respond-call",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,bookingId,action,notificationId})});
+      const r=await fetch("/api/respond-call",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,bookingId,action,notificationId,meetingUrl})});
       const j=await r.json().catch(()=>({}));
       if(!r.ok)return{error:j.error||"Could not update meeting"};
       return{ok:true,...j};

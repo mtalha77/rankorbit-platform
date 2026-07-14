@@ -1,5 +1,5 @@
 // ─── HOOKS ───────────────────────────────────────────────────────────────────
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { T, SHADOW_LG } from "../lib/theme";
 
 export function useWindowSize(){
@@ -8,9 +8,16 @@ export function useWindowSize(){
   return w;
 }
 export function useCounter(target,dur=900){
-  const[val,setVal]=useState(0);
+  const[val,setVal]=useState(()=>{
+    const n=typeof target==="number"?target:parseFloat(target)||0;
+    return n||0;
+  });
+  const prev=useRef(null);
   useEffect(()=>{
     const n=typeof target==="number"?target:parseFloat(target)||0;
+    // Skip re-animating the same number (stops dashboard flicker on re-render).
+    if(prev.current===n){setVal(n||0);return;}
+    prev.current=n;
     if(!n){setVal(0);return;}
     let start=null,raf;
     const step=(ts)=>{if(!start)start=ts;const p=Math.min((ts-start)/dur,1);const e=1-Math.pow(1-p,3);setVal(Math.round(n*e));if(p<1)raf=requestAnimationFrame(step);};

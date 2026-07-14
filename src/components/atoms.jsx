@@ -93,7 +93,7 @@ export const StatCard=({label,value,sub,color=T.brand,soft=T.brandSoft,icon,tren
   const n=isNum?parseInt(String(value).replace(/[^0-9]/g,"")):0;
   const suffix=isNum?String(value).replace(/^[\d,]+/,""):"";
   const count=useCounter(n);
-  return(<Card hover className="fadeUp" style={{animationDelay:`${delay}ms`,position:"relative",overflow:"hidden"}}>
+  return(<Card hover style={{position:"relative",overflow:"hidden"}}>
     <div style={{width:46,height:46,borderRadius:14,background:soft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,marginBottom:14}}>{icon}</div>
     <div style={{fontSize:11.5,fontWeight:800,color:T.faint,textTransform:"uppercase",letterSpacing:".9px",marginBottom:6}}>{label}</div>
     <div style={{fontSize:36,fontWeight:800,color:T.ink,lineHeight:1,fontFamily:FONT_D,letterSpacing:"-1px"}}>{isNum?count.toLocaleString()+suffix:value}</div>

@@ -1,6 +1,6 @@
 import { getAdmin, readJson, requireClient } from "../server/billing.js";
 
-/** Returns the client's assigned BDM (name/email) for the Book a Call UI. */
+/** Returns the client's assigned BDM + active call bookings for Book a Call UI. */
 export default async function handler(req, res) {
   if (req.method !== "POST" && req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -10,7 +10,6 @@ export default async function handler(req, res) {
   if (!admin) return res.status(500).json({ error: "Server not configured" });
 
   const body = req.method === "POST" ? await readJson(req) : {};
-  // GET: token from Authorization header; POST: token in JSON body.
   const header = req.headers.authorization || req.headers.Authorization || "";
   const token =
     body.token ||
@@ -20,16 +19,56 @@ export default async function handler(req, res) {
   if (auth.error) return res.status(auth.status).json({ error: auth.error });
 
   const agentId = auth.profile.assignedAgentId;
-  if (!agentId) return res.status(200).json({ agent: null });
+  let agent = null;
+  if (agentId) {
+    const { data, error } = await admin
+      .from("profiles")
+      .select("id,name,email")
+      .eq("id", agentId)
+      .maybeSingle();
+    if (error) return res.status(500).json({ error: error.message });
+    if (data) agent = { id: data.id, name: data.name, email: data.email };
+  }
 
-  const { data: agent, error } = await admin
-    .from("profiles")
-    .select("id,name,email")
-    .eq("id", agentId)
-    .maybeSingle();
-  if (error) return res.status(500).json({ error: error.message });
+  let bookings = [];
+  try {
+    const { data: rows, error: bErr } = await admin
+      .from("call_bookings")
+      .select("*")
+      .eq("clientId", auth.profile.id)
+      .in("status", ["pending", "confirmed"])
+      .order("createdAt", { ascending: false })
+      .limit(10);
+    if (!bErr && rows?.length) {
+      const agentIds = [...new Set(rows.map((r) => r.agentId).filter(Boolean))];
+      let agentsById = {};
+      if (agentIds.length) {
+        const { data: agents } = await admin
+          .from("profiles")
+          .select("id,name,email")
+          .in("id", agentIds);
+        agentsById = Object.fromEntries((agents || []).map((a) => [a.id, a]));
+      }
+      bookings = rows.map((b) => ({
+        id: b.id,
+        slotDate: b.slotDate,
+        slotTime: b.slotTime,
+        note: b.note,
+        status: b.status,
+        meetingUrl: b.meetingUrl || null,
+        createdAt: b.createdAt,
+        agent: b.agentId
+          ? {
+              id: b.agentId,
+              name: agentsById[b.agentId]?.name || agent?.name || null,
+              email: agentsById[b.agentId]?.email || agent?.email || null,
+            }
+          : agent,
+      }));
+    }
+  } catch (e) {
+    console.warn("my-bdm bookings:", e.message);
+  }
 
-  return res.status(200).json({
-    agent: agent ? { id: agent.id, name: agent.name, email: agent.email } : null,
-  });
+  return res.status(200).json({ agent, bookings });
 }

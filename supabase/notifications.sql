@@ -43,8 +43,11 @@ create table if not exists call_bookings (
   "slotTime" text not null,
   note text,
   status text not null default 'pending',
+  "meetingUrl" text,
   "createdAt" timestamptz not null default now()
 );
+
+alter table call_bookings add column if not exists "meetingUrl" text;
 
 create index if not exists call_bookings_client on call_bookings ("clientId", "createdAt" desc);
 create index if not exists call_bookings_agent on call_bookings ("agentId", "createdAt" desc);
