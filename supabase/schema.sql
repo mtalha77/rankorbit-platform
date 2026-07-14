@@ -37,7 +37,10 @@ create table listings (
   id text primary key,
   "clientId" uuid references profiles(id) on delete cascade,
   directory text, status text, submitted text, "liveDate" text,
-  "napMatch" text, "liveLink" text, da int default 0, notes text
+  "napMatch" text, "liveLink" text, da int default 0, notes text,
+  "actionNeeded" boolean default false,
+  "actionNote" text default '',
+  "deletedAt" timestamptz
 );
 
 create table gmb (

@@ -51,7 +51,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
     // Batch 4 will also send this to managers via /api/notify.
     if(typeof window!=="undefined")window.__pendingManagerAlerts=(window.__pendingManagerAlerts||0)+1;
   };
-  const R=async(fn,msg)=>{await fn();if(msg)toast(msg);await reload();};
+  const R=async(fn,msg)=>{try{await fn();if(msg)toast(msg);await reload();}catch(e){console.error(e);toast(e.message||"Save failed","info");}};
 
   const[notifBadge,setNotifBadge]=useState(0);
   useEffect(()=>{

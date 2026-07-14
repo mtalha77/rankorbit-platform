@@ -351,21 +351,49 @@ export const api={
     const g=LS("ro3_gmb")||{};delete g[id];LSet("ro3_gmb",g);
   },
   async upsertListing(l){
-    if(supa){const{error}=await supa.from("listings").upsert(l);if(error)console.error(error);return;}
-    const ls=LS("ro3_listings")||[];const i=ls.findIndex(x=>x.id===l.id);
-    if(i>=0)ls[i]=l;else ls.push(l);LSet("ro3_listings",ls);
+    // Whitelist only real DB columns — never send UI-only fields like _name.
+    const base={
+      id:l.id,
+      clientId:l.clientId,
+      directory:l.directory,
+      status:l.status,
+      submitted:l.submitted??"",
+      liveDate:l.liveDate??"–",
+      napMatch:l.napMatch??"–",
+      liveLink:l.liveLink??"",
+      da:Number.isFinite(+l.da)?+l.da:0,
+      notes:l.notes??"",
+    };
+    // Optional columns (added later) — include when present so older DBs can still save.
+    const row={
+      ...base,
+      actionNeeded:!!l.actionNeeded,
+      actionNote:l.actionNote??"",
+      ...(l.deletedAt!=null?{deletedAt:l.deletedAt}:{}),
+    };
+    if(supa){
+      let{error}=await supa.from("listings").upsert(row);
+      // Older schemas may lack actionNeeded / actionNote / deletedAt — retry core fields.
+      if(error&&/actionNeeded|actionNote|deletedAt|Could not find/i.test(error.message||"")){
+        ({error}=await supa.from("listings").upsert(base));
+      }
+      if(error)throw new Error(error.message||"Could not save listing");
+      return;
+    }
+    const ls=LS("ro3_listings")||[];const i=ls.findIndex(x=>x.id===row.id);
+    if(i>=0)ls[i]={...row,deletedAt:l.deletedAt};else ls.push({...row,deletedAt:l.deletedAt});LSet("ro3_listings",ls);
   },
   async deleteListing(id){
     const when=new Date().toISOString();
-    if(supa){await supa.from("listings").update({deletedAt:when}).eq("id",id);return;}
+    if(supa){const{error}=await supa.from("listings").update({deletedAt:when}).eq("id",id);if(error)throw new Error(error.message);return;}
     const ls=LS("ro3_listings")||[];const i=ls.findIndex(x=>x.id===id);if(i>=0){ls[i].deletedAt=when;LSet("ro3_listings",ls);}
   },
   async restoreListing(id){
-    if(supa){await supa.from("listings").update({deletedAt:null}).eq("id",id);return;}
+    if(supa){const{error}=await supa.from("listings").update({deletedAt:null}).eq("id",id);if(error)throw new Error(error.message);return;}
     const ls=LS("ro3_listings")||[];const i=ls.findIndex(x=>x.id===id);if(i>=0){delete ls[i].deletedAt;LSet("ro3_listings",ls);}
   },
   async purgeListing(id){
-    if(supa){await supa.from("listings").delete().eq("id",id);return;}
+    if(supa){const{error}=await supa.from("listings").delete().eq("id",id);if(error)throw new Error(error.message);return;}
     LSet("ro3_listings",(LS("ro3_listings")||[]).filter(x=>x.id!==id));
   },
   async upsertGmb(clientId,data){
