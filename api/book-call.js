@@ -1,5 +1,5 @@
 import { getAdmin, readJson, requireClient } from "../server/billing.js";
-import { resolveClientAgent, notifyBdm, notifyUser } from "../server/assign.js";
+import { resolveClientAgent, notifyBdm, notifyUser, notifySuperAdmins } from "../server/assign.js";
 import { randomUUID } from "crypto";
 
 function uid(prefix = "bk") {
@@ -59,6 +59,22 @@ export default async function handler(req, res) {
       title: "Meeting scheduled — confirm or cancel",
       body: `${who} requested a 30-min call on ${slotDate} at ${slotTime}.${note ? ` Note: ${note}` : ""} Open Notifications to confirm or cancel.`,
       meta: { bookingId, slotDate, slotTime, status: "pending" },
+    });
+
+    await notifySuperAdmins(admin, {
+      clientId: client.id,
+      type: "call_booked",
+      title: "Client booked a meeting",
+      body: `${who} requested a 30-min call with ${agent.name || "their BDM"} on ${slotDate} at ${slotTime}.${note ? ` Note: ${note}` : ""}`,
+      meta: {
+        bookingId,
+        slotDate,
+        slotTime,
+        status: "pending",
+        agentId: agent.id,
+        agentName: agent.name || agent.email || null,
+        reportOnly: true,
+      },
     });
 
     // Client dashboard notification — pending until BDM confirms/cancels.

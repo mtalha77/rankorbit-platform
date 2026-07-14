@@ -1,5 +1,5 @@
 import { getAdmin, readJson, requireStaff } from "../server/billing.js";
-import { notifyUser } from "../server/assign.js";
+import { notifyUser, notifySuperAdmins } from "../server/assign.js";
 import { randomUUID } from "crypto";
 
 function uid(prefix = "a") {
@@ -143,6 +143,33 @@ export default async function handler(req, res) {
         status: nextStatus,
         meetingUrl: link,
       },
+    });
+
+    const { data: clientRow } = await admin
+      .from("profiles")
+      .select("businessName,name,email")
+      .eq("id", booking.clientId)
+      .maybeSingle();
+    const who = clientRow?.businessName || clientRow?.name || clientRow?.email || "A client";
+    await notifySuperAdmins(admin, {
+      clientId: booking.clientId,
+      type: action === "confirm" ? "meeting_confirmed" : "meeting_cancelled",
+      title: action === "confirm" ? "Meeting confirmed" : "Meeting cancelled",
+      body:
+        action === "confirm"
+          ? `${agentName} confirmed a call with ${who} for ${when}.${link ? ` Link shared.` : ""}`
+          : `${agentName} cancelled a call with ${who} for ${when}.`,
+      meta: {
+        bookingId,
+        slotDate: booking.slotDate,
+        slotTime: booking.slotTime,
+        status: nextStatus,
+        meetingUrl: link,
+        agentId: auth.profile.id,
+        agentName,
+        reportOnly: true,
+      },
+      excludeUserId: auth.profile.role === "super_admin" ? auth.profile.id : null,
     });
 
     try {

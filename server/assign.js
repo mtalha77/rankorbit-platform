@@ -80,12 +80,21 @@ export async function autoAssignLeastLoadedAgent(admin, clientId, opts = {}) {
   if (upErr) throw new Error(upErr.message);
 
   const business = client.businessName || client.name || client.email || "A client";
+  const assignBody = `${business} subscribed${client.plan ? ` (${client.plan})` : ""} and was assigned to ${agent.name || agent.email || "an agent"}.`;
   await notifyBdm(admin, {
     agentId: agent.id,
     clientId,
     type: "client_assigned",
     title: "New client assigned to you",
     body: `${business} subscribed${client.plan ? ` (${client.plan})` : ""} and was assigned to you. Please review their account.`,
+  });
+
+  await notifySuperAdmins(admin, {
+    clientId,
+    type: "client_assigned",
+    title: "Client assigned to agent",
+    body: assignBody,
+    meta: { agentId: agent.id, agentName: agent.name || agent.email || null, source: "auto" },
   });
 
   await notifyUser(admin, {
@@ -165,6 +174,41 @@ export async function createNotification(admin, row) {
 export async function notifyUser(admin, { userId, clientId, type, title, body, meta }) {
   if (!userId) return null;
   return createNotification(admin, { userId, clientId, type, title, body, meta });
+}
+
+/**
+ * Fan-out in-app notifications to every super_admin (for ops reports).
+ * Used for staff adds, assignments, and meeting activity.
+ */
+export async function notifySuperAdmins(admin, { type, title, body, clientId, meta, excludeUserId }) {
+  if (!admin) return [];
+  const { data: admins, error } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("role", "super_admin");
+  if (error) {
+    console.warn("notifySuperAdmins lookup:", error.message);
+    return [];
+  }
+  const targets = (admins || []).filter((a) => a.id && a.id !== excludeUserId);
+  const rows = [];
+  for (const a of targets) {
+    try {
+      rows.push(
+        await createNotification(admin, {
+          userId: a.id,
+          clientId: clientId || null,
+          type,
+          title,
+          body,
+          meta: { ...(meta || {}), audience: "super_admin" },
+        })
+      );
+    } catch (e) {
+      console.warn("notifySuperAdmins insert:", e.message);
+    }
+  }
+  return rows;
 }
 
 /** In-app notification + optional email to agent and routeBdm addresses. */
