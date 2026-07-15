@@ -9,6 +9,7 @@ import { nextMonthFirst, actIcon, clientBy } from "../lib/helpers";
 import { Badge, Card, Btn, Input, Select, Confirm, StatCard, ChartTip, SectionTitle, Empty, PageHead } from "../components/atoms";
 import { Orbit } from "../components/Orbit";
 import Shell from "../components/Shell";
+import ChatThread from "../components/ChatThread";
 import UserManual from "./UserManual";
 import { useWindowSize, useToast } from "../hooks";
 
@@ -114,7 +115,7 @@ function ReportCard({user,reload,toast}){
   </Card>);
 }
 
-function ClientCallPage({user,isMobile,toast,reload}){
+function ClientCallPage({user,isMobile,toast,reload,onOpenMessages}){
   const now=new Date();
   const year=now.getFullYear();
   const month=now.getMonth();
@@ -126,7 +127,6 @@ function ClientCallPage({user,isMobile,toast,reload}){
   const[selTime,setSelTime]=useState(null);
   const[note,setNote]=useState("");
   const[busy,setBusy]=useState(false);
-  const[msgBusy,setMsgBusy]=useState(false);
   const[bdm,setBdm]=useState(null);
   const[bookings,setBookings]=useState([]);
   const[showScheduler,setShowScheduler]=useState(false);
@@ -171,20 +171,10 @@ function ClientCallPage({user,isMobile,toast,reload}){
     if(r.error){toast(r.error,"info");return;}
     if(r.agent)setBdm(r.agent);
     toast("Request sent — waiting for your BDM to confirm");
-    setSelDay(null);setSelTime(null);setNote("");
+    setSelDay(null);setSelTime(null);    setNote("");
     setShowScheduler(false);
     await loadCall();
     await reload();
-  };
-  const sendMsg=async()=>{
-    const text=note.trim();
-    if(!text){toast("Write a message first","info");return;}
-    setMsgBusy(true);
-    const r=await api.sendBdmMessage(text);
-    setMsgBusy(false);
-    if(r.error){toast(r.error,"info");return;}
-    setNote("");
-    toast(`Message sent to ${r.agent?.name||"your BDM"}`);
   };
   const statusLabel=(s)=>({pending:"Awaiting BDM confirmation",confirmed:"Confirmed"}[s]||s);
   const statusColor=(s)=>s==="confirmed"?T.green:T.amber;
@@ -290,8 +280,12 @@ function ClientCallPage({user,isMobile,toast,reload}){
           <span style={{fontSize:12.5,color:T.sub}}>{item}</span>
         </div>))}
         <div style={{height:1,background:T.line,margin:"14px 0"}}/>
-        <textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="Any questions for your BDM?" style={{width:"100%",padding:"10px 13px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:11,color:T.ink,fontSize:12.5,resize:"none",height:74,boxSizing:"border-box",fontFamily:FONT_B}}/>
-        <Btn variant="soft" size="sm" style={{width:"100%",marginTop:9}} onClick={sendMsg} disabled={msgBusy}>{msgBusy?"Sending…":"Send message"}</Btn>
+        <textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="Optional note with your booking request" style={{width:"100%",padding:"10px 13px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:11,color:T.ink,fontSize:12.5,resize:"none",height:74,boxSizing:"border-box",fontFamily:FONT_B}}/>
+        <div style={{marginTop:12,padding:"12px 13px",background:T.brandSoft,borderRadius:12}}>
+          <div style={{fontSize:12.5,fontWeight:800,color:T.brand,marginBottom:4}}>Need to chat with {bdmLabel}?</div>
+          <div style={{fontSize:12,color:T.sub,marginBottom:10,lineHeight:1.45}}>Use Messages for ongoing chat — Book a Call is for scheduling only.</div>
+          <Btn variant="soft" size="sm" style={{width:"100%"}} onClick={()=>onOpenMessages?.()}>Open Messages →</Btn>
+        </div>
       </Card>
     </div>)}
   </div>);
@@ -370,6 +364,7 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
   const[invoices,setInvoices]=useState([]);
   const[sysNotifs,setSysNotifs]=useState([]);
   const[notifOpen,setNotifOpen]=useState(false);
+  const[chatUnread,setChatUnread]=useState(0);
   const notifSig=useRef("");
   const billingSyncedFor=useRef(null);
   const w=useWindowSize();const isMobile=w<820;
@@ -466,6 +461,29 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
     return()=>{cancelled=true;clearInterval(t);};
   },[userId]);
 
+  // Chat unread badge — poll while not on Messages; don't rebind on every page change.
+  const pageRef=useRef(page);
+  pageRef.current=page;
+  useEffect(()=>{
+    if(impersonating||!userId)return;
+    let cancelled=false;
+    const pull=async()=>{
+      if(pageRef.current==="messages")return;
+      const r=await api.listChatMessages({limit:40});
+      if(cancelled||r.error)return;
+      setChatUnread(r.unread||0);
+    };
+    pull();
+    const t=setInterval(pull,20000);
+    const unsub=api.subscribeChat(userId,{
+      onInsert:(row)=>{
+        if(pageRef.current==="messages")return;
+        if(row.senderId&&row.senderId!==userId)setChatUnread(n=>n+1);
+      },
+    });
+    return()=>{cancelled=true;clearInterval(t);unsub();};
+  },[userId,impersonating]);
+
   if(!data||!userId){
     return(<div style={{padding:40,textAlign:"center",color:T.sub,fontFamily:FONT_B}}>Loading your dashboard…</div>);
   }
@@ -489,6 +507,7 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
   const nav=[
     {id:"home",icon:"🏠",label:"Home"},
     {id:"notifications",icon:"🔔",label:"Notifications"},
+    {id:"messages",icon:"💬",label:"Messages"},
     {id:"listings",icon:"📋",label:"Listings"},
     {id:"analytics",icon:"📈",label:"Analytics"},
     {id:"billing",icon:"💳",label:"Plan & Billing"},
@@ -555,13 +574,13 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
     listing_live:"listings",nap_fix:"listings",edit_blocked:"listings",flagged:"listings",rejected:"listings",submitted:"listings",
     gmb_update:"gmb",analytics:"analytics",
     meeting_confirmed:"call",meeting_cancelled:"call",meeting_pending:"call",call_booked:"call",
-    bdm_assigned:"call",message_sent:"call",bdm_message:"call",
+    bdm_assigned:"call",message_sent:"messages",bdm_message:"messages",chat_message:"messages",
     plan_subscribed:"billing",plan_changed:"billing",plan_cancel_scheduled:"billing",plan_cancelled:"billing",
     plan_resumed:"billing",payment_failed:"billing",invoice_paid:"billing",welcome:"home",
   }[t]||"home");
   const notifIcon=(t)=>({
     meeting_confirmed:"✅",meeting_cancelled:"❌",meeting_pending:"📅",call_booked:"📅",
-    bdm_assigned:"👤",message_sent:"💬",bdm_message:"💬",
+    bdm_assigned:"👤",message_sent:"💬",bdm_message:"💬",chat_message:"💬",
     plan_subscribed:"💳",plan_changed:"🔄",plan_cancel_scheduled:"⛔",plan_cancelled:"⛔",
     plan_resumed:"✅",payment_failed:"⚠️",invoice_paid:"🧾",welcome:"👋",
     listing_live:"🟢",rejected:"❌",flagged:"🚩",nap_fix:"🔧",
@@ -1013,8 +1032,8 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
         {Object.entries(PLANSV).map(([id,p],i)=>{
           const current=id===user.plan;
           return(<div key={id} className="fadeUp hoverCard" style={{animationDelay:`${i*90}ms`,background:T.surface,border:`2px solid ${current?p.color:T.line}`,borderRadius:18,padding:22,position:"relative",boxShadow:current?SHADOW_LG:SHADOW}}>
-            {current&&<div style={{position:"absolute",top:-11,left:"50%",transform:"translateX(-50%)",background:p.color,color:"#fff",fontSize:10,fontWeight:800,padding:"3px 13px",borderRadius:20}}>CURRENT PLAN</div>}
-            {id==="growth"&&!current&&<div style={{position:"absolute",top:-11,left:"50%",transform:"translateX(-50%)",background:`linear-gradient(135deg,${T.brand},${T.violet})`,color:"#fff",fontSize:10,fontWeight:800,padding:"3px 13px",borderRadius:20}}>MOST POPULAR</div>}
+            {current&&<div style={{position:"absolute",top:-11,left:"50%",transform:"translateX(-50%)",background:p.color,color:"#fff",fontSize:10,fontWeight:800,padding:"3px 13px",borderRadius:20,width:"auto",whiteSpace:"nowrap"}}>CURRENT PLAN</div>}
+            {id==="growth"&&!current&&<div style={{position:"absolute",top:-11,left:"50%",transform:"translateX(-50%)",background:`linear-gradient(135deg,${T.brand},${T.violet})`,color:"#fff",fontSize:10,fontWeight:800,padding:"3px 13px",borderRadius:20,width:"auto",whiteSpace:"nowrap"}}>MOST POPULAR</div>}
             <div style={{fontFamily:FONT_D,fontSize:16,fontWeight:800}}>{p.name}</div>
             <div style={{fontFamily:FONT_D,fontSize:30,fontWeight:800,color:p.color,margin:"5px 0 2px"}}>${p.price}<span style={{fontSize:13,color:T.faint,fontWeight:600}}>/mo</span></div>
             <div style={{fontSize:12,color:T.sub,fontWeight:700,marginBottom:14}}>{p.quota}</div>
@@ -1072,15 +1091,21 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
 
   // IMPORTANT: call page bodies as functions (Home()), not <Home/>.
   // Inner `const Home=()=>` recreated each render would remount the whole page (flicker).
-  return(<><Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} planBadge={planBadge} showLegalLinks headerRight={NotifBell()} badgeCounts={{notifications:unreadSys}}>
+  return(<><Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} planBadge={planBadge} showLegalLinks headerRight={NotifBell()} badgeCounts={{notifications:unreadSys,messages:chatUnread}}>
     {page==="home"&&Home()}
     {page==="notifications"&&NotificationsPage()}
+    {page==="messages"&&(
+      <div>
+        <PageHead isMobile={isMobile} title="Messages" sub="Chat with your Business Development Manager"/>
+        <ChatThread myId={userId} toast={toast} onUnreadChange={setChatUnread}/>
+      </div>
+    )}
     {page==="listings"&&Listings()}
     {page==="gmb"&&Gmb()}
     {page==="analytics"&&Analytics()}
     {page==="billing"&&Billing()}
     {page==="call"&&(
-      <ClientCallPage user={user} isMobile={isMobile} toast={toast} reload={reload}/>
+      <ClientCallPage user={user} isMobile={isMobile} toast={toast} reload={reload} onOpenMessages={()=>setPage("messages")}/>
     )}
     {page==="legal"&&<ClientLegalPage isMobile={isMobile}/>}
   </Shell>
