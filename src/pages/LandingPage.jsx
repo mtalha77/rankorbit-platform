@@ -409,8 +409,8 @@ export default function LandingPage({user=null,focusPricing=false,billingFlag=nu
           return(
           <Reveal key={pl.n} delay={i*100}>
             <div className="lift" style={{background:T.surface,borderRadius:20,padding:isMobile?26:30,border:current||pl.pop?`2px solid ${T.brand}`:`1px solid ${T.line}`,boxShadow:(current||pl.pop)?SHADOW_LG:SHADOW,position:"relative",height:"100%",display:"flex",flexDirection:"column"}}>
-              {current?<div style={{position:"absolute",top:-12,left:"50%",transform:"translateX(-50%)",background:T.brand,color:"#fff",fontSize:11,fontWeight:800,padding:"4px 16px",borderRadius:20,letterSpacing:".4px"}}>YOUR CURRENT PLAN</div>
-                :pl.pop&&<div style={{position:"absolute",top:-12,left:"50%",transform:"translateX(-50%)",background:`linear-gradient(135deg,${T.brand},${T.violet})`,color:"#fff",fontSize:11,fontWeight:800,padding:"4px 16px",borderRadius:20,letterSpacing:".4px"}}>MOST POPULAR</div>}
+              {current?<div style={{position:"absolute",top:-12,left:"50%",transform:"translateX(-50%)",background:T.brand,color:"#fff",fontSize:11,fontWeight:800,padding:"4px 16px",borderRadius:20,letterSpacing:".4px",width:"auto",whiteSpace:"nowrap"}}>YOUR CURRENT PLAN</div>
+                :pl.pop&&<div style={{position:"absolute",top:-12,left:"50%",transform:"translateX(-50%)",background:`linear-gradient(135deg,${T.brand},${T.violet})`,color:"#fff",fontSize:11,fontWeight:800,padding:"4px 16px",borderRadius:20,letterSpacing:".4px",width:"auto",whiteSpace:"nowrap"}}>MOST POPULAR</div>}
               <h3 style={{fontFamily:FONT_D,fontSize:19,fontWeight:800,margin:"0 0 4px"}}>{pl.n}</h3>
               <div style={{margin:"6px 0 4px"}}><span style={{fontFamily:FONT_D,fontSize:44,fontWeight:800,letterSpacing:"-2px"}}>${lprice(pl.id)}</span><span style={{fontSize:15,color:T.faint,fontWeight:600}}>/mo</span></div>
               <div style={{fontSize:13.5,color:T.sub,fontWeight:700,marginBottom:18}}>{pl.q}</div>

@@ -232,14 +232,86 @@ export const api={
     }catch(e){return{error:e.message||"Network error"};}
   },
   async sendBdmMessage(message){
+    // Prefer chat thread; keep name for older callers.
+    return this.sendChatMessage({ body: message });
+  },
+  async listChatMessages({clientId,before,limit}={}){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in",messages:[]};
+    try{
+      const r=await fetch("/api/chat-messages",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({token,clientId,before,limit}),
+      });
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not load messages",messages:[]};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error",messages:[]};}
+  },
+  async sendChatMessage({body,clientId}={}){
     const token=await this._accessToken();
     if(!token)return{error:"Not signed in"};
     try{
-      const r=await fetch("/api/bdm-message",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,message})});
+      const r=await fetch("/api/chat-send",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({token,body,clientId}),
+      });
       const j=await r.json().catch(()=>({}));
       if(!r.ok)return{error:j.error||"Could not send message"};
       return{ok:true,...j};
     }catch(e){return{error:e.message||"Network error"};}
+  },
+  async markChatRead({clientId}={}){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/chat-read",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({token,clientId}),
+      });
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not mark read"};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
+  async listChatThreads(){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in",threads:[]};
+    try{
+      const r=await fetch("/api/chat-threads",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({token}),
+      });
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not load threads",threads:[]};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error",threads:[]};}
+  },
+  /** Subscribe to new/updated messages for a client thread. Returns unsubscribe fn. */
+  subscribeChat(clientId,{onInsert,onUpdate}={}){
+    if(!supa||!clientId)return()=>{};
+    try{
+      const channel=supa
+        .channel(`chat:${clientId}:${Date.now()}`)
+        .on(
+          "postgres_changes",
+          {event:"INSERT",schema:"public",table:"messages",filter:`clientId=eq.${clientId}`},
+          (payload)=>{if(payload?.new&&typeof onInsert==="function")onInsert(payload.new);}
+        )
+        .on(
+          "postgres_changes",
+          {event:"UPDATE",schema:"public",table:"messages",filter:`clientId=eq.${clientId}`},
+          (payload)=>{if(payload?.new&&typeof onUpdate==="function")onUpdate(payload.new);}
+        )
+        .subscribe();
+      return()=>{try{supa.removeChannel(channel);}catch{}};
+    }catch{
+      return()=>{};
+    }
   },
   async getMyBdm(){
     const token=await this._accessToken();

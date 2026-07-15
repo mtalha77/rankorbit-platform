@@ -7,8 +7,77 @@ import { PLANS, CATEGORIES, US_CA_STATES, livePlanEntries } from "../lib/constan
 import { today, todayFull, uid, actIcon, toDateInputValue, fromDateInputValue } from "../lib/helpers";
 import { Badge, Card, Btn, Input, Select, Modal, Confirm, StatCard, ChartTip, SectionTitle, Empty, ListToolbar, PageHead } from "../components/atoms";
 import Shell from "../components/Shell";
+import ChatThread from "../components/ChatThread";
 import ClientDashboard from "./ClientDashboard";
 import { useWindowSize, useToast } from "../hooks";
+
+function StaffMessagesInbox({user,clients,selClient,setSelClient,setChatUnreadTotal,toast,isMobile}){
+  const[threads,setThreads]=useState([]);
+  const[loading,setLoading]=useState(true);
+  const[activeId,setActiveId]=useState(selClient||null);
+  useEffect(()=>{
+    let cancelled=false;
+    (async()=>{
+      setLoading(true);
+      const r=await api.listChatThreads();
+      if(cancelled)return;
+      setLoading(false);
+      if(r.error){toast(r.error,"info");return;}
+      setThreads(r.threads||[]);
+      setChatUnreadTotal(r.unreadTotal||0);
+      if(!activeId&&(r.threads||[])[0])setActiveId(r.threads[0].clientId);
+    })();
+    return()=>{cancelled=true;};
+  },[user.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const active=threads.find(t=>t.clientId===activeId)||null;
+  const peer=clients.find(c=>c.id===activeId);
+  return(<div>
+    <PageHead isMobile={isMobile} title="Messages" sub="Chat threads with your clients"/>
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"280px 1fr",gap:16,alignItems:"start"}}>
+      <Card style={{padding:0,overflow:"hidden"}}>
+        {loading?(<div style={{padding:24,textAlign:"center",color:T.faint,fontSize:13}}>Loading…</div>):
+          threads.length===0?(<div style={{padding:24}}><Empty icon="💬" title="No chats yet" sub="When a client messages you, the thread appears here."/></div>):(
+          <div>
+            {threads.map((t,i)=>(
+              <div key={t.clientId} onClick={()=>{setActiveId(t.clientId);setSelClient(t.clientId);}}
+                style={{padding:"12px 14px",cursor:"pointer",background:activeId===t.clientId?T.brandSoft:T.surface,borderBottom:i<threads.length-1?`1px solid ${T.line}`:"none"}}>
+                <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"center"}}>
+                  <div style={{fontSize:13.5,fontWeight:t.unread?800:700,color:T.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.clientName}</div>
+                  {t.unread>0&&<span style={{background:T.red,color:"#fff",borderRadius:10,fontSize:10,fontWeight:800,padding:"2px 7px",flexShrink:0}}>{t.unread}</span>}
+                </div>
+                <div style={{fontSize:12,color:T.sub,marginTop:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                  {t.lastMessage?.body||"No messages"}
+                </div>
+                {t.lastMessage?.createdAt&&(
+                  <div style={{fontSize:10.5,color:T.faint,marginTop:3}}>
+                    {new Date(t.lastMessage.createdAt).toLocaleString()}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+      <div>
+        {activeId?(
+          <ChatThread
+            clientId={activeId}
+            myId={user.id}
+            peerLabel={peer?.businessName||peer?.name||active?.clientName||"Client"}
+            toast={toast}
+            onUnreadChange={(n)=>{
+              if(n===0){
+                setThreads(prev=>prev.map(t=>t.clientId===activeId?{...t,unread:0}:t));
+              }
+            }}
+          />
+        ):(
+          <Card><Empty icon="💬" title="Select a conversation" sub="Pick a client thread on the left."/></Card>
+        )}
+      </div>
+    </div>
+  </div>);
+}
 
 export default function AdminDashboard({user,data,reload,onLogout}){
   const[page,setPage]=useState("overview");
@@ -60,6 +129,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
   const R=async(fn,msg)=>{try{await fn();if(msg)toast(msg);await reload();}catch(e){console.error(e);toast(e.message||"Save failed","info");}};
 
   const[notifBadge,setNotifBadge]=useState(0);
+  const[chatUnreadTotal,setChatUnreadTotal]=useState(0);
   useEffect(()=>{
     let cancelled=false;
     const pull=async()=>{
@@ -73,9 +143,23 @@ export default function AdminDashboard({user,data,reload,onLogout}){
     return()=>{cancelled=true;clearInterval(t);};
   },[user.id]);
 
+  useEffect(()=>{
+    let cancelled=false;
+    const pull=async()=>{
+      if(page==="messages"||page==="clientDetail")return;
+      const r=await api.listChatThreads();
+      if(cancelled||r.error)return;
+      setChatUnreadTotal(r.unreadTotal||0);
+    };
+    pull();
+    const t=setInterval(pull,25000);
+    return()=>{cancelled=true;clearInterval(t);};
+  },[user.id,page]);
+
   const nav=[
     {id:"overview",icon:"📊",label:"Overview",roles:["super_admin","manager","agent"]},
     {id:"notifications",icon:"🔔",label:"Notifications",roles:["super_admin","manager","agent"]},
+    {id:"messages",icon:"💬",label:"Messages",roles:["super_admin","manager","agent"]},
     {id:"clients",icon:"👥",label:"Clients",roles:["super_admin","manager","agent"],match:["clientDetail"]},
     {id:"listings",icon:"📋",label:"All Listings",roles:["super_admin","manager","agent"]},
     {id:"gmb",icon:"📍",label:"GMB",roles:["super_admin","manager"]},
@@ -555,6 +639,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
       client_unassigned:"👤",
       call_booked:"📅",
       bdm_message:"💬",
+      chat_message:"💬",
       meeting_confirmed:"✅",
       meeting_cancelled:"❌",
     }[t]||"🔔");
@@ -564,6 +649,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
       client_unassigned:"Assignment",
       call_booked:"Meeting",
       bdm_message:"Message",
+      chat_message:"Chat",
       meeting_confirmed:"Meeting",
       meeting_cancelled:"Meeting",
     }[t]||"Update");
@@ -632,9 +718,12 @@ export default function AdminDashboard({user,data,reload,onLogout}){
                     )}
                   </div>
                 )}
-                {openId===n.id&&(n.type==="client_assigned"||n.type==="client_unassigned"||n.type==="call_booked"||n.type==="bdm_message"||n.type==="meeting_confirmed"||n.type==="meeting_cancelled")&&n.clientId&&(
+                {openId===n.id&&(n.type==="client_assigned"||n.type==="client_unassigned"||n.type==="call_booked"||n.type==="bdm_message"||n.type==="chat_message"||n.type==="meeting_confirmed"||n.type==="meeting_cancelled")&&n.clientId&&(
                   <div style={{padding:"0 6px 14px 54px",display:"flex",gap:8,flexWrap:"wrap"}}>
                     <Btn variant="soft" size="sm" onClick={()=>{setSelClient(n.clientId);setPage("clientDetail");}}>Open client →</Btn>
+                    {(n.type==="chat_message"||n.type==="bdm_message")&&(
+                      <Btn size="sm" onClick={()=>{setSelClient(n.clientId);setPage("messages");}}>Open chat →</Btn>
+                    )}
                   </div>
                 )}
                 {openId===n.id&&n.type==="staff_created"&&isAdmin&&(
@@ -774,9 +863,20 @@ export default function AdminDashboard({user,data,reload,onLogout}){
   };
 
   const ClientDetail=()=>{
-    const c=clients.find(x=>x.id===selClient);if(!c)return null;
+    const c=clients.find(x=>x.id===selClient);
+    const[nap,setNap]=useState(0);
+    const[chatOpen,setChatOpen]=useState(false);
+    useEffect(()=>{
+      if(c)setNap(c.napScore||0);
+      setChatOpen(false);
+    },[c?.id]);
+    if(!c)return(
+      <Card>
+        <Empty icon="👤" title="Client not found" sub="Go back to Clients and pick another account."/>
+        <Btn variant="soft" size="sm" onClick={()=>{setPage("clients");setSelClient(null);}}>← Clients</Btn>
+      </Card>
+    );
     const cl=listings[c.id]||[];
-    const[nap,setNap]=useState(c.napScore||0);
     // Agents reach ClientDetail only for clients assigned to them (clients list is pre-scoped),
     // so if an agent can open this client, they're allowed to edit it.
     const canEdit=isStaffMgr||(isAgent&&c.assignedAgentId===user.id);
@@ -803,6 +903,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
         <Badge type={c.status==="suspended"?"suspended":"active"}/>{c.plan&&<Badge type="submitted" label={`${PLANS[c.plan].name} $${PLANS[c.plan].price}/mo`}/>}
       </div>
       {(canEdit||can("gmb")||can("nap")||can("logEdit")||can("listings"))&&<div style={{display:"flex",gap:8,marginBottom:18,flexWrap:"wrap"}}>
+        <Btn variant={chatOpen?"soft":"ghost"} size="sm" onClick={()=>setChatOpen(o=>!o)}>{chatOpen?"Hide chat":"💬 Open chat"}</Btn>
         {isStaffMgr&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"clientForm",client:c})}>✏️ Edit Info</Btn>}
         {canImpersonate&&<Btn variant="soft" size="sm" onClick={()=>{audit("client.impersonate",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name});setViewAs(c.id);}}>👁️ Open Account (read-only)</Btn>}
         {isStaffMgr&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"integrations",client:c})}>🔗 Integrations</Btn>}
@@ -815,6 +916,22 @@ export default function AdminDashboard({user,data,reload,onLogout}){
         {isAdmin&&!c.protected&&<Btn variant="danger" size="sm" onClick={()=>setConfirm({title:"Delete client?",msg:`Move ${c.businessName||c.name} to Trash? Recoverable for 30 days, then permanently removed with all their listings.`,danger:true,yes:"Delete",onYes:()=>R(async()=>{await api.deleteUser(c.id);await audit("client.delete",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name});},"Client moved to Trash").then(()=>{setPage("clients");setSelClient(null);})})}>🗑 Delete</Btn>}
         {c.protected&&<span style={{fontSize:11,color:T.faint,alignSelf:"center"}}>🔒 Demo account (protected)</span>}
       </div>}
+      {!(canEdit||can("gmb")||can("nap")||can("logEdit")||can("listings"))&&(
+        <div style={{display:"flex",gap:8,marginBottom:18}}>
+          <Btn variant={chatOpen?"soft":"ghost"} size="sm" onClick={()=>setChatOpen(o=>!o)}>{chatOpen?"Hide chat":"💬 Open chat"}</Btn>
+        </div>
+      )}
+      {chatOpen&&(
+        <div style={{marginBottom:18}}>
+          <ChatThread
+            clientId={c.id}
+            myId={user.id}
+            peerLabel={c.businessName||c.name||c.email}
+            toast={toast}
+            compact
+          />
+        </div>
+      )}
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16,marginBottom:18}}>
         <Card><SectionTitle>Business Info</SectionTitle>
           {[["Owner",c.name],["Email",c.email],["Phone",c.phone],["Address",`${c.address||"–"}${c.city?", "+c.city:""}${c.state?", "+c.state:""}`],["Website",c.website||"–"],["Category",c.category||"–"],["GA4 ID",c.gaId||"Not connected"],["GBP ID",c.gbpId||"Not connected"]].map(([k,v])=>(
@@ -1346,9 +1463,20 @@ export default function AdminDashboard({user,data,reload,onLogout}){
     </>);
   }
 
-  return(<><Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} planBadge={roleBadge} brandTag="ADMIN" badgeCounts={{notifications:notifBadge}}>
+  return(<><Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} planBadge={roleBadge} brandTag="ADMIN" badgeCounts={{notifications:notifBadge,messages:chatUnreadTotal}}>
     {page==="overview"&&<Overview/>}
     {page==="notifications"&&<NotificationsPage/>}
+    {page==="messages"&&(
+      <StaffMessagesInbox
+        user={user}
+        clients={clients}
+        selClient={selClient}
+        setSelClient={setSelClient}
+        setChatUnreadTotal={setChatUnreadTotal}
+        toast={toast}
+        isMobile={isMobile}
+      />
+    )}
     {page==="clients"&&<Clients/>}
     {page==="clientDetail"&&<ClientDetail/>}
     {page==="listings"&&<AllListings/>}
