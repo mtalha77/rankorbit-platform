@@ -1,5 +1,5 @@
 import { getAdmin, readJson, requireClient } from "../server/billing.js";
-import { resolveClientAgent, notifyBdm, notifyUser, notifySuperAdmins } from "../server/assign.js";
+import { resolveClientAgent, notifyBdm, notifyClient, notifySuperAdmins } from "../server/assign.js";
 import { randomUUID } from "crypto";
 
 function uid(prefix = "bk") {
@@ -77,8 +77,8 @@ export default async function handler(req, res) {
       },
     });
 
-    // Client dashboard notification — pending until BDM confirms/cancels.
-    await notifyUser(admin, {
+    // Client: in-app + email — pending until BDM confirms/cancels.
+    await notifyClient(admin, {
       userId: client.id,
       clientId: client.id,
       type: "meeting_pending",

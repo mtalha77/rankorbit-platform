@@ -42,13 +42,19 @@ export default function AdminDashboard({user,data,reload,onLogout}){
   const audit=async(action,{targetType,targetId,targetName,detail}={})=>{
     await api.logAudit({actor:user,action,targetType,targetId,targetName,detail});
   };
-  // When an AGENT edits/deletes a listing, flag it for managers (queued for email later).
+  // When an AGENT edits/deletes a listing, flag it for managers (activity + staff email route).
   // Uses an internal clientId sentinel so it appears in admin activity but NEVER in the client's feed.
   const notifyManagersIfAgent=async(action,listing)=>{
     if(user.role!=="agent")return;
     const clientName=clients.find(c=>c.id===listing.clientId)?.businessName||"a client";
     await api.addActivity({id:uid(),clientId:"__internal",type:"edit_blocked",desc:`Manager review: ${user.name} ${action} "${listing.directory}" for ${clientName}`,date:todayFull(),by:"System"});
-    // Batch 4 will also send this to managers via /api/notify.
+    api.notifyClient({
+      clientId:listing.clientId,
+      type:"agent_edit",
+      title:`Agent ${action} a listing`,
+      body:`${user.name} ${action} "${listing.directory}" for ${clientName}. Review in the admin dashboard.`,
+      meta:{directory:listing.directory,action},
+    });
     if(typeof window!=="undefined")window.__pendingManagerAlerts=(window.__pendingManagerAlerts||0)+1;
   };
   const R=async(fn,msg)=>{try{await fn();if(msg)toast(msg);await reload();}catch(e){console.error(e);toast(e.message||"Save failed","info");}};
@@ -109,7 +115,11 @@ export default function AdminDashboard({user,data,reload,onLogout}){
   };
   const UpdateListingModal=({listing,clientId,onClose})=>{
     const[f,setF]=useState({status:listing.status,liveLink:listing.liveLink||"",liveDate:listing.liveDate||"–",napMatch:listing.napMatch||"–",notes:listing.notes||"",actionNeeded:!!listing.actionNeeded,actionNote:listing.actionNote||""});
-    const set=(k,v)=>setF(x=>({...x,[k]:v}));
+    const[errs,setErrs]=useState({liveLink:"",liveDate:""});
+    const set=(k,v)=>{
+      setF(x=>({...x,[k]:v}));
+      if(k==="liveLink"||k==="liveDate")setErrs(e=>({...e,[k]:""}));
+    };
     const onStatus=(v)=>{
       setF(x=>{
         const next={...x,status:v};
@@ -118,14 +128,31 @@ export default function AdminDashboard({user,data,reload,onLogout}){
         return next;
       });
     };
+    const validateLiveFields=()=>{
+      const next={liveLink:"",liveDate:""};
+      const link=String(f.liveLink||"").trim();
+      const hasDate=f.liveDate&&f.liveDate!=="–"&&f.liveDate!=="-";
+      if(!link)next.liveLink="Live Listing URL is required";
+      else{
+        try{
+          const u=new URL(link);
+          if(u.protocol!=="http:"&&u.protocol!=="https:")next.liveLink="URL must start with http:// or https://";
+        }catch{next.liveLink="Enter a valid Live Listing URL";}
+      }
+      if(!hasDate)next.liveDate="Live Date is required";
+      setErrs(next);
+      return !next.liveLink&&!next.liveDate;
+    };
     return(<Modal open onClose={onClose} title={`Update · ${listing.directory}`}>
       <Select label="Status" value={f.status} onChange={onStatus} options={["submitted","pending","live","rejected","flagged"].map(s=>({value:s,label:s[0].toUpperCase()+s.slice(1)}))}/>
-      <Input label="Live Listing URL" value={f.liveLink} onChange={v=>set("liveLink",v)} placeholder="https://directory.com/business"/>
+      <Input label="Live Listing URL" value={f.liveLink} onChange={v=>set("liveLink",v)} placeholder="https://directory.com/business" required error={errs.liveLink}/>
       <Input
         label="Live Date"
         type="date"
         value={toDateInputValue(f.liveDate)}
         onChange={v=>set("liveDate",v?fromDateInputValue(v):"–")}
+        required
+        error={errs.liveDate}
       />
       <Select label="NAP Match" value={f.napMatch} onChange={v=>set("napMatch",v)} options={[{value:"–",label:"– Pending"},{value:"match",label:"✓ Match"},{value:"mismatch",label:"Mismatch"},{value:"fixed",label:"Fixed"}]}/>
       <div style={{marginBottom:12}}>
@@ -141,30 +168,42 @@ export default function AdminDashboard({user,data,reload,onLogout}){
         <Btn variant="danger" onClick={()=>setConfirm({title:"Delete listing?",msg:`Move ${listing.directory} to Trash? It can be restored for 30 days, then permanently removed.`,danger:true,yes:"Delete",onYes:()=>R(async()=>{await api.deleteListing(listing.id);await addActivity(clientId,"rejected",`${listing.directory} listing removed`);await audit("listing.delete",{targetType:"listing",targetId:listing.id,targetName:listing.directory});await notifyManagersIfAgent("deleted",listing);},"Listing moved to Trash").then(onClose)})}>Delete</Btn>
         <div style={{display:"flex",gap:8}}>
           <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-          <Btn onClick={()=>R(async()=>{
-            // Always persist the calendar value (previously only saved when status === "live").
-            let liveDate=f.liveDate&&f.liveDate!=="–"&&f.liveDate!=="-"?f.liveDate:"–";
-            if(f.status==="live"&&liveDate==="–")liveDate=todayFull();
-            await api.upsertListing({...listing,status:f.status,liveLink:f.liveLink,liveDate,napMatch:f.napMatch,notes:f.notes,actionNeeded:f.actionNeeded,actionNote:f.actionNote});
+          <Btn onClick={()=>{
+            if(!validateLiveFields())return;
+            const link=String(f.liveLink||"").trim();
+            R(async()=>{
+            let liveDate=f.liveDate;
+            await api.upsertListing({...listing,status:f.status,liveLink:link,liveDate,napMatch:f.napMatch,notes:f.notes,actionNeeded:f.actionNeeded,actionNote:f.actionNote});
             await audit("listing.edit",{targetType:"listing",targetId:listing.id,targetName:listing.directory,detail:`status→${f.status}`});
             await notifyManagersIfAgent("edited",listing);
-            if(f.status==="live"&&listing.status!=="live")await addActivity(clientId,"listing_live",`${listing.directory} listing went live`);
-            if(f.status==="rejected"&&listing.status!=="rejected")await addActivity(clientId,"rejected",`${listing.directory} rejected. ${f.notes}`);
-            if(f.status==="flagged"&&listing.status!=="flagged")await addActivity(clientId,"flagged",`${listing.directory} flagged. ${f.notes}`);
-          },"Listing updated").then(onClose)}>Save Changes</Btn>
+            if(f.status==="live"&&listing.status!=="live"){
+              await addActivity(clientId,"listing_live",`${listing.directory} listing went live`);
+              api.notifyClient({clientId,type:"listing_live",title:`${listing.directory} is live`,body:`Your ${listing.directory} listing is now live.${link?` View it: ${link}`:""}${f.notes?` Note: ${f.notes}`:""}`});
+            }
+            if(f.status==="rejected"&&listing.status!=="rejected"){
+              await addActivity(clientId,"rejected",`${listing.directory} rejected. ${f.notes}`);
+              api.notifyClient({clientId,type:"rejected",title:`${listing.directory} was rejected`,body:`Your ${listing.directory} listing was rejected.${f.notes?` ${f.notes}`:" Check your dashboard for details."}`});
+            }
+            if(f.status==="flagged"&&listing.status!=="flagged"){
+              await addActivity(clientId,"flagged",`${listing.directory} flagged. ${f.notes}`);
+              api.notifyClient({clientId,type:"flagged",title:`${listing.directory} flagged`,body:`Your ${listing.directory} listing was flagged for review.${f.notes?` ${f.notes}`:""}`});
+            }
+          },"Listing updated").then(onClose);
+          }}>Save Changes</Btn>
         </div>
       </div>
     </Modal>);
   };
   const ClientFormModal=({client,onClose})=>{
     const[f,setF]=useState(client||{role:"client",plan:"",status:"active",category:"Home Services"});
-    const set=(k,v)=>setF(x=>({...x,[k]:v}));
+    const[errs,setErrs]=useState({name:"",email:"",businessName:""});
+    const set=(k,v)=>{setF(x=>({...x,[k]:v}));if(errs[k])setErrs(e=>({...e,[k]:""}));};
     const editing=!!client;
     return(<Modal open onClose={onClose} title={editing?"Edit Client":"Add New Client"} width={560}>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-        <Input label="Full Name" value={f.name} onChange={v=>set("name",v)} placeholder="Mike Johnson" required/>
-        <Input label="Business Name" value={f.businessName} onChange={v=>set("businessName",v)} placeholder="Mike's Plumbing" required/>
-        <Input label="Email" value={f.email} onChange={v=>set("email",v)} placeholder="mike@business.com" validate="email" required/>
+        <Input label="Full Name" value={f.name} onChange={v=>set("name",v)} placeholder="Mike Johnson" required error={errs.name}/>
+        <Input label="Business Name" value={f.businessName} onChange={v=>set("businessName",v)} placeholder="Mike's Plumbing" required error={errs.businessName}/>
+        <Input label="Email" value={f.email} onChange={v=>set("email",v)} placeholder="mike@business.com" validate="email" required error={errs.email}/>
         <Input label="Phone" value={f.phone} onChange={v=>set("phone",v)} placeholder="(555) 200-0000" validate="usphone"/>
         <Input label="City" value={f.city} onChange={v=>set("city",v)} placeholder="Austin"/>
         <Select label="State / Province" value={f.state} onChange={v=>set("state",v)} options={[{value:"",label:"Select…"},...US_CA_STATES.map(s=>({value:s.code,label:`${s.code} — ${s.name}`}))]}/>
@@ -178,7 +217,13 @@ export default function AdminDashboard({user,data,reload,onLogout}){
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:4}}>
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
         <Btn variant="green" onClick={()=>{
-          if(!f.email||!f.name){toast("Name and email required","warn");return;}
+          const next={name:"",email:"",businessName:""};
+          if(!String(f.name||"").trim())next.name="This field is required";
+          if(!String(f.businessName||"").trim())next.businessName="This field is required";
+          if(!String(f.email||"").trim())next.email="This field is required";
+          else if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email))next.email="Enter a valid email address";
+          setErrs(next);
+          if(next.name||next.email||next.businessName)return;
           (async()=>{
             try{
               if(editing){await api.upsertProfile(f);toast("Client updated");}
@@ -203,6 +248,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
         await api.patchProfile(client.id,{napScore:newScore,napHistory:[...hist,entry].slice(-20)});
         await audit("nap.update",{targetType:"client",targetId:client.id,targetName:client.businessName||client.name,detail:`${client.napScore||0}% → ${newScore}%`});
         await addActivity(client.id,"nap_fix",`NAP consistency updated to ${newScore}%`);
+        api.notifyClient({clientId:client.id,type:"nap_fix",title:"NAP score updated",body:`Your NAP consistency score is now ${newScore}% (was ${client.napScore||0}%).`});
         await reload();toast(`NAP score saved: ${newScore}%`);onClose();
       }catch(e){toast("Could not save NAP","info");}
       setSaving(false);
@@ -323,11 +369,17 @@ export default function AdminDashboard({user,data,reload,onLogout}){
   const TeamModal=({onClose})=>{
     const genPw=()=>{const cs="ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";let p="";for(let i=0;i<12;i++)p+=cs[Math.floor(Math.random()*cs.length)];return p;};
     const[f,setF]=useState({role:isAdmin?"manager":"agent",password:genPw()});
+    const[errs,setErrs]=useState({name:"",email:"",password:""});
     const[saving,setSaving]=useState(false);
-    const set=(k,v)=>setF(x=>({...x,[k]:v}));
+    const set=(k,v)=>{setF(x=>({...x,[k]:v}));if(errs[k])setErrs(e=>({...e,[k]:""}));};
     const create=async()=>{
-      if(!f.email||!f.name){toast("Name and email required","warn");return;}
-      if(!f.password||f.password.length<8){toast("Password must be at least 8 characters","warn");return;}
+      const next={name:"",email:"",password:""};
+      if(!String(f.name||"").trim())next.name="This field is required";
+      if(!String(f.email||"").trim())next.email="This field is required";
+      else if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email))next.email="Enter a valid email address";
+      if(!f.password||f.password.length<8)next.password="Password must be at least 8 characters";
+      setErrs(next);
+      if(next.name||next.email||next.password)return;
       setSaving(true);
       const r=await api.createStaff({name:f.name,email:f.email,password:f.password,role:f.role});
       setSaving(false);
@@ -339,13 +391,14 @@ export default function AdminDashboard({user,data,reload,onLogout}){
     const roleOpts=isAdmin?[{value:"super_admin",label:"Super Admin"},{value:"manager",label:"Manager"},{value:"agent",label:"Agent"}]:[{value:"agent",label:"Agent"}];
     return(<Modal open onClose={onClose} title="Create Team Member Login">
       <div style={{fontSize:12.5,color:T.sub,marginBottom:16,lineHeight:1.5}}>This creates a working login immediately. Share the email and password with your team member, they can sign in at the staff portal right away.</div>
-      <Input label="Full Name" value={f.name} onChange={v=>set("name",v)} placeholder="Team member name"/>
-      <Input label="Email" value={f.email} onChange={v=>set("email",v)} placeholder="name@naporbit.com" validate="email"/>
-      <label style={{fontSize:11.5,color:T.sub,fontWeight:700,display:"block",marginBottom:6,letterSpacing:".4px"}}>PASSWORD</label>
-      <div style={{display:"flex",gap:8,marginBottom:14}}>
-        <input value={f.password} onChange={e=>set("password",e.target.value)} style={{flex:1,padding:"11px 15px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:11,fontSize:13.5,fontFamily:"monospace",boxSizing:"border-box"}}/>
+      <Input label="Full Name" value={f.name} onChange={v=>set("name",v)} placeholder="Team member name" required error={errs.name}/>
+      <Input label="Email" value={f.email} onChange={v=>set("email",v)} placeholder="name@naporbit.com" validate="email" required error={errs.email}/>
+      <label style={{fontSize:11.5,color:T.sub,fontWeight:700,display:"block",marginBottom:6,letterSpacing:".4px"}}>PASSWORD <span style={{color:T.red}}>*</span></label>
+      <div style={{display:"flex",gap:8,marginBottom:errs.password?6:14}}>
+        <input value={f.password} onChange={e=>set("password",e.target.value)} style={{flex:1,padding:"11px 15px",background:T.surface,border:`1.5px solid ${errs.password?T.red:T.line}`,borderRadius:11,fontSize:13.5,fontFamily:"monospace",boxSizing:"border-box"}}/>
         <Btn variant="ghost" size="sm" onClick={()=>set("password",genPw())}>🎲 Generate</Btn>
       </div>
+      {errs.password&&<div style={{fontSize:11,color:T.red,marginTop:0,marginBottom:14,fontWeight:600}}>{errs.password}</div>}
       <Select label="Role" value={f.role} onChange={v=>set("role",v)} options={roleOpts}/>
       <div style={{padding:"11px 14px",background:T.amberSoft,borderRadius:11,fontSize:11.5,color:T.amber,fontWeight:600,lineHeight:1.5,marginBottom:16}}>Save these credentials, they'll also stay visible on the Team page for you to copy later.</div>
       <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
@@ -448,6 +501,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
     const[busyId,setBusyId]=useState(null);
     const[openId,setOpenId]=useState(null);
     const[zoomByNotif,setZoomByNotif]=useState({}); // notificationId -> zoom url
+    const[zoomErr,setZoomErr]=useState({}); // notificationId -> error text
     const load=async()=>{
       setLoading(true);
       const rows=await api.listMyNotifications();
@@ -477,8 +531,12 @@ export default function AdminDashboard({user,data,reload,onLogout}){
       if(!bookingId){toast("This notification has no booking linked","info");return;}
       const meetingUrl=(zoomByNotif[n.id]||"").trim();
       if(action==="confirm"&&meetingUrl){
-        try{new URL(meetingUrl);}catch{toast("Enter a valid Zoom link (https://…)","info");return;}
+        try{new URL(meetingUrl);}catch{
+          setZoomErr(prev=>({...prev,[n.id]:"Enter a valid Zoom link (https://…)"}));
+          return;
+        }
       }
+      setZoomErr(prev=>({...prev,[n.id]:""}));
       setBusyId(n.id+action);
       const r=await api.respondCall({bookingId,action,notificationId:n.id,meetingUrl:action==="confirm"?meetingUrl:undefined});
       setBusyId(null);
@@ -548,10 +606,11 @@ export default function AdminDashboard({user,data,reload,onLogout}){
                       <div style={{fontSize:11.5,fontWeight:700,color:T.sub,marginBottom:6}}>Zoom / meeting link (optional, shared with client)</div>
                       <input
                         value={zoomByNotif[n.id]||""}
-                        onChange={e=>setZoomByNotif(prev=>({...prev,[n.id]:e.target.value}))}
+                        onChange={e=>{setZoomByNotif(prev=>({...prev,[n.id]:e.target.value}));setZoomErr(prev=>({...prev,[n.id]:""}));}}
                         placeholder="https://zoom.us/j/…"
-                        style={{width:"100%",maxWidth:420,padding:"10px 12px",borderRadius:10,border:`1.5px solid ${T.line}`,background:T.surface,color:T.ink,fontSize:13,fontFamily:FONT_B,boxSizing:"border-box"}}
+                        style={{width:"100%",maxWidth:420,padding:"10px 12px",borderRadius:10,border:`1.5px solid ${zoomErr[n.id]?T.red:T.line}`,background:T.surface,color:T.ink,fontSize:13,fontFamily:FONT_B,boxSizing:"border-box"}}
                       />
+                      {zoomErr[n.id]&&<div style={{fontSize:11,color:T.red,marginTop:5,fontWeight:600}}>{zoomErr[n.id]}</div>}
                     </div>
                     <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                       <Btn variant="green" size="sm" disabled={!!busyId} onClick={()=>respond(n,"confirm")}>
@@ -1213,7 +1272,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
 
       <Card style={{marginBottom:16}}>
         <SectionTitle sub="Route each notification type to one or more email addresses. Separate multiple emails with commas. Toggle any type off to stop sending it.">Notifications & Email Routing</SectionTitle>
-        <div style={{padding:"12px 15px",background:T.amberSoft,borderRadius:12,marginBottom:16,fontSize:12,color:T.amber,fontWeight:600,lineHeight:1.5}}>Email delivery activates once your sending domain (naporbit.com) is verified. Until then these settings are saved but no emails send.</div>
+        <div style={{padding:"12px 15px",background:T.amberSoft,borderRadius:12,marginBottom:16,fontSize:12,color:T.amber,fontWeight:600,lineHeight:1.5}}>Clients always get in-app notifications. Staff emails below + client emails send via Resend once <code>RESEND_API_KEY</code> and <code>NOTIFY_FROM_EMAIL</code> are set in Vercel. Until then settings are saved and in-app still works.</div>
         {[
           {k:"routeSignup",label:"New client signup",desc:"When a client creates an account"},
           {k:"routeSuspend",label:"Client suspension",desc:"When a client is suspended or reactivated"},

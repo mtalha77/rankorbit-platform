@@ -1,5 +1,5 @@
 import { getAdmin, readJson, requireStaff } from "../server/billing.js";
-import { notifyBdm, notifySuperAdmins, notifyUser } from "../server/assign.js";
+import { notifyBdm, notifySuperAdmins, notifyClient } from "../server/assign.js";
 
 /**
  * Staff assigns (or unassigns) a client to an agent.
@@ -78,7 +78,7 @@ export default async function handler(req, res) {
 
       // Client-facing notice when they gain a BDM (or change BDM).
       if (client.assignedAgentId !== agent.id) {
-        await notifyUser(admin, {
+        await notifyClient(admin, {
           userId: clientId,
           clientId,
           type: "bdm_assigned",

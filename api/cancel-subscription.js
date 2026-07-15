@@ -8,6 +8,7 @@ import {
   subscriptionFieldsFromStripe,
   logBillingActivity,
 } from "../server/billing.js";
+import { notifyClient, notifyStaffRoute } from "../server/assign.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -70,6 +71,42 @@ export default async function handler(req, res) {
         ? "Subscription resumed (cancel at period end cleared)"
         : `Subscription set to cancel at period end · Stripe ${subscriptionId}`
     );
+
+    try {
+      const endDate = clean.currentPeriodEnd
+        ? new Date(clean.currentPeriodEnd).toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+          })
+        : "the end of your billing period";
+      if (resume) {
+        await notifyClient(admin, {
+          userId: profile.id,
+          clientId: profile.id,
+          type: "plan_resumed",
+          title: "Subscription resumed",
+          body: "Cancellation was cleared. Your subscription will renew as usual.",
+          meta: {},
+        });
+      } else {
+        await notifyClient(admin, {
+          userId: profile.id,
+          clientId: profile.id,
+          type: "plan_cancel_scheduled",
+          title: "Cancellation scheduled",
+          body: `Your subscription will end on ${endDate}. You keep access until then. You can resume anytime from Billing.`,
+          meta: { currentPeriodEnd: clean.currentPeriodEnd || null },
+        });
+        await notifyStaffRoute(admin, {
+          kind: "cancel",
+          title: "Client scheduled cancellation",
+          body: `${profile.businessName || profile.name || profile.email} set cancel at period end (${endDate}).`,
+        });
+      }
+    } catch (e) {
+      console.warn("notify cancel:", e.message);
+    }
 
     return res.status(200).json({
       ok: true,

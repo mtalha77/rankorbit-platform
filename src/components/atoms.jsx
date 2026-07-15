@@ -38,12 +38,16 @@ export const Input=({label,value,onChange,placeholder,type="text",style={},valid
     if(validate==="usphone")onChange(fmtPhone(v));
     else onChange(maxLength?v.slice(0,maxLength):v);
   };
+  const empty=!String(value??"").trim();
   let err="";
-  if(touched&&value){
+  // Empty required field → red underline (no toast)
+  if((touched||extError)&&required&&empty)err="This field is required";
+  else if(touched&&!empty){
     if(validate==="email"&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))err="Enter a valid email address";
     if(validate==="usphone"&&value.replace(/\D/g,"").length<10)err="Enter a valid US/Canada number";
   }
-  err=extError||err||"";
+  // Parent submit error wins (e.g. invalid URL message)
+  if(extError)err=extError;
   return(<div style={{marginBottom:14,...style}}>
     {label&&<label style={{fontSize:11.5,color:T.sub,fontWeight:700,display:"block",marginBottom:6,letterSpacing:".4px"}}>{label.toUpperCase()}{required&&<span style={{color:T.red}}> *</span>}</label>}
     <input type={validate==="email"?"email":type} inputMode={validate==="usphone"?"tel":undefined} value={value??""} onChange={e=>handle(e.target.value)} onBlur={()=>setTouched(true)} placeholder={placeholder} maxLength={maxLength}

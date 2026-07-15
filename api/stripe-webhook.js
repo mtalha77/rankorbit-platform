@@ -11,7 +11,7 @@ import {
   upsertInvoice,
   syncInvoicesForCustomer,
 } from "../server/billing.js";
-import { autoAssignLeastLoadedAgent } from "../server/assign.js";
+import { autoAssignLeastLoadedAgent, notifyClient, notifyStaffRoute, planLabel } from "../server/assign.js";
 
 export const config = { api: { bodyParser: false } };
 
@@ -174,6 +174,23 @@ export default async function handler(req, res) {
             if (inv?.id) await upsertInvoice(admin, inv, profileId);
             else if (customerId) await syncInvoicesForCustomer(stripe, admin, customerId, profileId);
             try {
+              await notifyClient(admin, {
+                userId: profileId,
+                clientId: profileId,
+                type: "plan_subscribed",
+                title: "Subscription active",
+                body: `Your ${planLabel(planId)} plan is active. Thank you for subscribing — your dashboard is ready.`,
+                meta: { planId: planId || null },
+              });
+              await notifyStaffRoute(admin, {
+                kind: "onboard",
+                title: `New subscription · ${planLabel(planId)}`,
+                body: `Client ${profileId} subscribed to ${planLabel(planId)}.`,
+              });
+            } catch (e) {
+              console.warn("notify after checkout:", e.message);
+            }
+            try {
               await autoAssignLeastLoadedAgent(admin, profileId);
             } catch (e) {
               console.warn("auto-assign after checkout:", e.message);
@@ -222,6 +239,23 @@ export default async function handler(req, res) {
               canceledAt: new Date().toISOString(),
             })
             .eq("id", profileId);
+          try {
+            await notifyClient(admin, {
+              userId: profileId,
+              clientId: profileId,
+              type: "plan_cancelled",
+              title: "Subscription ended",
+              body: "Your subscription has ended. You can resubscribe anytime from Billing in your dashboard.",
+              meta: {},
+            });
+            await notifyStaffRoute(admin, {
+              kind: "cancel",
+              title: "Subscription ended",
+              body: `Client ${profileId} subscription fully canceled.`,
+            });
+          } catch (e) {
+            console.warn("notify after subscription deleted:", e.message);
+          }
         }
         break;
       }
@@ -263,6 +297,42 @@ export default async function handler(req, res) {
               .from("profiles")
               .update({ subscriptionStatus: "past_due" })
               .eq("id", profileId);
+            try {
+              await notifyClient(admin, {
+                userId: profileId,
+                clientId: profileId,
+                type: "payment_failed",
+                title: "Payment failed",
+                body: "We couldn't charge your card for this billing period. Please update your payment method under Manage billing so your service stays active.",
+                meta: { invoiceId: invoice.id || null },
+              });
+              await notifyStaffRoute(admin, {
+                kind: "system",
+                title: "Payment failed",
+                body: `Payment failed for client ${profileId}. Invoice ${invoice.id || ""}.`,
+              });
+            } catch (e) {
+              console.warn("notify payment_failed:", e.message);
+            }
+          }
+          if (event.type === "invoice.paid") {
+            const amount =
+              typeof invoice.amount_paid === "number"
+                ? `$${(invoice.amount_paid / 100).toFixed(2)}`
+                : "your invoice";
+            const invUrl = invoice.hosted_invoice_url || invoice.invoice_pdf || null;
+            try {
+              await notifyClient(admin, {
+                userId: profileId,
+                clientId: profileId,
+                type: "invoice_paid",
+                title: "Payment received",
+                body: `Thanks — we received ${amount}.${invUrl ? ` View invoice: ${invUrl}` : " You can download invoices from Billing anytime."}`,
+                meta: { invoiceId: invoice.id || null, hostedInvoiceUrl: invUrl },
+              });
+            } catch (e) {
+              console.warn("notify invoice_paid:", e.message);
+            }
           }
         } else {
           console.warn("No profile for invoice", invoice.id, customerId);

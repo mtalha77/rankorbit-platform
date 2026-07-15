@@ -56,6 +56,16 @@ export const api={
       if(data.user){
         await supa.from("profiles").update({name,businessName,phone,avatar:(name||email)[0].toUpperCase()}).eq("id",data.user.id);
       }
+      // Fire-and-forget welcome (does not change signup success/error flow).
+      // Dedup key set so first-login ensureWelcomeNotify doesn't send it again.
+      if(data.session?.access_token&&data.user){
+        try{if(typeof localStorage!=="undefined")localStorage.setItem(`ro_welcome_${data.user.id}`,"1");}catch{}
+        fetch("/api/notify-client",{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({token:data.session.access_token,type:"welcome"}),
+        }).catch(()=>{});
+      }
       // Email verification is required, Supabase returns no session until confirmed.
       if(!data.session)return{needsConfirm:true};
       const{data:prof}=await supa.from("profiles").select("*").eq("id",data.user.id).maybeSingle();
@@ -65,6 +75,45 @@ export const api={
     if(us.find(x=>x.email===email))return{error:"An account with this email already exists."};
     const u={id:uid(),email,password,role:"client",name,businessName,phone,avatar:(name||email)[0].toUpperCase(),status:"active",napScore:0,createdAt:new Date().toISOString()};
     us.push(u);LSet("ro3_users",us);return{user:u};
+  },
+  /** Staff → client in-app + email. Types: listing_live, rejected, flagged, nap_fix, welcome, info, agent_edit */
+  async notifyClient({clientId,type,title,body,meta}={}){
+    if(!supa)return{ok:false,skipped:"local"};
+    const token=await this._accessToken();
+    if(!token)return{ok:false,error:"Not signed in"};
+    try{
+      const r=await fetch("/api/notify-client",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({token,clientId,type,title,body,meta}),
+      });
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{ok:false,error:j.error||"Notify failed"};
+      return{ok:true,...j};
+    }catch(e){return{ok:false,error:e.message};}
+  },
+  /**
+   * Send the welcome (in-app + email) once per client, on first login.
+   * Covers the email-confirm case where signup returns no session.
+   * Fire-and-forget + localStorage dedup so it never blocks or repeats.
+   */
+  async ensureWelcomeNotify(){
+    if(!supa)return;
+    try{
+      const{data:{user}}=await supa.auth.getUser();
+      if(!user)return;
+      const key=`ro_welcome_${user.id}`;
+      if(typeof localStorage!=="undefined"&&localStorage.getItem(key))return;
+      // Mark first so a slow/failed call doesn't retry on every login.
+      if(typeof localStorage!=="undefined")localStorage.setItem(key,"1");
+      const token=await this._accessToken();
+      if(!token)return;
+      await fetch("/api/notify-client",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({token,type:"welcome"}),
+      }).catch(()=>{});
+    }catch{/* welcome is best-effort */}
   },
   async googleLogin(){
     if(!supa)return{error:"Google sign-in needs the live database. It's disabled in demo mode."};

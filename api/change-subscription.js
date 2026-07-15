@@ -10,6 +10,7 @@ import {
   subscriptionFieldsFromStripe,
   logBillingActivity,
 } from "../server/billing.js";
+import { notifyClient, notifyStaffRoute, planLabel } from "../server/assign.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -56,6 +57,24 @@ export default async function handler(req, res) {
     }
 
     await logBillingActivity(admin, profile.id, `Plan changed to ${planId} via Stripe`);
+
+    try {
+      await notifyClient(admin, {
+        userId: profile.id,
+        clientId: profile.id,
+        type: "plan_changed",
+        title: "Plan updated",
+        body: `Your plan is now ${planLabel(planId)}. Changes appear on your next invoice (proration may apply).`,
+        meta: { planId },
+      });
+      await notifyStaffRoute(admin, {
+        kind: "planChange",
+        title: `Plan changed → ${planLabel(planId)}`,
+        body: `${profile.businessName || profile.name || profile.email} switched to ${planLabel(planId)}.`,
+      });
+    } catch (e) {
+      console.warn("notify plan change:", e.message);
+    }
 
     return res.status(200).json({ ok: true, plan: planId });
   } catch (e) {
