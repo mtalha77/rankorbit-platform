@@ -56,6 +56,14 @@ export const api={
       if(data.user){
         await supa.from("profiles").update({name,businessName,phone,avatar:(name||email)[0].toUpperCase()}).eq("id",data.user.id);
       }
+      // Fire-and-forget welcome (does not change signup success/error flow).
+      if(data.session?.access_token&&data.user){
+        fetch("/api/notify-client",{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({token:data.session.access_token,type:"welcome"}),
+        }).catch(()=>{});
+      }
       // Email verification is required, Supabase returns no session until confirmed.
       if(!data.session)return{needsConfirm:true};
       const{data:prof}=await supa.from("profiles").select("*").eq("id",data.user.id).maybeSingle();
@@ -65,6 +73,22 @@ export const api={
     if(us.find(x=>x.email===email))return{error:"An account with this email already exists."};
     const u={id:uid(),email,password,role:"client",name,businessName,phone,avatar:(name||email)[0].toUpperCase(),status:"active",napScore:0,createdAt:new Date().toISOString()};
     us.push(u);LSet("ro3_users",us);return{user:u};
+  },
+  /** Staff → client in-app + email. Types: listing_live, rejected, flagged, nap_fix, welcome, info, agent_edit */
+  async notifyClient({clientId,type,title,body,meta}={}){
+    if(!supa)return{ok:false,skipped:"local"};
+    const token=await this._accessToken();
+    if(!token)return{ok:false,error:"Not signed in"};
+    try{
+      const r=await fetch("/api/notify-client",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({token,clientId,type,title,body,meta}),
+      });
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{ok:false,error:j.error||"Notify failed"};
+      return{ok:true,...j};
+    }catch(e){return{ok:false,error:e.message};}
   },
   async googleLogin(){
     if(!supa)return{error:"Google sign-in needs the live database. It's disabled in demo mode."};

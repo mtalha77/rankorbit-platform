@@ -1,5 +1,5 @@
 import { getAdmin, readJson, requireStaff } from "../server/billing.js";
-import { notifyUser, notifySuperAdmins } from "../server/assign.js";
+import { notifyClient, notifySuperAdmins } from "../server/assign.js";
 import { randomUUID } from "crypto";
 
 function uid(prefix = "a") {
@@ -127,7 +127,7 @@ export default async function handler(req, res) {
     const when = `${booking.slotDate} at ${booking.slotTime}`;
     const agentName = auth.profile.name || "Your BDM";
     const link = cleanMeetingUrl || booking.meetingUrl || null;
-    await notifyUser(admin, {
+    await notifyClient(admin, {
       userId: booking.clientId,
       clientId: booking.clientId,
       type: action === "confirm" ? "meeting_confirmed" : "meeting_cancelled",

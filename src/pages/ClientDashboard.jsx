@@ -556,10 +556,15 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
     gmb_update:"gmb",analytics:"analytics",
     meeting_confirmed:"call",meeting_cancelled:"call",meeting_pending:"call",call_booked:"call",
     bdm_assigned:"call",message_sent:"call",bdm_message:"call",
+    plan_subscribed:"billing",plan_changed:"billing",plan_cancel_scheduled:"billing",plan_cancelled:"billing",
+    plan_resumed:"billing",payment_failed:"billing",invoice_paid:"billing",welcome:"home",
   }[t]||"home");
   const notifIcon=(t)=>({
     meeting_confirmed:"✅",meeting_cancelled:"❌",meeting_pending:"📅",call_booked:"📅",
     bdm_assigned:"👤",message_sent:"💬",bdm_message:"💬",
+    plan_subscribed:"💳",plan_changed:"🔄",plan_cancel_scheduled:"⛔",plan_cancelled:"⛔",
+    plan_resumed:"✅",payment_failed:"⚠️",invoice_paid:"🧾",welcome:"👋",
+    listing_live:"🟢",rejected:"❌",flagged:"🚩",nap_fix:"🔧",
   }[t]||"🔔");
   const openNotif=async(a)=>{
     setNotifOpen(false);

@@ -97,7 +97,7 @@ export async function autoAssignLeastLoadedAgent(admin, clientId, opts = {}) {
     meta: { agentId: agent.id, agentName: agent.name || agent.email || null, source: "auto" },
   });
 
-  await notifyUser(admin, {
+  await notifyClient(admin, {
     userId: clientId,
     clientId,
     type: "bdm_assigned",
@@ -170,10 +170,120 @@ export async function createNotification(admin, row) {
   return payload;
 }
 
-/** Notify any user (client or staff) in-app. */
+/** Notify any user (client or staff) in-app only. */
 export async function notifyUser(admin, { userId, clientId, type, title, body, meta }) {
   if (!userId) return null;
   return createNotification(admin, { userId, clientId, type, title, body, meta });
+}
+
+function appBaseUrl() {
+  const raw = (process.env.APP_URL || "").replace(/\/$/, "");
+  return raw || "https://www.naporbit.com";
+}
+
+function emailBodyWithCta(body) {
+  const link = `${appBaseUrl()}/dashboard`;
+  const text = String(body || "").trim();
+  return `${text}\n\nOpen your dashboard: ${link}\n\n— NAP Orbit`;
+}
+
+const PLAN_LABELS = {
+  essentials: "Essentials",
+  growth: "Growth",
+  gmb: "GMB Pro",
+};
+
+export function planLabel(planId) {
+  return PLAN_LABELS[planId] || planId || "your plan";
+}
+
+/**
+ * Client-facing: in-app notification + email to profiles.email (Resend when configured).
+ * Without RESEND_API_KEY, in-app still works; email is logged and skipped.
+ */
+export async function notifyClient(admin, { userId, clientId, type, title, body, meta }) {
+  if (!userId) return { notified: false };
+
+  const row = await createNotification(admin, {
+    userId,
+    clientId: clientId || userId,
+    type,
+    title,
+    body,
+    meta,
+  });
+
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("email,name")
+    .eq("id", userId)
+    .maybeSingle();
+
+  const email = profile?.email?.trim()?.toLowerCase();
+  if (!email) {
+    return { notified: true, notificationId: row?.id, emailResult: { sent: false, reason: "no_email" } };
+  }
+
+  const emailResult = await sendNotifyEmails([email], title, emailBodyWithCta(body));
+  return { notified: true, notificationId: row?.id, email, emailResult };
+}
+
+/**
+ * Email staff/ops addresses from Settings routing (in-app is handled separately).
+ * kind: signup | cancel | planChange | system | agentEdit | onboard | suspend | report
+ */
+export async function notifyStaffRoute(admin, { kind, title, body }) {
+  if (!admin || !kind) return { sent: false, reason: "bad_args" };
+
+  let cfg = {};
+  try {
+    const { data: settingsRow } = await admin.from("settings").select("data").eq("id", 1).maybeSingle();
+    cfg = settingsRow?.data?.config || {};
+  } catch {
+    return { sent: false, reason: "no_settings" };
+  }
+
+  const map = {
+    signup: { toggle: "notifySignup", route: "routeSignup", on: "routeSignupOn" },
+    cancel: { toggle: "notifyCancel", route: "routeCancel", on: "routeCancelOn" },
+    planChange: { toggle: "notifyPlanChange", route: "routeOnboard", on: "routeOnboardOn" },
+    onboard: { toggle: "notifyPlanChange", route: "routeOnboard", on: "routeOnboardOn" },
+    system: { toggle: null, route: "routeSystem", on: "routeSystemOn" },
+    agentEdit: { toggle: "notifyAgentEdit", route: "routeAgentEdit", on: "routeAgentEditOn" },
+    suspend: { toggle: null, route: "routeSuspend", on: "routeSuspendOn" },
+    report: { toggle: "monthlyReport", route: "routeReport", on: "routeReportOn" },
+  };
+
+  const spec = map[kind];
+  if (!spec) return { sent: false, reason: "unknown_kind" };
+
+  if (spec.toggle && cfg[spec.toggle] === false) {
+    return { sent: false, reason: "toggle_off" };
+  }
+  if (cfg[spec.on] === false) {
+    return { sent: false, reason: "route_off" };
+  }
+
+  const emails = new Set();
+  const routeVal = cfg[spec.route];
+  if (routeVal) {
+    String(routeVal)
+      .split(",")
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean)
+      .forEach((e) => emails.add(e));
+  }
+  // Fall back to control-panel notifyEmail when route field empty.
+  if (!emails.size && cfg.notifyEmail) {
+    String(cfg.notifyEmail)
+      .split(",")
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean)
+      .forEach((e) => emails.add(e));
+  }
+
+  if (!emails.size) return { sent: false, reason: "no_recipients" };
+  return sendNotifyEmails([...emails], title, body);
 }
 
 /**
@@ -251,7 +361,8 @@ export async function notifyBdm(admin, { agentId, clientId, type, title, body, m
   return { notified: true, notificationId: row?.id, emails: [...emails], emailResult };
 }
 
-async function sendNotifyEmails(toList, subject, text) {
+/** Send plain-text email via Resend. Safe no-op when RESEND_API_KEY is unset. */
+export async function sendNotifyEmails(toList, subject, text) {
   if (!toList.length) return { sent: false, reason: "no_recipients" };
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.NOTIFY_FROM_EMAIL || "NAP Orbit <onboarding@resend.dev>";

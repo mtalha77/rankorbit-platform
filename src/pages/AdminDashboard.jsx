@@ -42,13 +42,19 @@ export default function AdminDashboard({user,data,reload,onLogout}){
   const audit=async(action,{targetType,targetId,targetName,detail}={})=>{
     await api.logAudit({actor:user,action,targetType,targetId,targetName,detail});
   };
-  // When an AGENT edits/deletes a listing, flag it for managers (queued for email later).
+  // When an AGENT edits/deletes a listing, flag it for managers (activity + staff email route).
   // Uses an internal clientId sentinel so it appears in admin activity but NEVER in the client's feed.
   const notifyManagersIfAgent=async(action,listing)=>{
     if(user.role!=="agent")return;
     const clientName=clients.find(c=>c.id===listing.clientId)?.businessName||"a client";
     await api.addActivity({id:uid(),clientId:"__internal",type:"edit_blocked",desc:`Manager review: ${user.name} ${action} "${listing.directory}" for ${clientName}`,date:todayFull(),by:"System"});
-    // Batch 4 will also send this to managers via /api/notify.
+    api.notifyClient({
+      clientId:listing.clientId,
+      type:"agent_edit",
+      title:`Agent ${action} a listing`,
+      body:`${user.name} ${action} "${listing.directory}" for ${clientName}. Review in the admin dashboard.`,
+      meta:{directory:listing.directory,action},
+    });
     if(typeof window!=="undefined")window.__pendingManagerAlerts=(window.__pendingManagerAlerts||0)+1;
   };
   const R=async(fn,msg)=>{try{await fn();if(msg)toast(msg);await reload();}catch(e){console.error(e);toast(e.message||"Save failed","info");}};
@@ -148,9 +154,18 @@ export default function AdminDashboard({user,data,reload,onLogout}){
             await api.upsertListing({...listing,status:f.status,liveLink:f.liveLink,liveDate,napMatch:f.napMatch,notes:f.notes,actionNeeded:f.actionNeeded,actionNote:f.actionNote});
             await audit("listing.edit",{targetType:"listing",targetId:listing.id,targetName:listing.directory,detail:`status→${f.status}`});
             await notifyManagersIfAgent("edited",listing);
-            if(f.status==="live"&&listing.status!=="live")await addActivity(clientId,"listing_live",`${listing.directory} listing went live`);
-            if(f.status==="rejected"&&listing.status!=="rejected")await addActivity(clientId,"rejected",`${listing.directory} rejected. ${f.notes}`);
-            if(f.status==="flagged"&&listing.status!=="flagged")await addActivity(clientId,"flagged",`${listing.directory} flagged. ${f.notes}`);
+            if(f.status==="live"&&listing.status!=="live"){
+              await addActivity(clientId,"listing_live",`${listing.directory} listing went live`);
+              api.notifyClient({clientId,type:"listing_live",title:`${listing.directory} is live`,body:`Your ${listing.directory} listing is now live.${f.liveLink?` View it: ${f.liveLink}`:""}${f.notes?` Note: ${f.notes}`:""}`});
+            }
+            if(f.status==="rejected"&&listing.status!=="rejected"){
+              await addActivity(clientId,"rejected",`${listing.directory} rejected. ${f.notes}`);
+              api.notifyClient({clientId,type:"rejected",title:`${listing.directory} was rejected`,body:`Your ${listing.directory} listing was rejected.${f.notes?` ${f.notes}`:" Check your dashboard for details."}`});
+            }
+            if(f.status==="flagged"&&listing.status!=="flagged"){
+              await addActivity(clientId,"flagged",`${listing.directory} flagged. ${f.notes}`);
+              api.notifyClient({clientId,type:"flagged",title:`${listing.directory} flagged`,body:`Your ${listing.directory} listing was flagged for review.${f.notes?` ${f.notes}`:""}`});
+            }
           },"Listing updated").then(onClose)}>Save Changes</Btn>
         </div>
       </div>
@@ -203,6 +218,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
         await api.patchProfile(client.id,{napScore:newScore,napHistory:[...hist,entry].slice(-20)});
         await audit("nap.update",{targetType:"client",targetId:client.id,targetName:client.businessName||client.name,detail:`${client.napScore||0}% → ${newScore}%`});
         await addActivity(client.id,"nap_fix",`NAP consistency updated to ${newScore}%`);
+        api.notifyClient({clientId:client.id,type:"nap_fix",title:"NAP score updated",body:`Your NAP consistency score is now ${newScore}% (was ${client.napScore||0}%).`});
         await reload();toast(`NAP score saved: ${newScore}%`);onClose();
       }catch(e){toast("Could not save NAP","info");}
       setSaving(false);
@@ -1213,7 +1229,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
 
       <Card style={{marginBottom:16}}>
         <SectionTitle sub="Route each notification type to one or more email addresses. Separate multiple emails with commas. Toggle any type off to stop sending it.">Notifications & Email Routing</SectionTitle>
-        <div style={{padding:"12px 15px",background:T.amberSoft,borderRadius:12,marginBottom:16,fontSize:12,color:T.amber,fontWeight:600,lineHeight:1.5}}>Email delivery activates once your sending domain (naporbit.com) is verified. Until then these settings are saved but no emails send.</div>
+        <div style={{padding:"12px 15px",background:T.amberSoft,borderRadius:12,marginBottom:16,fontSize:12,color:T.amber,fontWeight:600,lineHeight:1.5}}>Clients always get in-app notifications. Staff emails below + client emails send via Resend once <code>RESEND_API_KEY</code> and <code>NOTIFY_FROM_EMAIL</code> are set in Vercel. Until then settings are saved and in-app still works.</div>
         {[
           {k:"routeSignup",label:"New client signup",desc:"When a client creates an account"},
           {k:"routeSuspend",label:"Client suspension",desc:"When a client is suspended or reactivated"},
