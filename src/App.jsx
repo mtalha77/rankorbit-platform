@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { Toaster } from "sonner";
 import { T, FONT_B } from "./lib/theme";
 import { STAFF_ROLES } from "./lib/helpers";
 import { supa } from "./lib/supabase";
@@ -67,13 +68,15 @@ function ClientDashboardRoute({user,data,reload,onLogin,onLogout,passwordRecover
     return()=>{cancelled=true;};
   },[awaitingPlan,onLogin]);
 
+  // Must stay above every early return — hooks can't run conditionally (fixes blank page on refresh).
+  const handleLogout=useCallback(async()=>{await onLogout();nav("/");},[onLogout,nav]);
+
   if(passwordRecovery)return <Navigate to="/reset-password" replace/>;
   if(user&&STAFF_ROLES.includes(user.role))return <Navigate to="/admin" replace/>;
   if(!user)return <Navigate to="/login" replace/>;
   if(awaitingPlan&&!waitDone)return <Loading label="Activating your plan…"/>;
   if(!hasClientPlan(user))return <Navigate to="/?focus=pricing" replace/>;
   if(!viewData)return <Loading label="Loading your dashboard…"/>;
-  const handleLogout=useCallback(async()=>{await onLogout();nav("/");},[onLogout,nav]);
   return <ClientDashboard user={user} data={viewData} reload={reload} onLogout={handleLogout}/>;
 }
 
@@ -111,6 +114,9 @@ export default function App(){
   const[passwordRecovery,setPasswordRecovery]=useState(()=>isPasswordRecovery()||urlLooksLikeRecovery());
   const loadedForRef=useRef({id:null});
   const loadGenRef=useRef(0);
+  // True while the cold-start boot effect is loading session/data.
+  // Auth listener must not start a second loadAll during this window (prevents refresh double-render).
+  const bootingRef=useRef(true);
 
   const reload=useCallback(async()=>{
     const gen=++loadGenRef.current;
@@ -171,6 +177,7 @@ export default function App(){
   },[enterRecovery]);
 
   useEffect(()=>{(async()=>{
+    bootingRef.current=true;
     try{
       await api.init();
       const existing=await api.currentUser();
@@ -179,6 +186,17 @@ export default function App(){
     }catch(e){
       console.error("boot failed:",e);
     }finally{
+      // If auth SIGNED_IN was skipped while booting and getSession was briefly empty, recover once.
+      if(!loadedForRef.current.id&&supa){
+        try{
+          const{data:{session}}=await supa.auth.getSession();
+          if(session?.user){
+            let{data:prof}=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
+            if(prof)await applyUser(prof,{forceReload:true});
+          }
+        }catch(e){console.warn("boot session catch-up:",e.message);}
+      }
+      bootingRef.current=false;
       setReady(true);
     }
   })();/* eslint-disable-next-line */},[]);
@@ -190,7 +208,19 @@ export default function App(){
       // Token refresh must not remount admin/client dashboards.
       if(event==="TOKEN_REFRESHED")return;
 
-      if((event==="SIGNED_IN"||event==="INITIAL_SESSION"||event==="PASSWORD_RECOVERY")&&session){
+      // Cold start: boot() already loads session + data once.
+      // Ignoring INITIAL_SESSION (and SIGNED_IN during boot) stops the refresh double-paint.
+      if(event==="INITIAL_SESSION"){
+        if(typeof window!=="undefined"&&window.location.hash.includes("access_token")){
+          const path=(isPasswordRecovery()||urlLooksLikeRecovery())
+            ?"/reset-password"
+            :(window.location.pathname+window.location.search);
+          window.history.replaceState(null,"",path);
+        }
+        return;
+      }
+
+      if((event==="SIGNED_IN"||event==="PASSWORD_RECOVERY")&&session){
         if(event==="SIGNED_IN"&&(urlLooksLikeRecovery()||isPasswordRecovery()))enterRecovery();
 
         const scrubHash=()=>{
@@ -201,8 +231,13 @@ export default function App(){
           window.history.replaceState(null,"",path);
         };
 
-        // Already hydrated for this user — do not reload again (fixes admin flicker).
-        if(loadedForRef.current.id===session.user.id&&(event==="INITIAL_SESSION"||event==="SIGNED_IN")){
+        // Same session already hydrated (boot or prior login) — do not reload again.
+        if(loadedForRef.current.id===session.user.id){
+          scrubHash();
+          return;
+        }
+        // Boot still in progress and will pick up this session — skip duplicate fetch.
+        if(bootingRef.current){
           scrubHash();
           return;
         }
@@ -235,6 +270,8 @@ export default function App(){
   const onLogin=useCallback(async(u)=>{
     // Explicit login / plan activation: always refresh data so flows stay correct.
     await applyUser(u,{forceReload:true});
+    // First-login welcome (covers email-confirm signups). Fire-and-forget, deduped.
+    if(u&&!STAFF_ROLES.includes(u.role))api.ensureWelcomeNotify();
   },[applyUser]);
 
   const onLogout=useCallback(async()=>{
@@ -245,7 +282,7 @@ export default function App(){
     setData(null);
   },[]);
 
-  if(!ready)return(<><GlobalStyle/><Loading/></>);
+  if(!ready)return(<><GlobalStyle/><Loading/><Toaster position="top-right" richColors closeButton duration={3200}/></>);
   const shared={user:currentUser,data,reload,onLogin,onLogout,passwordRecovery};
   return(<><GlobalStyle/>
     <BrowserRouter>
@@ -259,5 +296,6 @@ export default function App(){
         <Route path="*" element={<Navigate to="/" replace/>}/>
       </Routes>
     </BrowserRouter>
+    <Toaster position="top-right" richColors closeButton duration={3200}/>
   </>);
 }

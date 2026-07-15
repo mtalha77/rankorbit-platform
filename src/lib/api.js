@@ -57,7 +57,9 @@ export const api={
         await supa.from("profiles").update({name,businessName,phone,avatar:(name||email)[0].toUpperCase()}).eq("id",data.user.id);
       }
       // Fire-and-forget welcome (does not change signup success/error flow).
+      // Dedup key set so first-login ensureWelcomeNotify doesn't send it again.
       if(data.session?.access_token&&data.user){
+        try{if(typeof localStorage!=="undefined")localStorage.setItem(`ro_welcome_${data.user.id}`,"1");}catch{}
         fetch("/api/notify-client",{
           method:"POST",
           headers:{"Content-Type":"application/json"},
@@ -89,6 +91,29 @@ export const api={
       if(!r.ok)return{ok:false,error:j.error||"Notify failed"};
       return{ok:true,...j};
     }catch(e){return{ok:false,error:e.message};}
+  },
+  /**
+   * Send the welcome (in-app + email) once per client, on first login.
+   * Covers the email-confirm case where signup returns no session.
+   * Fire-and-forget + localStorage dedup so it never blocks or repeats.
+   */
+  async ensureWelcomeNotify(){
+    if(!supa)return;
+    try{
+      const{data:{user}}=await supa.auth.getUser();
+      if(!user)return;
+      const key=`ro_welcome_${user.id}`;
+      if(typeof localStorage!=="undefined"&&localStorage.getItem(key))return;
+      // Mark first so a slow/failed call doesn't retry on every login.
+      if(typeof localStorage!=="undefined")localStorage.setItem(key,"1");
+      const token=await this._accessToken();
+      if(!token)return;
+      await fetch("/api/notify-client",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({token,type:"welcome"}),
+      }).catch(()=>{});
+    }catch{/* welcome is best-effort */}
   },
   async googleLogin(){
     if(!supa)return{error:"Google sign-in needs the live database. It's disabled in demo mode."};
