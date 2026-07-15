@@ -1,5 +1,5 @@
 // ─── ADMIN DASHBOARD ─────────────────────────────────────────────────────────
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { T, FONT_D, FONT_B, SHADOW } from "../lib/theme";
 import { api } from "../lib/api";
@@ -11,68 +11,126 @@ import ChatThread from "../components/ChatThread";
 import ClientDashboard from "./ClientDashboard";
 import { useWindowSize, useToast } from "../hooks";
 
-function StaffMessagesInbox({user,clients,selClient,setSelClient,setChatUnreadTotal,toast,isMobile}){
-  const[threads,setThreads]=useState([]);
+function StaffMessagesInbox({user,clients,selClient,setSelClient,setChatUnreadTotal,toast,isMobile,isAdmin}){
+  const[clientThreads,setClientThreads]=useState([]);
+  const[staffThreads,setStaffThreads]=useState([]);
   const[loading,setLoading]=useState(true);
-  const[activeId,setActiveId]=useState(selClient||null);
+  // active = { kind:"client"|"staff", id }
+  const[active,setActive]=useState(selClient?{kind:"client",id:selClient}:null);
+
+  const syncTotal=(cT,sT)=>{
+    const cu=(cT||[]).reduce((s,t)=>s+(t.unread||0),0);
+    const su=(sT||[]).reduce((s,t)=>s+(t.unread||0),0);
+    setChatUnreadTotal(cu+su);
+  };
+
   useEffect(()=>{
     let cancelled=false;
     (async()=>{
       setLoading(true);
-      const r=await api.listChatThreads();
+      // Super admin: staff (team) chat only — no client↔BDM threads.
+      const [cr,sr]=await Promise.all([
+        isAdmin?Promise.resolve({threads:[]}):api.listChatThreads(),
+        api.listStaffThreads(),
+      ]);
       if(cancelled)return;
       setLoading(false);
-      if(r.error){toast(r.error,"info");return;}
-      setThreads(r.threads||[]);
-      setChatUnreadTotal(r.unreadTotal||0);
-      if(!activeId&&(r.threads||[])[0])setActiveId(r.threads[0].clientId);
+      const cT=cr.error?[]:(cr.threads||[]);
+      const sT=sr.error?[]:(sr.threads||[]);
+      if(sr.error&&(isAdmin||cr.error)){toast(sr.error,"info");}
+      setClientThreads(cT);
+      setStaffThreads(sT);
+      syncTotal(cT,sT);
+      if(!active){
+        if(sT[0])setActive({kind:"staff",id:sT[0].staffId});
+        else if(cT[0])setActive({kind:"client",id:cT[0].clientId});
+      }
     })();
     return()=>{cancelled=true;};
   },[user.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  const active=threads.find(t=>t.clientId===activeId)||null;
-  const peer=clients.find(c=>c.id===activeId);
+
+  const clientPeer=active?.kind==="client"?clients.find(c=>c.id===active.id):null;
+  const staffPeer=active?.kind==="staff"?staffThreads.find(t=>t.staffId===active.id):null;
+  const teamTitle="Team";
+  const roleLabel=(r)=>r==="super_admin"?"Super Admin":r==="manager"?"Manager":r==="agent"?"Agent":"Staff";
+
+  const ThreadRow=({label,sub,when,unread,activeSel,onClick})=>(
+    <div onClick={onClick}
+      style={{padding:"12px 14px",cursor:"pointer",background:activeSel?T.brandSoft:T.surface,borderBottom:`1px solid ${T.line}`}}>
+      <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"center"}}>
+        <div style={{fontSize:13.5,fontWeight:unread?800:700,color:T.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{label}</div>
+        {unread>0&&<span style={{background:T.red,color:"#fff",borderRadius:10,fontSize:10,fontWeight:800,padding:"2px 7px",flexShrink:0}}>{unread}</span>}
+      </div>
+      <div style={{fontSize:12,color:T.sub,marginTop:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sub||"No messages"}</div>
+      {when&&<div style={{fontSize:10.5,color:T.faint,marginTop:3}}>{new Date(when).toLocaleString()}</div>}
+    </div>
+  );
+  const SectionLabel=({children})=>(
+    <div style={{padding:"9px 14px",fontSize:10.5,fontWeight:800,color:T.faint,letterSpacing:".6px",background:T.surface2,borderBottom:`1px solid ${T.line}`}}>{children}</div>
+  );
+
   return(<div>
-    <PageHead isMobile={isMobile} title="Messages" sub="Chat threads with your clients"/>
-    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"280px 1fr",gap:16,alignItems:"start"}}>
-      <Card style={{padding:0,overflow:"hidden"}}>
-        {loading?(<div style={{padding:24,textAlign:"center",color:T.faint,fontSize:13}}>Loading…</div>):
-          threads.length===0?(<div style={{padding:24}}><Empty icon="💬" title="No chats yet" sub="When a client messages you, the thread appears here."/></div>):(
+    <PageHead isMobile={isMobile} title="Messages" sub="Chat with any teammate — agents, managers, and admins have the same access"/>
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"280px 1fr",gap:16,alignItems:"stretch"}}>
+      <Card style={{padding:0,overflow:"auto",maxHeight:isMobile?"none":"min(640px, calc(100vh - 200px))"}}>
+        {loading?(<div style={{padding:24,textAlign:"center",color:T.faint,fontSize:13}}>Loading…</div>):(
           <div>
-            {threads.map((t,i)=>(
-              <div key={t.clientId} onClick={()=>{setActiveId(t.clientId);setSelClient(t.clientId);}}
-                style={{padding:"12px 14px",cursor:"pointer",background:activeId===t.clientId?T.brandSoft:T.surface,borderBottom:i<threads.length-1?`1px solid ${T.line}`:"none"}}>
-                <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"center"}}>
-                  <div style={{fontSize:13.5,fontWeight:t.unread?800:700,color:T.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.clientName}</div>
-                  {t.unread>0&&<span style={{background:T.red,color:"#fff",borderRadius:10,fontSize:10,fontWeight:800,padding:"2px 7px",flexShrink:0}}>{t.unread}</span>}
-                </div>
-                <div style={{fontSize:12,color:T.sub,marginTop:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                  {t.lastMessage?.body||"No messages"}
-                </div>
-                {t.lastMessage?.createdAt&&(
-                  <div style={{fontSize:10.5,color:T.faint,marginTop:3}}>
-                    {new Date(t.lastMessage.createdAt).toLocaleString()}
-                  </div>
-                )}
-              </div>
+            {staffThreads.length>0&&<SectionLabel>{teamTitle}</SectionLabel>}
+            {staffThreads.length===0&&(
+              <div style={{padding:24}}><Empty icon="💬" title="No teammates yet" sub="When other team members are added, you can message them here."/></div>
+            )}
+            {staffThreads.map(t=>(
+              <ThreadRow key={`s_${t.staffId}`}
+                label={`${t.name}`}
+                sub={t.lastMessage?.body||roleLabel(t.role)}
+                when={t.lastMessage?.createdAt}
+                unread={t.unread}
+                activeSel={active?.kind==="staff"&&active.id===t.staffId}
+                onClick={()=>setActive({kind:"staff",id:t.staffId})}/>
             ))}
+            {!isAdmin&&(<>
+              <SectionLabel>Clients</SectionLabel>
+              {clientThreads.length===0?(
+                <div style={{padding:24}}><Empty icon="💬" title="No client chats yet" sub="When a client messages you, it appears here."/></div>
+              ):clientThreads.map(t=>(
+                <ThreadRow key={`c_${t.clientId}`}
+                  label={t.clientName}
+                  sub={t.lastMessage?.body}
+                  when={t.lastMessage?.createdAt}
+                  unread={t.unread}
+                  activeSel={active?.kind==="client"&&active.id===t.clientId}
+                  onClick={()=>{setActive({kind:"client",id:t.clientId});setSelClient(t.clientId);}}/>
+              ))}
+            </>)}
           </div>
         )}
       </Card>
       <div>
-        {activeId?(
+        {active?.kind==="staff"?(
           <ChatThread
-            clientId={activeId}
+            key={`staff_${active.id}`}
+            variant="staff"
+            staffId={active.id}
             myId={user.id}
-            peerLabel={peer?.businessName||peer?.name||active?.clientName||"Client"}
+            peerLabel={staffPeer?`${staffPeer.name} · ${roleLabel(staffPeer.role)}`:"Teammate"}
             toast={toast}
             onUnreadChange={(n)=>{
-              if(n===0){
-                setThreads(prev=>prev.map(t=>t.clientId===activeId?{...t,unread:0}:t));
-              }
+              if(n===0)setStaffThreads(prev=>{const next=prev.map(t=>t.staffId===active.id?{...t,unread:0}:t);syncTotal(clientThreads,next);return next;});
+            }}
+          />
+        ):active?.kind==="client"?(
+          <ChatThread
+            key={`client_${active.id}`}
+            clientId={active.id}
+            myId={user.id}
+            peerLabel={clientPeer?.businessName||clientPeer?.name||"Client"}
+            toast={toast}
+            onUnreadChange={(n)=>{
+              if(n===0)setClientThreads(prev=>{const next=prev.map(t=>t.clientId===active.id?{...t,unread:0}:t);syncTotal(next,staffThreads);return next;});
             }}
           />
         ):(
-          <Card><Empty icon="💬" title="Select a conversation" sub="Pick a client thread on the left."/></Card>
+          <Card><Empty icon="💬" title="Select a conversation" sub="Pick a teammate on the left."/></Card>
         )}
       </div>
     </div>
@@ -143,18 +201,26 @@ export default function AdminDashboard({user,data,reload,onLogout}){
     return()=>{cancelled=true;clearInterval(t);};
   },[user.id]);
 
+  const pageRef=useRef(page);
+  pageRef.current=page;
   useEffect(()=>{
     let cancelled=false;
     const pull=async()=>{
-      if(page==="messages"||page==="clientDetail")return;
-      const r=await api.listChatThreads();
-      if(cancelled||r.error)return;
-      setChatUnreadTotal(r.unreadTotal||0);
+      if(pageRef.current==="messages")return;
+      // Super admin sees team chat only; managers/agents also count client threads.
+      const [cr,sr]=await Promise.all([
+        isAdmin?Promise.resolve({unreadTotal:0}):api.listChatThreads(),
+        api.listStaffThreads(),
+      ]);
+      if(cancelled)return;
+      const cu=cr.error?0:(cr.unreadTotal||0);
+      const su=sr.error?0:(sr.unreadTotal||0);
+      setChatUnreadTotal(cu+su);
     };
     pull();
     const t=setInterval(pull,25000);
     return()=>{cancelled=true;clearInterval(t);};
-  },[user.id,page]);
+  },[user.id]);
 
   const nav=[
     {id:"overview",icon:"📊",label:"Overview",roles:["super_admin","manager","agent"]},
@@ -640,6 +706,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
       call_booked:"📅",
       bdm_message:"💬",
       chat_message:"💬",
+      staff_message:"💬",
       meeting_confirmed:"✅",
       meeting_cancelled:"❌",
     }[t]||"🔔");
@@ -650,6 +717,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
       call_booked:"Meeting",
       bdm_message:"Message",
       chat_message:"Chat",
+      staff_message:"Team chat",
       meeting_confirmed:"Meeting",
       meeting_cancelled:"Meeting",
     }[t]||"Update");
@@ -724,6 +792,11 @@ export default function AdminDashboard({user,data,reload,onLogout}){
                     {(n.type==="chat_message"||n.type==="bdm_message")&&(
                       <Btn size="sm" onClick={()=>{setSelClient(n.clientId);setPage("messages");}}>Open chat →</Btn>
                     )}
+                  </div>
+                )}
+                {openId===n.id&&n.type==="staff_message"&&(
+                  <div style={{padding:"0 6px 14px 54px"}}>
+                    <Btn size="sm" onClick={()=>setPage("messages")}>Open chat →</Btn>
                   </div>
                 )}
                 {openId===n.id&&n.type==="staff_created"&&isAdmin&&(
@@ -1475,6 +1548,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
         setChatUnreadTotal={setChatUnreadTotal}
         toast={toast}
         isMobile={isMobile}
+        isAdmin={isAdmin}
       />
     )}
     {page==="clients"&&<Clients/>}

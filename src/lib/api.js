@@ -123,12 +123,25 @@ export const api={
     if(error)return{error:error.message};
     return{redirecting:true};
   },
-  // Helper: refresh session and return access token for billing API calls.
+  // Return the current access token for API calls.
+  // IMPORTANT: do NOT call refreshSession() on every request. Supabase rotates
+  // refresh tokens, so concurrent forced refreshes (e.g. several dashboard polls
+  // firing at mount) invalidate each other and can trigger a spurious SIGNED_OUT
+  // — which flashed the dashboard then bounced staff back to the sign-in page.
+  // getSession() already returns an auto-refreshed token; only refresh manually
+  // when it is expired / about to expire.
   async _accessToken(){
     if(!supa)return null;
-    let{data:{session}}=await supa.auth.getSession();
-    if(session){const rr=await supa.auth.refreshSession();if(rr.data?.session)session=rr.data.session;}
-    return session?.access_token||null;
+    const{data:{session}}=await supa.auth.getSession();
+    if(!session)return null;
+    const expMs=(session.expires_at||0)*1000;
+    if(expMs&&expMs-Date.now()<60000){
+      try{
+        const rr=await supa.auth.refreshSession();
+        if(rr.data?.session?.access_token)return rr.data.session.access_token;
+      }catch{/* fall back to current token */}
+    }
+    return session.access_token||null;
   },
   async billingStatus(){
     try{
@@ -290,6 +303,85 @@ export const api={
       if(!r.ok)return{error:j.error||"Could not load threads",threads:[]};
       return{ok:true,...j};
     }catch(e){return{error:e.message||"Network error",threads:[]};}
+  },
+  // ── Staff DM chat (super admin ↔ manager/agent) ──
+  async listStaffMessages({staffId,limit}={}){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in",messages:[]};
+    try{
+      const r=await fetch("/api/staff-messages",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({token,staffId,limit}),
+      });
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not load messages",messages:[]};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error",messages:[]};}
+  },
+  async sendStaffMessage({staffId,body}={}){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/staff-send",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({token,staffId,body}),
+      });
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not send message"};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
+  async markStaffRead({staffId}={}){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/staff-read",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({token,staffId}),
+      });
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not mark read"};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
+  async listStaffThreads(){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in",threads:[]};
+    try{
+      const r=await fetch("/api/staff-threads",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({token}),
+      });
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not load threads",threads:[]};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error",threads:[]};}
+  },
+  /** Subscribe to a staff DM thread (keyed by staffId). Returns unsubscribe fn. */
+  subscribeStaffChat(staffId,{onInsert,onUpdate}={}){
+    if(!supa||!staffId)return()=>{};
+    try{
+      const channel=supa
+        .channel(`staffchat:${staffId}:${Date.now()}`)
+        .on(
+          "postgres_changes",
+          {event:"INSERT",schema:"public",table:"staff_messages",filter:`staffId=eq.${staffId}`},
+          (payload)=>{if(payload?.new&&typeof onInsert==="function")onInsert(payload.new);}
+        )
+        .on(
+          "postgres_changes",
+          {event:"UPDATE",schema:"public",table:"staff_messages",filter:`staffId=eq.${staffId}`},
+          (payload)=>{if(payload?.new&&typeof onUpdate==="function")onUpdate(payload.new);}
+        )
+        .subscribe();
+      return()=>{try{supa.removeChannel(channel);}catch{}};
+    }catch{
+      return()=>{};
+    }
   },
   /** Subscribe to new/updated messages for a client thread. Returns unsubscribe fn. */
   subscribeChat(clientId,{onInsert,onUpdate}={}){

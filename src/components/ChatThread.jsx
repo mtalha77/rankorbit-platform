@@ -42,7 +42,9 @@ class ChatErrorBoundary extends Component {
 }
 
 function ChatThreadInner({
+  variant = "client",
   clientId,
+  staffId,
   myId,
   peerLabel,
   toast,
@@ -56,11 +58,37 @@ function ChatThreadInner({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const bottomRef = useRef(null);
+  const listRef = useRef(null);
   const onUnreadRef = useRef(onUnreadChange);
   onUnreadRef.current = onUnreadChange;
 
-  const listArgs = clientId ? { clientId } : {};
-  const threadKey = clientId || myId;
+  const isStaffVariant = variant === "staff";
+  // Client thread: keyed by clientId (client omits it → uses own session).
+  // Staff thread: keyed by staffId (staff omits it → uses own session).
+  const listArgs = isStaffVariant
+    ? staffId
+      ? { staffId }
+      : {}
+    : clientId
+    ? { clientId }
+    : {};
+  const threadKey = isStaffVariant ? staffId || myId : clientId || myId;
+
+  const chatApi = isStaffVariant
+    ? {
+        list: (a) => api.listStaffMessages(a),
+        send: (a) => api.sendStaffMessage(a),
+        markRead: (a) => api.markStaffRead(a),
+        subscribe: (id, cbs) => api.subscribeStaffChat(id, cbs),
+        sendArgs: (bodyText) => ({ body: bodyText, staffId }),
+      }
+    : {
+        list: (a) => api.listChatMessages(a),
+        send: (a) => api.sendChatMessage(a),
+        markRead: (a) => api.markChatRead(a),
+        subscribe: (id, cbs) => api.subscribeChat(id, cbs),
+        sendArgs: (bodyText) => ({ body: bodyText, clientId }),
+      };
 
   const mergeMsg = (row) => {
     if (!row?.id) return;
@@ -84,7 +112,7 @@ function ChatThreadInner({
         setLoading(true);
         setError("");
         const data = await Promise.race([
-          api.listChatMessages(listArgs),
+          chatApi.list(listArgs),
           new Promise((resolve) =>
             setTimeout(() => resolve({ error: "Chat request timed out. Is the API running?" }), 12000)
           ),
@@ -96,12 +124,40 @@ function ChatThreadInner({
           return;
         }
         setMessages(Array.isArray(data.messages) ? data.messages : []);
-        setAgent(data.agent || null);
+        setAgent(data.agent || data.peer || null);
         if (typeof onUnreadRef.current === "function") onUnreadRef.current(data.unread || 0);
         setLoading(false);
-        api.markChatRead(listArgs).then(() => {
+        chatApi.markRead(listArgs).then(() => {
           if (!cancelled && typeof onUnreadRef.current === "function") onUnreadRef.current(0);
         }).catch(() => {});
+
+        // SA↔SA uses a canonical DB staffId (min of pair) — subscribe on that, not the peer UI id.
+        const subId = data.threadStaffId || threadKey;
+        const expectPeerId = data.threadPeerId || null;
+        try {
+          unsub = chatApi.subscribe(subId, {
+            onInsert: (row) => {
+              if (expectPeerId && row.peerId !== expectPeerId) return;
+              if (!expectPeerId && row.peerId) return;
+              mergeMsg(row);
+              if (row.senderId !== myId) {
+                chatApi.markRead(listArgs).catch(() => {});
+                if (typeof onUnreadRef.current === "function") onUnreadRef.current(0);
+              }
+            },
+            onUpdate: (row) => {
+              if (expectPeerId && row.peerId !== expectPeerId) return;
+              if (!expectPeerId && row.peerId) return;
+              mergeMsg(row);
+            },
+          });
+          if (cancelled) {
+            unsub();
+            unsub = () => {};
+          }
+        } catch {
+          unsub = () => {};
+        }
       } catch (e) {
         if (!cancelled) {
           setError(e?.message || "Could not load messages");
@@ -110,27 +166,12 @@ function ChatThreadInner({
       }
     })();
 
-    try {
-      unsub = api.subscribeChat(threadKey, {
-        onInsert: (row) => {
-          mergeMsg(row);
-          if (row.senderId !== myId) {
-            api.markChatRead(listArgs).catch(() => {});
-            if (typeof onUnreadRef.current === "function") onUnreadRef.current(0);
-          }
-        },
-        onUpdate: (row) => mergeMsg(row),
-      });
-    } catch {
-      unsub = () => {};
-    }
-
     pollId = setInterval(async () => {
       try {
-        const data = await api.listChatMessages(listArgs);
+        const data = await chatApi.list(listArgs);
         if (cancelled || data.error) return;
         setMessages(Array.isArray(data.messages) ? data.messages : []);
-        if (data.agent) setAgent(data.agent);
+        if (data.agent || data.peer) setAgent(data.agent || data.peer);
       } catch {
         /* keep last good state */
       }
@@ -146,11 +187,13 @@ function ChatThreadInner({
       if (pollId) clearInterval(pollId);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId, myId, threadKey]);
+  }, [clientId, staffId, myId, threadKey, variant]);
 
   useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
     try {
-      bottomRef.current?.scrollIntoView?.({ behavior: "smooth", block: "end" });
+      el.scrollTop = el.scrollHeight;
     } catch {
       /* ignore */
     }
@@ -164,7 +207,7 @@ function ChatThreadInner({
     }
     setSending(true);
     try {
-      const r = await api.sendChatMessage({ body: text, clientId });
+      const r = await chatApi.send(chatApi.sendArgs(text));
       if (r.error) {
         toast?.(r.error, "info");
         return;
@@ -190,7 +233,11 @@ function ChatThreadInner({
     peerLabel ||
     agent?.name ||
     agent?.email ||
-    (clientId ? "Client" : "Your BDM");
+    (isStaffVariant ? "Admin / Support" : clientId ? "Client" : "Your BDM");
+
+  const cardHeight = compact
+    ? "min(420px, calc(100vh - 180px))"
+    : "min(640px, calc(100vh - 200px))";
 
   return (
     <Card
@@ -198,7 +245,9 @@ function ChatThreadInner({
         padding: 0,
         display: "flex",
         flexDirection: "column",
-        minHeight: compact ? 360 : 480,
+        height: cardHeight,
+        maxHeight: cardHeight,
+        minHeight: compact ? 320 : 420,
         overflow: "hidden",
       }}
     >
@@ -219,10 +268,13 @@ function ChatThreadInner({
       </div>
 
       <div
+        ref={listRef}
         style={{
           flex: 1,
-          minHeight: 200,
+          minHeight: 0,
           overflowY: "auto",
+          overflowX: "hidden",
+          WebkitOverflowScrolling: "touch",
           padding: "16px 14px",
           background: `linear-gradient(180deg, ${T.surface} 0%, ${T.surface2} 100%)`,
         }}
