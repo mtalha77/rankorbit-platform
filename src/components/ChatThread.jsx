@@ -58,6 +58,7 @@ function ChatThreadInner({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const bottomRef = useRef(null);
+  const listRef = useRef(null);
   const onUnreadRef = useRef(onUnreadChange);
   onUnreadRef.current = onUnreadChange;
 
@@ -129,6 +130,34 @@ function ChatThreadInner({
         chatApi.markRead(listArgs).then(() => {
           if (!cancelled && typeof onUnreadRef.current === "function") onUnreadRef.current(0);
         }).catch(() => {});
+
+        // SA↔SA uses a canonical DB staffId (min of pair) — subscribe on that, not the peer UI id.
+        const subId = data.threadStaffId || threadKey;
+        const expectPeerId = data.threadPeerId || null;
+        try {
+          unsub = chatApi.subscribe(subId, {
+            onInsert: (row) => {
+              if (expectPeerId && row.peerId !== expectPeerId) return;
+              if (!expectPeerId && row.peerId) return;
+              mergeMsg(row);
+              if (row.senderId !== myId) {
+                chatApi.markRead(listArgs).catch(() => {});
+                if (typeof onUnreadRef.current === "function") onUnreadRef.current(0);
+              }
+            },
+            onUpdate: (row) => {
+              if (expectPeerId && row.peerId !== expectPeerId) return;
+              if (!expectPeerId && row.peerId) return;
+              mergeMsg(row);
+            },
+          });
+          if (cancelled) {
+            unsub();
+            unsub = () => {};
+          }
+        } catch {
+          unsub = () => {};
+        }
       } catch (e) {
         if (!cancelled) {
           setError(e?.message || "Could not load messages");
@@ -136,21 +165,6 @@ function ChatThreadInner({
         }
       }
     })();
-
-    try {
-      unsub = chatApi.subscribe(threadKey, {
-        onInsert: (row) => {
-          mergeMsg(row);
-          if (row.senderId !== myId) {
-            chatApi.markRead(listArgs).catch(() => {});
-            if (typeof onUnreadRef.current === "function") onUnreadRef.current(0);
-          }
-        },
-        onUpdate: (row) => mergeMsg(row),
-      });
-    } catch {
-      unsub = () => {};
-    }
 
     pollId = setInterval(async () => {
       try {
@@ -176,8 +190,10 @@ function ChatThreadInner({
   }, [clientId, staffId, myId, threadKey, variant]);
 
   useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
     try {
-      bottomRef.current?.scrollIntoView?.({ behavior: "smooth", block: "end" });
+      el.scrollTop = el.scrollHeight;
     } catch {
       /* ignore */
     }
@@ -219,13 +235,19 @@ function ChatThreadInner({
     agent?.email ||
     (isStaffVariant ? "Admin / Support" : clientId ? "Client" : "Your BDM");
 
+  const cardHeight = compact
+    ? "min(420px, calc(100vh - 180px))"
+    : "min(640px, calc(100vh - 200px))";
+
   return (
     <Card
       style={{
         padding: 0,
         display: "flex",
         flexDirection: "column",
-        minHeight: compact ? 360 : 480,
+        height: cardHeight,
+        maxHeight: cardHeight,
+        minHeight: compact ? 320 : 420,
         overflow: "hidden",
       }}
     >
@@ -246,10 +268,13 @@ function ChatThreadInner({
       </div>
 
       <div
+        ref={listRef}
         style={{
           flex: 1,
-          minHeight: 200,
+          minHeight: 0,
           overflowY: "auto",
+          overflowX: "hidden",
+          WebkitOverflowScrolling: "touch",
           padding: "16px 14px",
           background: `linear-gradient(180deg, ${T.surface} 0%, ${T.surface2} 100%)`,
         }}

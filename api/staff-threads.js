@@ -1,10 +1,10 @@
 import { getAdmin, readJson, requireStaff } from "../server/billing.js";
+import { STAFF_ROLES, resolveStaffThreadKey } from "../server/staffChat.js";
 
 /**
- * List staff DM threads.
+ * List staff DM threads — same for every staff role.
+ * One thread per other teammate (super_admin / manager / agent).
  * Body: { token }
- * Super admin: one thread per staff member (manager/agent).
- * Manager/agent: single "Admin / Support" thread (their own).
  */
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -13,70 +13,66 @@ export default async function handler(req, res) {
   if (!admin) return res.status(500).json({ error: "Server not configured" });
 
   const { token } = await readJson(req);
-  const auth = await requireStaff(admin, token, {
-    roles: ["super_admin", "manager", "agent"],
-  });
+  const auth = await requireStaff(admin, token, { roles: STAFF_ROLES });
   if (auth.error) return res.status(auth.status || 401).json({ error: auth.error });
 
   const me = auth.profile;
-  const isSuper = me.role === "super_admin";
 
   try {
-    const staffIds = isSuper
-      ? await (async () => {
-          const { data } = await admin
-            .from("profiles")
-            .select("id,name,email,role")
-            .in("role", ["manager", "agent"])
-            .order("name", { ascending: true });
-          return data || [];
-        })()
-      : [{ id: me.id, name: me.name, email: me.email, role: me.role }];
+    const { data: peers } = await admin
+      .from("profiles")
+      .select("id,name,email,role")
+      .in("role", STAFF_ROLES)
+      .neq("id", me.id)
+      .order("name", { ascending: true });
 
-    const ids = staffIds.map((s) => s.id);
-    if (!ids.length) return res.status(200).json({ ok: true, threads: [], unreadTotal: 0 });
+    const list = peers || [];
+    if (!list.length) return res.status(200).json({ ok: true, threads: [], unreadTotal: 0 });
+
+    const threadMeta = list.map((p) => {
+      const key = resolveStaffThreadKey(me, p);
+      return { peer: p, ...key };
+    });
+
+    const staffIds = [...new Set(threadMeta.map((t) => t.staffId))];
 
     const { data: rows, error } = await admin
       .from("staff_messages")
-      .select("id,staffId,senderId,body,createdAt,readAt")
-      .in("staffId", ids)
+      .select("id,staffId,peerId,senderId,body,createdAt,readAt")
+      .in("staffId", staffIds)
       .order("createdAt", { ascending: false })
-      .limit(600);
+      .limit(1200);
 
     if (error) {
-      const missing = /does not exist|schema cache/i.test(error.message || "");
+      const missing = /does not exist|schema cache|peerId/i.test(error.message || "");
       return res.status(500).json({
         error: missing
-          ? "Staff chat table missing. Run supabase/staff-messages.sql in the Supabase SQL editor."
+          ? "Staff chat table missing/outdated. Re-run supabase/staff-messages.sql in the Supabase SQL editor."
           : error.message,
       });
     }
 
-    const lastByStaff = new Map();
-    const unreadByStaff = {};
-    for (const m of rows || []) {
-      if (!lastByStaff.has(m.staffId)) lastByStaff.set(m.staffId, m);
-      if (!m.readAt && m.senderId !== me.id) {
-        unreadByStaff[m.staffId] = (unreadByStaff[m.staffId] || 0) + 1;
-      }
-    }
+    const matchThread = (m, t) => m.staffId === t.staffId && m.peerId === t.peerId;
 
-    const threads = staffIds.map((s) => {
-      const last = lastByStaff.get(s.id) || null;
+    const threads = threadMeta.map((t) => {
+      const last = (rows || []).find((m) => matchThread(m, t)) || null;
+      const unread = (rows || []).filter(
+        (m) => matchThread(m, t) && !m.readAt && m.senderId !== me.id
+      ).length;
       return {
-        staffId: s.id,
-        name: isSuper ? s.name || s.email || "Staff" : "Admin / Support",
-        email: isSuper ? s.email || null : null,
-        role: s.role,
+        staffId: t.peer.id,
+        threadStaffId: t.staffId,
+        threadPeerId: t.peerId,
+        name: t.peer.name || t.peer.email || "Teammate",
+        email: t.peer.email || null,
+        role: t.peer.role,
         lastMessage: last
           ? { id: last.id, body: last.body, createdAt: last.createdAt, senderId: last.senderId }
           : null,
-        unread: unreadByStaff[s.id] || 0,
+        unread,
       };
     });
 
-    // Super admin: keep everyone (so they can start a chat with any staff).
-    // Staff: always show their single Admin thread.
     threads.sort((a, b) => {
       const ta = a.lastMessage?.createdAt || "";
       const tb = b.lastMessage?.createdAt || "";

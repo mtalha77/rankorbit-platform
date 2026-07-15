@@ -123,12 +123,25 @@ export const api={
     if(error)return{error:error.message};
     return{redirecting:true};
   },
-  // Helper: refresh session and return access token for billing API calls.
+  // Return the current access token for API calls.
+  // IMPORTANT: do NOT call refreshSession() on every request. Supabase rotates
+  // refresh tokens, so concurrent forced refreshes (e.g. several dashboard polls
+  // firing at mount) invalidate each other and can trigger a spurious SIGNED_OUT
+  // — which flashed the dashboard then bounced staff back to the sign-in page.
+  // getSession() already returns an auto-refreshed token; only refresh manually
+  // when it is expired / about to expire.
   async _accessToken(){
     if(!supa)return null;
-    let{data:{session}}=await supa.auth.getSession();
-    if(session){const rr=await supa.auth.refreshSession();if(rr.data?.session)session=rr.data.session;}
-    return session?.access_token||null;
+    const{data:{session}}=await supa.auth.getSession();
+    if(!session)return null;
+    const expMs=(session.expires_at||0)*1000;
+    if(expMs&&expMs-Date.now()<60000){
+      try{
+        const rr=await supa.auth.refreshSession();
+        if(rr.data?.session?.access_token)return rr.data.session.access_token;
+      }catch{/* fall back to current token */}
+    }
+    return session.access_token||null;
   },
   async billingStatus(){
     try{
