@@ -69,10 +69,21 @@ function StaffMessagesInbox({user,clients,selClient,setSelClient,setChatUnreadTo
     <div style={{padding:"9px 14px",fontSize:10.5,fontWeight:800,color:T.faint,letterSpacing:".6px",background:T.surface2,borderBottom:`1px solid ${T.line}`}}>{children}</div>
   );
 
-  return(<div>
-    <PageHead isMobile={isMobile} title="Messages" sub="Chat with any teammate — agents, managers, and admins have the same access"/>
-    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"280px 1fr",gap:16,alignItems:"stretch"}}>
-      <Card style={{padding:0,overflow:"auto",maxHeight:isMobile?"none":"min(640px, calc(100vh - 200px))"}}>
+  return(
+  <div style={{
+    height:isMobile?"calc(100dvh - 140px)":"calc(100vh - 100px)",
+    maxHeight:isMobile?"calc(100dvh - 140px)":"calc(100vh - 100px)",
+    display:"flex",
+    flexDirection:"column",
+    overflow:"hidden",
+    margin:isMobile?"0 0 -24px":"0 0 -40px",
+    boxSizing:"border-box",
+  }}>
+    <div style={{flexShrink:0}}>
+      <PageHead isMobile={isMobile} title="Messages" sub="Chat with any teammate — agents, managers, and admins have the same access"/>
+    </div>
+    <div style={{flex:1,minHeight:0,marginTop:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"280px 1fr",gap:16,alignItems:"stretch"}}>
+      <Card style={{padding:0,overflow:"auto",height:"100%",minHeight:0}}>
         {loading?(<div style={{padding:24,textAlign:"center",color:T.faint,fontSize:13}}>Loading…</div>):(
           <div>
             {staffThreads.length>0&&<SectionLabel>{teamTitle}</SectionLabel>}
@@ -105,7 +116,7 @@ function StaffMessagesInbox({user,clients,selClient,setSelClient,setChatUnreadTo
           </div>
         )}
       </Card>
-      <div>
+      <div style={{height:"100%",minHeight:0,overflow:"hidden"}}>
         {active?.kind==="staff"?(
           <ChatThread
             key={`staff_${active.id}`}
@@ -114,6 +125,7 @@ function StaffMessagesInbox({user,clients,selClient,setSelClient,setChatUnreadTo
             myId={user.id}
             peerLabel={staffPeer?`${staffPeer.name} · ${roleLabel(staffPeer.role)}`:"Teammate"}
             toast={toast}
+            fill
             onUnreadChange={(n)=>{
               if(n===0)setStaffThreads(prev=>{const next=prev.map(t=>t.staffId===active.id?{...t,unread:0}:t);syncTotal(clientThreads,next);return next;});
             }}
@@ -125,12 +137,13 @@ function StaffMessagesInbox({user,clients,selClient,setSelClient,setChatUnreadTo
             myId={user.id}
             peerLabel={clientPeer?.businessName||clientPeer?.name||"Client"}
             toast={toast}
+            fill
             onUnreadChange={(n)=>{
               if(n===0)setClientThreads(prev=>{const next=prev.map(t=>t.clientId===active.id?{...t,unread:0}:t);syncTotal(next,staffThreads);return next;});
             }}
           />
         ):(
-          <Card><Empty icon="💬" title="Select a conversation" sub="Pick a teammate on the left."/></Card>
+          <Card style={{height:"100%"}}><Empty icon="💬" title="Select a conversation" sub="Pick a teammate on the left."/></Card>
         )}
       </div>
     </div>

@@ -50,6 +50,7 @@ function ChatThreadInner({
   toast,
   onUnreadChange,
   compact = false,
+  fill = false,
 }) {
   const [messages, setMessages] = useState([]);
   const [agent, setAgent] = useState(null);
@@ -235,9 +236,11 @@ function ChatThreadInner({
     agent?.email ||
     (isStaffVariant ? "Admin / Support" : clientId ? "Client" : "Your BDM");
 
-  const cardHeight = compact
-    ? "min(420px, calc(100vh - 180px))"
-    : "min(640px, calc(100vh - 200px))";
+  const cardHeight = fill
+    ? "100%"
+    : compact
+    ? "min(420px, calc(100dvh - 180px))"
+    : "calc(100dvh - 200px)";
 
   return (
     <Card
@@ -247,8 +250,9 @@ function ChatThreadInner({
         flexDirection: "column",
         height: cardHeight,
         maxHeight: cardHeight,
-        minHeight: compact ? 320 : 420,
+        minHeight: fill ? 0 : compact ? 280 : 360,
         overflow: "hidden",
+        boxSizing: "border-box",
       }}
     >
       <div

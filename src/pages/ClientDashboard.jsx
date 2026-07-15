@@ -1095,9 +1095,20 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
     {page==="home"&&Home()}
     {page==="notifications"&&NotificationsPage()}
     {page==="messages"&&(
-      <div>
-        <PageHead isMobile={isMobile} title="Messages" sub="Chat with your Business Development Manager"/>
-        <ChatThread myId={userId} toast={toast} onUnreadChange={setChatUnread}/>
+      <div style={{
+        height:isMobile?"calc(100dvh - 140px)":"calc(100vh - 100px)",
+        display:"flex",
+        flexDirection:"column",
+        overflow:"hidden",
+        margin:isMobile?"-8px 0 -24px":"-18px 0 -40px",
+        boxSizing:"border-box",
+      }}>
+        <div style={{flexShrink:0}}>
+          <PageHead isMobile={isMobile} title="Messages" sub="Chat with your Business Development Manager"/>
+        </div>
+        <div style={{flex:1,minHeight:0,marginTop:-8,overflow:"hidden"}}>
+          <ChatThread myId={userId} toast={toast} onUnreadChange={setChatUnread} fill/>
+        </div>
       </div>
     )}
     {page==="listings"&&Listings()}
