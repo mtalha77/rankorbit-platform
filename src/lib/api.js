@@ -291,6 +291,85 @@ export const api={
       return{ok:true,...j};
     }catch(e){return{error:e.message||"Network error",threads:[]};}
   },
+  // ── Staff DM chat (super admin ↔ manager/agent) ──
+  async listStaffMessages({staffId,limit}={}){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in",messages:[]};
+    try{
+      const r=await fetch("/api/staff-messages",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({token,staffId,limit}),
+      });
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not load messages",messages:[]};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error",messages:[]};}
+  },
+  async sendStaffMessage({staffId,body}={}){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/staff-send",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({token,staffId,body}),
+      });
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not send message"};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
+  async markStaffRead({staffId}={}){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/staff-read",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({token,staffId}),
+      });
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not mark read"};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
+  async listStaffThreads(){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in",threads:[]};
+    try{
+      const r=await fetch("/api/staff-threads",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({token}),
+      });
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not load threads",threads:[]};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error",threads:[]};}
+  },
+  /** Subscribe to a staff DM thread (keyed by staffId). Returns unsubscribe fn. */
+  subscribeStaffChat(staffId,{onInsert,onUpdate}={}){
+    if(!supa||!staffId)return()=>{};
+    try{
+      const channel=supa
+        .channel(`staffchat:${staffId}:${Date.now()}`)
+        .on(
+          "postgres_changes",
+          {event:"INSERT",schema:"public",table:"staff_messages",filter:`staffId=eq.${staffId}`},
+          (payload)=>{if(payload?.new&&typeof onInsert==="function")onInsert(payload.new);}
+        )
+        .on(
+          "postgres_changes",
+          {event:"UPDATE",schema:"public",table:"staff_messages",filter:`staffId=eq.${staffId}`},
+          (payload)=>{if(payload?.new&&typeof onUpdate==="function")onUpdate(payload.new);}
+        )
+        .subscribe();
+      return()=>{try{supa.removeChannel(channel);}catch{}};
+    }catch{
+      return()=>{};
+    }
+  },
   /** Subscribe to new/updated messages for a client thread. Returns unsubscribe fn. */
   subscribeChat(clientId,{onInsert,onUpdate}={}){
     if(!supa||!clientId)return()=>{};

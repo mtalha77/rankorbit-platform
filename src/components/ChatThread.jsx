@@ -42,7 +42,9 @@ class ChatErrorBoundary extends Component {
 }
 
 function ChatThreadInner({
+  variant = "client",
   clientId,
+  staffId,
   myId,
   peerLabel,
   toast,
@@ -59,8 +61,33 @@ function ChatThreadInner({
   const onUnreadRef = useRef(onUnreadChange);
   onUnreadRef.current = onUnreadChange;
 
-  const listArgs = clientId ? { clientId } : {};
-  const threadKey = clientId || myId;
+  const isStaffVariant = variant === "staff";
+  // Client thread: keyed by clientId (client omits it → uses own session).
+  // Staff thread: keyed by staffId (staff omits it → uses own session).
+  const listArgs = isStaffVariant
+    ? staffId
+      ? { staffId }
+      : {}
+    : clientId
+    ? { clientId }
+    : {};
+  const threadKey = isStaffVariant ? staffId || myId : clientId || myId;
+
+  const chatApi = isStaffVariant
+    ? {
+        list: (a) => api.listStaffMessages(a),
+        send: (a) => api.sendStaffMessage(a),
+        markRead: (a) => api.markStaffRead(a),
+        subscribe: (id, cbs) => api.subscribeStaffChat(id, cbs),
+        sendArgs: (bodyText) => ({ body: bodyText, staffId }),
+      }
+    : {
+        list: (a) => api.listChatMessages(a),
+        send: (a) => api.sendChatMessage(a),
+        markRead: (a) => api.markChatRead(a),
+        subscribe: (id, cbs) => api.subscribeChat(id, cbs),
+        sendArgs: (bodyText) => ({ body: bodyText, clientId }),
+      };
 
   const mergeMsg = (row) => {
     if (!row?.id) return;
@@ -84,7 +111,7 @@ function ChatThreadInner({
         setLoading(true);
         setError("");
         const data = await Promise.race([
-          api.listChatMessages(listArgs),
+          chatApi.list(listArgs),
           new Promise((resolve) =>
             setTimeout(() => resolve({ error: "Chat request timed out. Is the API running?" }), 12000)
           ),
@@ -96,10 +123,10 @@ function ChatThreadInner({
           return;
         }
         setMessages(Array.isArray(data.messages) ? data.messages : []);
-        setAgent(data.agent || null);
+        setAgent(data.agent || data.peer || null);
         if (typeof onUnreadRef.current === "function") onUnreadRef.current(data.unread || 0);
         setLoading(false);
-        api.markChatRead(listArgs).then(() => {
+        chatApi.markRead(listArgs).then(() => {
           if (!cancelled && typeof onUnreadRef.current === "function") onUnreadRef.current(0);
         }).catch(() => {});
       } catch (e) {
@@ -111,11 +138,11 @@ function ChatThreadInner({
     })();
 
     try {
-      unsub = api.subscribeChat(threadKey, {
+      unsub = chatApi.subscribe(threadKey, {
         onInsert: (row) => {
           mergeMsg(row);
           if (row.senderId !== myId) {
-            api.markChatRead(listArgs).catch(() => {});
+            chatApi.markRead(listArgs).catch(() => {});
             if (typeof onUnreadRef.current === "function") onUnreadRef.current(0);
           }
         },
@@ -127,10 +154,10 @@ function ChatThreadInner({
 
     pollId = setInterval(async () => {
       try {
-        const data = await api.listChatMessages(listArgs);
+        const data = await chatApi.list(listArgs);
         if (cancelled || data.error) return;
         setMessages(Array.isArray(data.messages) ? data.messages : []);
-        if (data.agent) setAgent(data.agent);
+        if (data.agent || data.peer) setAgent(data.agent || data.peer);
       } catch {
         /* keep last good state */
       }
@@ -146,7 +173,7 @@ function ChatThreadInner({
       if (pollId) clearInterval(pollId);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId, myId, threadKey]);
+  }, [clientId, staffId, myId, threadKey, variant]);
 
   useEffect(() => {
     try {
@@ -164,7 +191,7 @@ function ChatThreadInner({
     }
     setSending(true);
     try {
-      const r = await api.sendChatMessage({ body: text, clientId });
+      const r = await chatApi.send(chatApi.sendArgs(text));
       if (r.error) {
         toast?.(r.error, "info");
         return;
@@ -190,7 +217,7 @@ function ChatThreadInner({
     peerLabel ||
     agent?.name ||
     agent?.email ||
-    (clientId ? "Client" : "Your BDM");
+    (isStaffVariant ? "Admin / Support" : clientId ? "Client" : "Your BDM");
 
   return (
     <Card
