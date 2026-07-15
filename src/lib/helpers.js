@@ -24,6 +24,27 @@ export function fromDateInputValue(iso){
   return new Date(y,m-1,d).toLocaleDateString("en-US",{year:"numeric",month:"short",day:"numeric"});
 }
 
+/** Parse Book-a-Call slot ("July 15, 2026" + "9:00 AM") → Date, or null. */
+export function parseBookingSlot(slotDate, slotTime) {
+  if (!slotDate || !slotTime) return null;
+  const d = new Date(`${String(slotDate).trim()} ${String(slotTime).trim()}`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** True when the 30-min meeting slot has already ended. */
+export function isBookingPast(slotDate, slotTime, now = new Date()) {
+  const start = parseBookingSlot(slotDate, slotTime);
+  if (!start) return false;
+  return start.getTime() + 30 * 60 * 1000 <= now.getTime();
+}
+
+/** Meeting-related notification whose slot is over. */
+export function isPastMeetingNotif(n) {
+  const t = n?.type;
+  if (t !== "call_booked" && t !== "meeting_confirmed" && t !== "meeting_pending") return false;
+  return isBookingPast(n?.meta?.slotDate, n?.meta?.slotTime);
+}
+
 // Password policy: exactly 8 chars, upper+lower+number+symbol.
 export function passwordIssues(pw){
   const issues=[];

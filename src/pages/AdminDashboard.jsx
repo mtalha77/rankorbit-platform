@@ -4,7 +4,7 @@ import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { T, FONT_D, FONT_B, SHADOW } from "../lib/theme";
 import { api } from "../lib/api";
 import { PLANS, CATEGORIES, US_CA_STATES, livePlanEntries } from "../lib/constants";
-import { today, todayFull, uid, actIcon, toDateInputValue, fromDateInputValue } from "../lib/helpers";
+import { today, todayFull, uid, actIcon, toDateInputValue, fromDateInputValue, isPastMeetingNotif, isBookingPast } from "../lib/helpers";
 import { Badge, Card, Btn, Input, Select, Modal, Confirm, StatCard, ChartTip, SectionTitle, Empty, ListToolbar, PageHead } from "../components/atoms";
 import Shell from "../components/Shell";
 import ChatThread from "../components/ChatThread";
@@ -206,7 +206,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
     const pull=async()=>{
       const rows=await api.listMyNotifications();
       if(cancelled)return;
-      const n=(rows||[]).filter(x=>!x.read).length;
+      const n=(rows||[]).filter(x=>!x.read&&!isPastMeetingNotif(x)).length;
       setNotifBadge(prev=>prev===n?prev:n);
     };
     pull();
@@ -668,8 +668,9 @@ export default function AdminDashboard({user,data,reload,onLogout}){
     const load=async()=>{
       setLoading(true);
       const rows=await api.listMyNotifications();
-      setNotifs(rows||[]);
-      setNotifBadge((rows||[]).filter(n=>!n.read).length);
+      const live=(rows||[]).filter(n=>!isPastMeetingNotif(n));
+      setNotifs(live);
+      setNotifBadge(live.filter(n=>!n.read).length);
       setLoading(false);
     };
     useEffect(()=>{load();},[user.id]);
@@ -735,7 +736,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
       meeting_cancelled:"Meeting",
     }[t]||"Update");
     // Super admins get report copies — agents act on call_booked.
-    const canRespond=(n)=>!isAdmin&&n.type==="call_booked"&&n.meta?.bookingId&&(!n.meta?.status||n.meta.status==="pending")&&!n.meta?.reportOnly;
+    const canRespond=(n)=>!isAdmin&&n.type==="call_booked"&&n.meta?.bookingId&&(!n.meta?.status||n.meta.status==="pending")&&!n.meta?.reportOnly&&!isBookingPast(n.meta?.slotDate,n.meta?.slotTime);
     const emptySub=isAdmin
       ?"When staff are added, clients are assigned, or meetings are booked, it shows here."
       :"When a client is assigned to you or schedules a meeting, it appears here.";
@@ -763,7 +764,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
                       {n.createdAt?` · ${new Date(n.createdAt).toLocaleString()}`:""}
                       {n.meta?.status&&n.meta.status!=="pending"?` · ${n.meta.status}`:""}
                       {canRespond(n)?" · Action needed":""}
-                      {isAdmin&&n.type==="call_booked"&&(!n.meta?.status||n.meta.status==="pending")?" · Awaiting agent":""}
+                      {isAdmin&&n.type==="call_booked"&&(!n.meta?.status||n.meta.status==="pending")&&!isBookingPast(n.meta?.slotDate,n.meta?.slotTime)?" · Awaiting agent":""}
                     </div>
                   </div>
                 </div>

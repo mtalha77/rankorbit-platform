@@ -5,7 +5,7 @@ import { T, FONT_D, FONT_B, SHADOW, SHADOW_LG } from "../lib/theme";
 import { api } from "../lib/api";
 import { downloadBlob, openExternalFile } from "../lib/export";
 import { PLANS, CATEGORIES, US_CA_STATES, planLive } from "../lib/constants";
-import { nextMonthFirst, actIcon, clientBy } from "../lib/helpers";
+import { nextMonthFirst, actIcon, clientBy, isBookingPast, isPastMeetingNotif } from "../lib/helpers";
 import { Badge, Card, Btn, Input, Select, Confirm, StatCard, ChartTip, SectionTitle, Empty, PageHead } from "../components/atoms";
 import { Orbit } from "../components/Orbit";
 import Shell from "../components/Shell";
@@ -138,8 +138,8 @@ function ClientCallPage({user,isMobile,toast,reload,onOpenMessages}){
       setBdm(r.agent||null);
       const rows=r.bookings||[];
       setBookings(rows);
-      // Confirmed/pending meeting → never open calendar first.
-      if(rows.some(b=>b.status==="pending"||b.status==="confirmed"))setShowScheduler(false);
+      // Upcoming confirmed/pending only — past slots don't lock the calendar.
+      if(rows.some(b=>(b.status==="pending"||b.status==="confirmed")&&!isBookingPast(b.slotDate,b.slotTime)))setShowScheduler(false);
     }finally{
       setLoadingCall(false);
     }
@@ -153,12 +153,13 @@ function ClientCallPage({user,isMobile,toast,reload,onOpenMessages}){
       setBdm(r.agent||null);
       const rows=r.bookings||[];
       setBookings(rows);
-      if(rows.some(b=>b.status==="pending"||b.status==="confirmed"))setShowScheduler(false);
+      if(rows.some(b=>(b.status==="pending"||b.status==="confirmed")&&!isBookingPast(b.slotDate,b.slotTime)))setShowScheduler(false);
       setLoadingCall(false);
     })();
     return()=>{cancelled=true;};
   },[user.id,user.assignedAgentId]);
-  const activeBooking=bookings.find(b=>b.status==="confirmed")||bookings.find(b=>b.status==="pending")||null;
+  const upcomingBookings=bookings.filter(b=>!isBookingPast(b.slotDate,b.slotTime));
+  const activeBooking=upcomingBookings.find(b=>b.status==="confirmed")||upcomingBookings.find(b=>b.status==="pending")||null;
   const showCalendar=!loadingCall&&(showScheduler||!activeBooking);
   const times=["9:00 AM","9:30 AM","10:00 AM","10:30 AM","11:00 AM","2:00 PM","2:30 PM","3:00 PM","3:30 PM","4:00 PM"];
   const bdmLabel=bdm?.name||bdm?.email||"your BDM";
@@ -547,8 +548,9 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
     };
   })();
 
+  const liveNotifs=sysNotifs.filter(n=>!isPastMeetingNotif(n));
   const recentAct=myAct.slice(0,6);
-  const recentNotifs=sysNotifs.slice(0,12).map(n=>({
+  const recentNotifs=liveNotifs.slice(0,12).map(n=>({
     id:n.id,
     kind:"sys",
     type:n.type,
@@ -557,9 +559,9 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
     date:n.createdAt?new Date(n.createdAt).toLocaleString():"",
     read:!!n.read,
   }));
-  const unreadSys=sysNotifs.filter(n=>!n.read).length;
+  const unreadSys=liveNotifs.filter(n=>!n.read).length;
   const markAllRead=async()=>{
-    const ids=sysNotifs.filter(n=>!n.read).map(n=>n.id);
+    const ids=liveNotifs.filter(n=>!n.read).map(n=>n.id);
     if(!ids.length)return;
     await api.markNotificationsRead(ids);
     setSysNotifs(prev=>prev.map(n=>({...n,read:true})));
@@ -626,13 +628,13 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
       <PageHead isMobile={isMobile} title="Notifications" sub="Meeting updates, BDM messages, and account alerts"
         right={unreadSys>0?<Btn variant="soft" size="sm" onClick={markAllRead}>Mark all read</Btn>:null}/>
       <Card>
-        {sysNotifs.length===0?(
+        {liveNotifs.length===0?(
           <Empty icon="📭" title="No notifications yet" sub="When your BDM confirms a meeting or updates your account, it shows up here."/>
         ):(
           <div>
-            {sysNotifs.map((n,i)=>(
+            {liveNotifs.map((n,i)=>(
               <div key={n.id} onClick={async()=>{await markOneRead(n.id);setPage(notifTarget(n.type));}}
-                style={{display:"flex",gap:12,padding:"14px 6px",borderBottom:i<sysNotifs.length-1?`1px solid ${T.line}`:"none",cursor:"pointer",opacity:n.read?0.9:1}}>
+                style={{display:"flex",gap:12,padding:"14px 6px",borderBottom:i<liveNotifs.length-1?`1px solid ${T.line}`:"none",cursor:"pointer",opacity:n.read?0.9:1}}>
                 <div style={{width:36,height:36,borderRadius:10,background:n.read?T.surface2:T.brandSoft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{notifIcon(n.type)}</div>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"flex-start"}}>

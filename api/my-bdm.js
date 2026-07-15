@@ -1,6 +1,7 @@
 import { getAdmin, readJson, requireClient } from "../server/billing.js";
+import { isBookingPast } from "../server/bookingTime.js";
 
-/** Returns the client's assigned BDM + active call bookings for Book a Call UI. */
+/** Returns the client's assigned BDM + upcoming call bookings for Book a Call UI. */
 export default async function handler(req, res) {
   if (req.method !== "POST" && req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -38,9 +39,10 @@ export default async function handler(req, res) {
       .eq("clientId", auth.profile.id)
       .in("status", ["pending", "confirmed"])
       .order("createdAt", { ascending: false })
-      .limit(10);
+      .limit(20);
     if (!bErr && rows?.length) {
-      const agentIds = [...new Set(rows.map((r) => r.agentId).filter(Boolean))];
+      const upcoming = rows.filter((b) => !isBookingPast(b.slotDate, b.slotTime));
+      const agentIds = [...new Set(upcoming.map((r) => r.agentId).filter(Boolean))];
       let agentsById = {};
       if (agentIds.length) {
         const { data: agents } = await admin
@@ -49,7 +51,7 @@ export default async function handler(req, res) {
           .in("id", agentIds);
         agentsById = Object.fromEntries((agents || []).map((a) => [a.id, a]));
       }
-      bookings = rows.map((b) => ({
+      bookings = upcoming.map((b) => ({
         id: b.id,
         slotDate: b.slotDate,
         slotTime: b.slotTime,
