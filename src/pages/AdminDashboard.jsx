@@ -1010,19 +1010,21 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
   };
 
   const Overview=()=>{
-    const revData=[{m:"Mar",r:138},{m:"Apr",r:187},{m:"May",r:236},{m:"Jun",r:revenue},{m:"Jul",r:revenue}];
+    // Current MRR only — no invented past months (Stripe history not stored yet).
+    const revMonth=new Date().toLocaleString("en-US",{month:"short"});
+    const revData=[{m:revMonth,r:revenue}];
     const listData=buildListingsActivitySeries(flat,5);
     return(<div>
       <PageHead isMobile={isMobile} title="Platform Overview" sub={`Welcome back, ${user.name.split(" ")[0]}`}
         right={notifBadge>0?<Btn variant="soft" size="sm" onClick={()=>setPage("notifications")}>🔔 {notifBadge} new</Btn>:null}/>
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":`repeat(${isAdmin?4:3},1fr)`,gap:14,marginBottom:20}}>
-        {isAdmin&&<StatCard label="Monthly Revenue" value={`$${revenue}`} sub={`${clients.length} active subscriptions`} icon="💰" color={T.green} soft={T.greenSoft} trend={8} delay={0}/>}
+        {isAdmin&&<StatCard label="Monthly Revenue" value={`$${revenue}`} sub={`${clients.length} active subscriptions`} icon="💰" color={T.green} soft={T.greenSoft} delay={0}/>}
         <StatCard label="Clients" value={clients.length} sub="Across all plans" icon="👥" delay={70}/>
         <StatCard label="Listings Live" value={totalLive} sub={`${totalPending} pending`} icon="🌐" color={T.blue} soft={T.blueSoft} delay={140}/>
         <StatCard label="Needs Attention" value={totalFlagged} sub={`${actionNeeded} awaiting client action`} icon="🚩" color={T.red} soft={T.redSoft} delay={210}/>
       </div>
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1.7fr 1fr",gap:16,marginBottom:16}}>
-        {isAdmin?(<Card><SectionTitle sub="Monthly recurring revenue (Super Admin only)">Revenue Trend</SectionTitle>
+        {isAdmin?(<Card><SectionTitle sub="Current MRR from active plans (Super Admin only)">Revenue</SectionTitle>
           <ResponsiveContainer width="100%" height={190}>
             <AreaChart data={revData}>
               <defs><linearGradient id="rev" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={T.green} stopOpacity={.25}/><stop offset="100%" stopColor={T.green} stopOpacity={0}/></linearGradient></defs>
