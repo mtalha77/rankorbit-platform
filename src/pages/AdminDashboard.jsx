@@ -166,6 +166,14 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
   const isAgent=user.role==="agent";
   // Agents only see clients assigned to them by a manager. Staff/managers see all.
   const clients=isAgent?allClients.filter(c=>c.assignedAgentId===user.id):allClients;
+  // Listings may point at trashed/orphan profiles — resolve name from live + trash.
+  const labelForClientId=(id)=>{
+    if(!id)return "Unknown client";
+    const pool=[...users,...(data.trashedUsers||[])];
+    const c=pool.find(u=>String(u.id)===String(id));
+    if(!c)return "Unknown client";
+    return String(c.businessName||c.name||c.email||"Unknown client").trim()||"Unknown client";
+  };
   // Read-only impersonation: super-admin always; managers only if granted canImpersonate.
   const canImpersonate=isAdmin||(user.role==="manager"&&user.canImpersonate);
   const[viewAs,setViewAs]=useState(null); // client being viewed read-only
@@ -1258,9 +1266,9 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
     const[filter,setFilter]=useState("all");
     const[search,setSearch]=useState("");
     // Agents only see listings for clients assigned to them; staff see all.
-    const scopedIds=new Set(clients.map(c=>c.id));
-    const scopedFlat=isAgent?flat.filter(l=>scopedIds.has(l.clientId)):flat;
-    const withNames=scopedFlat.map(l=>({...l,_name:clients.find(c=>c.id===l.clientId)?.businessName||"?"}));
+    const scopedIds=new Set(clients.map(c=>String(c.id)));
+    const scopedFlat=isAgent?flat.filter(l=>scopedIds.has(String(l.clientId))):flat;
+    const withNames=scopedFlat.map(l=>({...l,_name:labelForClientId(l.clientId)}));
     let filtered=filter==="all"?withNames:filter==="action"?withNames.filter(l=>l.actionNeeded):withNames.filter(l=>l.status===filter);
     if(search)filtered=filtered.filter(l=>`${l._name} ${l.directory} ${l.status}`.toLowerCase().includes(search.toLowerCase()));
     const cnt=(s)=>s==="all"?withNames.length:s==="action"?withNames.filter(l=>l.actionNeeded).length:withNames.filter(l=>l.status===s).length;
