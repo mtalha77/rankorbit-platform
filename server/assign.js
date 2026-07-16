@@ -270,7 +270,7 @@ export async function notifyUser(admin, { userId, clientId, type, title, body, m
 
 function appBaseUrl() {
   const raw = (process.env.APP_URL || "").replace(/\/$/, "");
-  return raw || "https://www.naporbit.com";
+  return raw || "https://nap.rankorbit.com";
 }
 
 function emailBodyWithCta(body) {
@@ -436,7 +436,7 @@ export async function notifyBdm(admin, { agentId, clientId, type, title, body, m
 export async function sendNotifyEmails(toList, subject, text) {
   if (!toList.length) return { sent: false, reason: "no_recipients" };
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.NOTIFY_FROM_EMAIL || "NAP Orbit <onboarding@resend.dev>";
+  const from = process.env.NOTIFY_FROM_EMAIL || "NAP Orbit <noreply@naporbit.com>";
   if (!apiKey) {
     console.info("[notify] RESEND_API_KEY missing — in-app notification only. Would email:", toList.join(", "));
     return { sent: false, reason: "no_resend_key", to: toList };

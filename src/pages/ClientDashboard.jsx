@@ -458,7 +458,7 @@ function ClientLegalPage({isMobile}){
         <H>10. Changes to Terms</H>
         <P>{co} may update these terms. Material changes will be communicated by email or in-platform notice. Continued use after changes constitutes acceptance.</P>
         <H>11. Contact</H>
-        <P>Questions about these terms: info@naporbit.com.</P>
+        <P>Questions about these terms: sales@naporbit.com.</P>
       </div>):(<div>
         <H>1. Overview</H>
         <P>This Privacy Policy explains how {co} collects, uses, and protects information when you use our Services. We are committed to handling your data responsibly and transparently.</P>
@@ -479,7 +479,7 @@ function ClientLegalPage({isMobile}){
         <H>9. Changes</H>
         <P>We may update this policy and will notify you of material changes by email or in-platform notice.</P>
         <H>10. Contact</H>
-        <P>Privacy questions or data requests: info@naporbit.com.</P>
+        <P>Privacy questions or data requests: sales@naporbit.com.</P>
       </div>)}
     </Card>
   </div>);
