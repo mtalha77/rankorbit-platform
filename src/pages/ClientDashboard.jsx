@@ -10,6 +10,7 @@ import { Badge, Card, Btn, Input, Select, Confirm, StatCard, ChartTip, SectionTi
 import { Orbit } from "../components/Orbit";
 import Shell from "../components/Shell";
 import ChatThread from "../components/ChatThread";
+import AccountSettings from "../components/AccountSettings";
 import UserManual from "./UserManual";
 import { useWindowSize, useToast } from "../hooks";
 
@@ -356,7 +357,7 @@ function ClientLegalPage({isMobile}){
   </div>);
 }
 
-export default function ClientDashboard({user:userProp,data,reload,onLogout,impersonating=false}){
+export default function ClientDashboard({user:userProp,data,reload,onLogout,impersonating=false,onUserUpdate}){
   const[page,setPage]=useState("home");
   const[toast,Toasts]=useToast();
   const[showManual,setShowManual]=useState(false);
@@ -1093,7 +1094,7 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
 
   // IMPORTANT: call page bodies as functions (Home()), not <Home/>.
   // Inner `const Home=()=>` recreated each render would remount the whole page (flicker).
-  return(<><Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} planBadge={planBadge} showLegalLinks headerRight={NotifBell()} badgeCounts={{notifications:unreadSys,messages:chatUnread}}>
+  return(<><Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} planBadge={planBadge} showLegalLinks headerRight={NotifBell()} badgeCounts={{notifications:unreadSys,messages:chatUnread}} settingsPageId={impersonating?null:"settings"}>
     {page==="home"&&Home()}
     {page==="notifications"&&NotificationsPage()}
     {page==="messages"&&(
@@ -1119,6 +1120,15 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
     {page==="billing"&&Billing()}
     {page==="call"&&(
       <ClientCallPage user={user} isMobile={isMobile} toast={toast} reload={reload} onOpenMessages={()=>setPage("messages")}/>
+    )}
+    {page==="settings"&&!impersonating&&(
+      <AccountSettings
+        user={user}
+        toast={toast}
+        reload={reload}
+        onUserUpdate={onUserUpdate}
+        isMobile={isMobile}
+      />
     )}
     {page==="legal"&&<ClientLegalPage isMobile={isMobile}/>}
   </Shell>

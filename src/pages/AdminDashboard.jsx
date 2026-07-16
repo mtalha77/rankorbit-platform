@@ -8,6 +8,7 @@ import { today, todayFull, uid, actIcon, toDateInputValue, fromDateInputValue, i
 import { Badge, Card, Btn, Input, Select, Modal, Confirm, StatCard, ChartTip, SectionTitle, Empty, ListToolbar, PageHead } from "../components/atoms";
 import Shell from "../components/Shell";
 import ChatThread from "../components/ChatThread";
+import AccountSettings from "../components/AccountSettings";
 import ClientDashboard from "./ClientDashboard";
 import { useWindowSize, useToast } from "../hooks";
 
@@ -150,7 +151,7 @@ function StaffMessagesInbox({user,clients,selClient,setSelClient,setChatUnreadTo
   </div>);
 }
 
-export default function AdminDashboard({user,data,reload,onLogout}){
+export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate}){
   const[page,setPage]=useState("overview");
   const[selClient,setSelClient]=useState(null);
   const[modal,setModal]=useState(null);
@@ -247,7 +248,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
     {id:"finance",icon:"💰",label:"Finance",roles:["super_admin"]},
     {id:"audit",icon:"🛡️",label:"Audit Trail",roles:["super_admin"]},
     {id:"trash",icon:"🗑️",label:"Trash",roles:["super_admin"]},
-    {id:"settings",icon:"⚙️",label:"Settings",roles:["super_admin"]},
+    {id:"settings",icon:"🛠️",label:"Platform",roles:["super_admin"]},
   ].filter(n=>n.roles.includes(user.role));
   const roleBadge=(<div style={{marginTop:14,padding:"9px 13px",background:T.surface2,borderRadius:12}}>
     <div style={{fontSize:10,color:T.faint,fontWeight:800,letterSpacing:".5px"}}>SIGNED IN AS</div>
@@ -1550,7 +1551,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
     </>);
   }
 
-  return(<><Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} planBadge={roleBadge} brandTag="ADMIN" badgeCounts={{notifications:notifBadge,messages:chatUnreadTotal}}>
+  return(<><Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} planBadge={roleBadge} brandTag="ADMIN" badgeCounts={{notifications:notifBadge,messages:chatUnreadTotal}} settingsPageId="account">
     {page==="overview"&&<Overview/>}
     {page==="notifications"&&<NotificationsPage/>}
     {page==="messages"&&(
@@ -1574,6 +1575,17 @@ export default function AdminDashboard({user,data,reload,onLogout}){
     {page==="finance"&&<Finance/>}
     {page==="audit"&&<AuditTrail/>}
     {page==="trash"&&<Trash/>}
+    {page==="account"&&(
+      <AccountSettings
+        user={user}
+        toast={toast}
+        reload={reload}
+        onUserUpdate={onUserUpdate}
+        isMobile={isMobile}
+        title="My Account"
+        sub="Update your name, photo, and password"
+      />
+    )}
     {page==="settings"&&<Settings/>}
   </Shell>
   {modal?.type==="clientForm"&&<ClientFormModal client={modal.client} onClose={()=>setModal(null)}/>}

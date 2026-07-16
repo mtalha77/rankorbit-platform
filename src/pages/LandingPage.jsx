@@ -218,8 +218,57 @@ export default function LandingPage({user=null,focusPricing=false,billingFlag=nu
       </div>
     </div>
 
+    {/* ── Marquee strip (before By the Numbers) ── */}
+    <div
+      role="presentation"
+      style={{
+        position: "relative",
+        background: T.ink,
+        borderTop: `1px solid rgba(255,255,255,.08)`,
+        borderBottom: `1px solid rgba(255,255,255,.08)`,
+        overflow: "hidden",
+        padding: isMobile ? "12px 0" : "14px 0",
+        marginTop: isMobile ? 20 : 40,
+      }}
+    >
+      <div className="marqueeTrack" aria-hidden="true">
+        {[0, 1].map((copy) => (
+          <div
+            key={copy}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: isMobile ? 28 : 40,
+              paddingRight: isMobile ? 28 : 40,
+              whiteSpace: "nowrap",
+              fontFamily: FONT_D,
+              fontSize: isMobile ? 13 : 15,
+              fontWeight: 700,
+              letterSpacing: ".02em",
+              color: "rgba(255,255,255,.88)",
+            }}
+          >
+            {[
+              "Get started and grow your business now with NAP Orbit",
+              "Get discovered by customers worldwide",
+              "Get started and grow your business now with NAP Orbit",
+              "Get discovered by customers worldwide",
+            ].map((line, i) => (
+              <span key={`${copy}-${i}`} style={{display: "inline-flex", alignItems: "center", gap: isMobile ? 28 : 40}}>
+                <span style={{color: i % 2 === 0 ? "#fff" : T.green}}>{line}</span>
+                <span style={{width: 6, height: 6, borderRadius: "50%", background: T.brand, flexShrink: 0, opacity: 0.9}} />
+              </span>
+            ))}
+          </div>
+        ))}
+      </div>
+      <span style={{position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)"}}>
+        Get started and grow your business now with NAP Orbit. Get discovered by customers worldwide.
+      </span>
+    </div>
+
     {/* ── Stat band ── */}
-    <div style={{background:`linear-gradient(135deg,${T.ink},#2B2B58)`,padding:isMobile?"38px 20px":"56px 40px",marginTop:isMobile?20:40,position:"relative",overflow:"hidden"}}>
+    <div style={{background:`linear-gradient(135deg,${T.ink},#2B2B58)`,padding:isMobile?"38px 20px":"56px 40px",marginTop:0,position:"relative",overflow:"hidden"}}>
       <div style={{position:"absolute",top:-60,right:-40,width:240,height:240,borderRadius:"50%",background:`radial-gradient(circle,${T.brand}30,transparent 70%)`,pointerEvents:"none"}}/>
       <div style={{maxWidth:maxW,margin:"0 auto",position:"relative"}}>
         <div style={{textAlign:"center",marginBottom:isMobile?28:38}}>

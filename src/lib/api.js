@@ -459,6 +459,41 @@ export const api={
     const{error}=await supa.auth.updateUser({password});
     return error?{error:error.message}:{ok:true};
   },
+  /** Upload profile photo to Storage (or data-URL fallback locally). Returns {url} or {error}. */
+  async uploadAvatar(blobOrFile,userId){
+    if(!blobOrFile)return{error:"No image selected"};
+    if(supa){
+      const{data:{session}}=await supa.auth.getSession();
+      const id=userId||session?.user?.id;
+      if(!id)return{error:"Not signed in"};
+      const path=`${id}/${Date.now()}.jpg`;
+      const{error:upErr}=await supa.storage.from("avatars").upload(path,blobOrFile,{
+        upsert:true,
+        contentType:blobOrFile.type||"image/jpeg",
+      });
+      if(upErr){
+        const missing=/bucket|not found|row-level security/i.test(upErr.message||"");
+        return{error:missing
+          ?"Avatar storage is not set up. Run supabase/avatars-storage.sql in the Supabase SQL editor."
+          :upErr.message};
+      }
+      const{data:pub}=supa.storage.from("avatars").getPublicUrl(path);
+      const url=pub?.publicUrl;
+      if(!url)return{error:"Could not get photo URL"};
+      const{error:pErr}=await supa.from("profiles").update({avatar:url}).eq("id",id);
+      if(pErr)return{error:pErr.message};
+      return{ok:true,url};
+    }
+    if(!userId)return{error:"Not signed in"};
+    const dataUrl=await new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onload=()=>resolve(reader.result);
+      reader.onerror=()=>reject(new Error("Could not read image"));
+      reader.readAsDataURL(blobOrFile);
+    });
+    await this.patchProfile(userId,{avatar:String(dataUrl)});
+    return{ok:true,url:String(dataUrl)};
+  },
   async logout(){if(supa)await supa.auth.signOut();},
   async loadAll(){
     if(supa){
