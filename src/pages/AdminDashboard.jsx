@@ -1010,19 +1010,21 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
   };
 
   const Overview=()=>{
-    const revData=[{m:"Mar",r:138},{m:"Apr",r:187},{m:"May",r:236},{m:"Jun",r:revenue},{m:"Jul",r:revenue}];
+    // Current MRR only — no invented past months (Stripe history not stored yet).
+    const revMonth=new Date().toLocaleString("en-US",{month:"short"});
+    const revData=[{m:revMonth,r:revenue}];
     const listData=buildListingsActivitySeries(flat,5);
     return(<div>
       <PageHead isMobile={isMobile} title="Platform Overview" sub={`Welcome back, ${user.name.split(" ")[0]}`}
         right={notifBadge>0?<Btn variant="soft" size="sm" onClick={()=>setPage("notifications")}>🔔 {notifBadge} new</Btn>:null}/>
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":`repeat(${isAdmin?4:3},1fr)`,gap:14,marginBottom:20}}>
-        {isAdmin&&<StatCard label="Monthly Revenue" value={`$${revenue}`} sub={`${clients.length} active subscriptions`} icon="💰" color={T.green} soft={T.greenSoft} trend={8} delay={0}/>}
+        {isAdmin&&<StatCard label="Monthly Revenue" value={`$${revenue}`} sub={`${clients.length} active subscriptions`} icon="💰" color={T.green} soft={T.greenSoft} delay={0}/>}
         <StatCard label="Clients" value={clients.length} sub="Across all plans" icon="👥" delay={70}/>
         <StatCard label="Listings Live" value={totalLive} sub={`${totalPending} pending`} icon="🌐" color={T.blue} soft={T.blueSoft} delay={140}/>
         <StatCard label="Needs Attention" value={totalFlagged} sub={`${actionNeeded} awaiting client action`} icon="🚩" color={T.red} soft={T.redSoft} delay={210}/>
       </div>
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1.7fr 1fr",gap:16,marginBottom:16}}>
-        {isAdmin?(<Card><SectionTitle sub="Monthly recurring revenue (Super Admin only)">Revenue Trend</SectionTitle>
+        {isAdmin?(<Card><SectionTitle sub="Current MRR from active plans (Super Admin only)">Revenue</SectionTitle>
           <ResponsiveContainer width="100%" height={190}>
             <AreaChart data={revData}>
               <defs><linearGradient id="rev" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={T.green} stopOpacity={.25}/><stop offset="100%" stopColor={T.green} stopOpacity={0}/></linearGradient></defs>
@@ -1606,8 +1608,8 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
     useEffect(()=>{(async()=>{const st=await api.billingStatus();setStripeLive(!!st.configured);})();},[]);
     // Control-panel config: notification emails, report recipients, prices, toggles. UI-editable, DB-stored.
     const cfg0={
-      notifyEmail:"info@naporbit.com",
-      reportEmails:"info@naporbit.com, naporbit@gmail.com",
+      notifyEmail:"sales@naporbit.com",
+      reportEmails:"sales@naporbit.com, onboarding@naporbit.com",
       priceEssentials:PLANS.essentials.price, priceGrowth:PLANS.growth.price, priceGmb:PLANS.gmb.price,
       notifySignup:true, notifyCancel:true, notifyPlanChange:true, notifyAgentEdit:true, monthlyReport:true,
       allowSignups:true,
@@ -1631,8 +1633,8 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
         <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16}}>
           <div>
             <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:10}}>NOTIFICATION EMAILS</div>
-            <Input label="Event notifications to" value={c.notifyEmail} onChange={v=>setCfg("notifyEmail",v)} placeholder="info@naporbit.com"/>
-            <Input label="Monthly report recipients (comma-separated)" value={c.reportEmails} onChange={v=>setCfg("reportEmails",v)} placeholder="info@naporbit.com, naporbit@gmail.com"/>
+            <Input label="Event notifications to" value={c.notifyEmail} onChange={v=>setCfg("notifyEmail",v)} placeholder="sales@naporbit.com"/>
+            <Input label="Monthly report recipients (comma-separated)" value={c.reportEmails} onChange={v=>setCfg("reportEmails",v)} placeholder="sales@naporbit.com, onboarding@naporbit.com"/>
           </div>
           <div>
             <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:10}}>PLAN PRICES ($ / month)</div>
@@ -1664,7 +1666,7 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
 
       <Card style={{marginBottom:16}}>
         <SectionTitle sub="Route each notification type to one or more email addresses. Separate multiple emails with commas. Toggle any type off to stop sending it.">Notifications & Email Routing</SectionTitle>
-        <div style={{padding:"12px 15px",background:T.amberSoft,borderRadius:12,marginBottom:16,fontSize:12,color:T.amber,fontWeight:600,lineHeight:1.5}}>Clients always get in-app notifications. Staff emails below + client emails send via Resend once <code>RESEND_API_KEY</code> and <code>NOTIFY_FROM_EMAIL</code> are set in Vercel. Until then settings are saved and in-app still works.</div>
+        <div style={{padding:"12px 15px",background:T.amberSoft,borderRadius:12,marginBottom:16,fontSize:12,color:T.amber,fontWeight:600,lineHeight:1.5}}>Clients always get in-app notifications. Staff + client emails send via Resend after you verify <code>naporbit.com</code> and set <code>RESEND_API_KEY</code> + <code>NOTIFY_FROM_EMAIL=NAP Orbit &lt;noreply@naporbit.com&gt;</code> in Vercel. Use sales@ / onboarding@naporbit.com for staff recipients below.</div>
         {[
           {k:"routeSignup",label:"New client signup",desc:"When a client creates an account"},
           {k:"routeSuspend",label:"Client suspension",desc:"When a client is suspended or reactivated"},
@@ -1703,11 +1705,11 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
       </Card>
 
       <Card style={{marginBottom:16}}>
-        <SectionTitle sub="Checkout, cancel, upgrades, and invoices run through Stripe Checkout + webhooks. Secrets live only in Vercel env — never in the database.">Stripe Billing</SectionTitle>
+        <SectionTitle sub="Checkout, cancel, upgrades, and invoices run through the Rank Orbit Stripe account (rankorbit.com entity). App host is nap.rankorbit.com. Secrets live only in Vercel env.">Stripe Billing</SectionTitle>
         <div style={{padding:"14px 16px",background:T.blueSoft,borderRadius:12,marginBottom:18,fontSize:12.5,color:T.blue,lineHeight:1.7}}>
           <div style={{fontWeight:800,marginBottom:6}}>Setup (Vercel env + Stripe Dashboard):</div>
-          <div><b>1.</b> Stripe → Products → create 3 recurring monthly Prices ($49 / $89 / $249).</div>
-          <div><b>2.</b> Vercel → Environment Variables: <code>STRIPE_SECRET_KEY</code>, <code>STRIPE_WEBHOOK_SECRET</code>, <code>STRIPE_PRICE_ESSENTIALS</code>, <code>STRIPE_PRICE_GROWTH</code>, <code>STRIPE_PRICE_GMB</code>, <code>SUPABASE_SERVICE_ROLE_KEY</code>, <code>APP_URL</code>.</div>
+          <div><b>1.</b> Stripe (Rank Orbit / rankorbit.com) → Products → create 3 recurring monthly Prices ($49 / $89 / $249).</div>
+          <div><b>2.</b> Vercel → Environment Variables: <code>STRIPE_SECRET_KEY</code>, <code>STRIPE_WEBHOOK_SECRET</code>, <code>STRIPE_PRICE_ESSENTIALS</code>, <code>STRIPE_PRICE_GROWTH</code>, <code>STRIPE_PRICE_GMB</code>, <code>SUPABASE_SERVICE_ROLE_KEY</code>, <code>APP_URL=https://nap.rankorbit.com</code>.</div>
           <div><b>3.</b> Stripe → Developers → Webhooks → Add endpoint. URL:</div>
           <div style={{margin:"6px 0",padding:"8px 11px",background:"#fff",borderRadius:8,fontFamily:"monospace",fontSize:11.5,color:T.ink,wordBreak:"break-all",userSelect:"all"}}>{webhookUrl}</div>
           <div><b>4.</b> Events: <code>checkout.session.completed</code>, <code>customer.subscription.created</code>, <code>customer.subscription.updated</code>, <code>customer.subscription.deleted</code>, <code>invoice.paid</code>, <code>invoice.payment_failed</code>, <code>invoice.finalized</code>.</div>

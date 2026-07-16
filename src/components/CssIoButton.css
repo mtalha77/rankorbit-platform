@@ -1,0 +1,72 @@
+/* Get found now — brand colors + Uiverse expand icon */
+.cssbuttons-io-button {
+  background: linear-gradient(135deg, #5B5BD6, #4646C4);
+  color: white;
+  font-family: inherit;
+  padding: 0.35em;
+  padding-left: 1.2em;
+  font-size: 17px;
+  font-weight: 700;
+  border-radius: 0.9em;
+  border: none;
+  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  box-shadow: inset 0 0 1.6em -0.6em #4646C4, 0 4px 14px rgba(91, 91, 214, 0.28);
+  overflow: hidden;
+  position: relative;
+  height: 2.8em;
+  padding-right: 3.3em;
+  cursor: pointer;
+}
+
+.cssbuttons-io-button .icon {
+  background: white;
+  margin-left: 1em;
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.2em;
+  width: 2.2em;
+  border-radius: 0.7em;
+  box-shadow: 0.1em 0.1em 0.6em 0.2em rgba(91, 91, 214, 0.45);
+  right: 0.3em;
+  transition: all 0.3s;
+}
+
+.cssbuttons-io-button:hover .icon {
+  width: calc(100% - 0.6em);
+}
+
+.cssbuttons-io-button .icon svg {
+  width: 1.1em;
+  height: 1.1em;
+  transition: transform 0.3s;
+  color: #5B5BD6;
+}
+
+.cssbuttons-io-button:hover .icon svg {
+  transform: translateX(0.1em);
+}
+
+.cssbuttons-io-button:active .icon {
+  transform: scale(0.95);
+}
+
+/* White button for dark/purple CTA bands */
+.cssbuttons-io-button--light {
+  background: #fff;
+  color: #171732;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
+}
+
+.cssbuttons-io-button--light .icon {
+  background: linear-gradient(135deg, #5B5BD6, #4646C4);
+  box-shadow: 0.1em 0.1em 0.6em 0.2em rgba(91, 91, 214, 0.35);
+  color: #fff;
+}
+
+.cssbuttons-io-button--light .icon svg {
+  color: #fff;
+}
