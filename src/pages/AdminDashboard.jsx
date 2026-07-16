@@ -270,7 +270,7 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
     {id:"clients",icon:"👥",label:"Clients",roles:["super_admin","manager","agent"],match:["clientDetail"]},
     {id:"listings",icon:"📋",label:"All Listings",roles:["super_admin","manager","agent"]},
     {id:"gmb",icon:"📍",label:"GMB",roles:["super_admin","manager"]},
-    {id:"team",icon:"🔑",label:"Team",roles:["super_admin","manager"]},
+    {id:"team",icon:"👥",label:"Team",roles:["super_admin","manager"]},
     {id:"activity",icon:"📜",label:"Activity Log",roles:["super_admin","manager"]},
     {id:"finance",icon:"💰",label:"Finance",roles:["super_admin"]},
     {id:"audit",icon:"🛡️",label:"Audit Trail",roles:["super_admin"]},
@@ -1325,6 +1325,97 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
   };
 
   const[teamView,setTeamView]=useState(null); // staff member whose logs are open
+  // Team row actions consolidated here — edit anyone except yourself.
+  const PermissionsModal=({member:memberProp,onClose})=>{
+    const member=staff.find(x=>x.id===memberProp.id)||memberProp;
+    const isSelf=member.id===user.id;
+    const canEdit=!isSelf;
+    const role=member.role==="super_admin"?"Super Admin":member.role==="manager"?"Manager":"Agent";
+    const assignedCount=allClients.filter(c=>c.assignedAgentId===member.id).length;
+    const rolePerms=member.role==="super_admin"
+      ?["Full platform access","Manage clients, listings, and GMB","Manage team, finance, and settings","Read-only client account view","View activity logs"]
+      :member.role==="manager"
+        ?["Manage clients, listings, and GMB","Assign clients to agents","View team activity logs"]
+        :["Work on assigned clients only"];
+    const agentPermDefs=[["listings","Update listings"],["nap","Update NAP score"],["logEdit","Log unauthorized edits"],["gmb","GMB changes"]];
+    const defPerms={listings:true,nap:true,logEdit:true,gmb:true};
+    const[perms,setPerms]=useState({...defPerms,...(member.perms||{})});
+    const[canViewAccounts,setCanViewAccounts]=useState(!!member.canImpersonate);
+    const[saving,setSaving]=useState(false);
+    const dirtyAgent=member.role==="agent"&&JSON.stringify(perms)!==JSON.stringify({...defPerms,...(member.perms||{})});
+    const dirtyMgr=member.role==="manager"&&canViewAccounts!==!!member.canImpersonate;
+    const dirty=dirtyAgent||dirtyMgr;
+    const togglePerm=(k)=>{if(!canEdit)return;setPerms(p=>({...p,[k]:!p[k]}));};
+    const save=async()=>{
+      if(!canEdit||!dirty)return;
+      setSaving(true);
+      try{
+        if(member.role==="agent"&&isStaffMgr){
+          await api.patchProfile(member.id,{perms});
+          await audit("agent.perms",{targetType:"staff",targetId:member.id,targetName:member.name,detail:Object.entries(perms).filter(([,v])=>v).map(([k])=>k).join(", ")||"none"});
+        }
+        if(member.role==="manager"&&isAdmin&&canViewAccounts!==!!member.canImpersonate){
+          await api.setImpersonateGrant(member.id,canViewAccounts);
+          await audit("grant.impersonate",{targetType:"staff",targetId:member.id,targetName:member.name,detail:canViewAccounts?"granted":"revoked"});
+        }
+        await reload();
+        toast("Permissions saved");
+      }catch(e){toast(e.message||"Could not save permissions","info");}
+      setSaving(false);
+    };
+    const PermRow=({ok,label})=>(
+      <div style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",background:ok?T.greenSoft:T.surface2,borderRadius:10,border:`1px solid ${ok?T.green+"33":T.line}`}}>
+        <span style={{fontSize:13,fontWeight:800,color:ok?T.green:T.faint,width:18,textAlign:"center"}}>{ok?"✓":"–"}</span>
+        <span style={{fontSize:12.5,fontWeight:700,color:ok?T.ink:T.sub}}>{label}</span>
+      </div>
+    );
+    return(<Modal open onClose={onClose} title={`Permissions · ${member.name}`}>
+      <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:16}}>
+        <UserAvatar user={member} size={42}/>
+        <div>
+          <div style={{fontSize:14,fontWeight:800}}>{member.name}</div>
+          <div style={{fontSize:12,color:T.sub}}>{member.email} · {role}</div>
+        </div>
+      </div>
+      {isSelf&&<div style={{padding:"10px 13px",background:T.amberSoft,borderRadius:11,fontSize:12,color:T.amber,fontWeight:600,marginBottom:14,lineHeight:1.45}}>You can view your permissions, but you can't edit your own access.</div>}
+      <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:8}}>ROLE ACCESS</div>
+      <div style={{display:"flex",flexDirection:"column",gap:7,marginBottom:16}}>
+        {rolePerms.map(p=><PermRow key={p} ok label={p}/>)}
+      </div>
+      {member.role==="agent"&&(<>
+        <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:8}}>AGENT ACTION ACCESS · {assignedCount} clients assigned</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16}}>
+          {agentPermDefs.map(([k,label])=>(
+            <label key={k} style={{display:"flex",alignItems:"center",gap:9,padding:"9px 12px",background:perms[k]?T.brandSoft:T.surface2,border:`1.5px solid ${perms[k]?T.brand:T.line}`,borderRadius:10,cursor:canEdit&&isStaffMgr?"pointer":"default",opacity:canEdit||perms[k]?1:0.85,transition:"all .12s"}}>
+              <input type="checkbox" checked={!!perms[k]} disabled={!canEdit||!isStaffMgr} onChange={()=>togglePerm(k)} style={{width:15,height:15,accentColor:T.brand}}/>
+              <span style={{fontSize:12.5,fontWeight:700,color:perms[k]?T.brand:T.sub}}>{label}</span>
+            </label>
+          ))}
+        </div>
+      </>)}
+      {member.role==="manager"&&(<>
+        <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:8}}>ACCOUNT ACCESS</div>
+        <label style={{display:"flex",alignItems:"center",gap:9,padding:"11px 13px",background:canViewAccounts?T.greenSoft:T.surface2,border:`1.5px solid ${canViewAccounts?T.green:T.line}`,borderRadius:11,cursor:canEdit&&isAdmin?"pointer":"default",marginBottom:16}}>
+          <input type="checkbox" checked={canViewAccounts} disabled={!canEdit||!isAdmin} onChange={()=>canEdit&&isAdmin&&setCanViewAccounts(v=>!v)} style={{width:15,height:15,accentColor:T.green}}/>
+          <div>
+            <div style={{fontSize:12.5,fontWeight:800,color:canViewAccounts?T.green:T.sub}}>Can view client accounts</div>
+            <div style={{fontSize:11,color:T.faint,marginTop:2}}>Open client dashboards in read-only mode</div>
+          </div>
+        </label>
+      </>)}
+      <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:8}}>MORE</div>
+      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:4}}>
+        <Btn variant="ghost" onClick={()=>{onClose();setTeamView(member.id);}}>View logs</Btn>
+        {canEdit&&isStaffMgr&&member.role==="agent"&&<Btn variant="ghost" onClick={()=>setModal({type:"assign",agent:member})}>Assign clients</Btn>}
+      </div>
+      <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:14}}>
+        <Btn variant="ghost" onClick={onClose}>Close</Btn>
+        {canEdit&&(member.role==="agent"&&isStaffMgr||member.role==="manager"&&isAdmin)&&(
+          <Btn onClick={save} disabled={saving||!dirty}>{saving?"Saving…":"Save permissions"}</Btn>
+        )}
+      </div>
+    </Modal>);
+  };
   // Staff credentials row: email + password with show/copy. Visible to super-admin/manager only.
   const CredsRow=({m})=>{
     const[show,setShow]=useState(false);
@@ -1391,16 +1482,18 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
           <div style={{display:"flex",gap:13,alignItems:"center"}}>
             <UserAvatar user={m} size={42}/>
-            <div><div style={{fontSize:14,fontWeight:800}}>{m.name}</div><div style={{fontSize:12,color:T.sub}}>{m.email}</div></div>
+            <div>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                <span style={{fontSize:14,fontWeight:800}}>{m.name}</span>
+                <Badge type={m.role==="super_admin"?"live":m.role==="manager"?"pending":"submitted"} label={m.role==="super_admin"?"Super Admin":m.role==="manager"?"Manager":"Agent"}/>
+              </div>
+              <div style={{fontSize:12,color:T.sub}}>{m.email}</div>
+            </div>
           </div>
           <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-            <Badge type={m.role==="super_admin"?"live":m.role==="manager"?"pending":"submitted"} label={m.role==="super_admin"?"Super Admin":m.role==="manager"?"Manager":"Agent"}/>
             {m.role==="agent"&&<span style={{fontSize:11,color:T.sub,fontWeight:700,background:T.blueSoft,padding:"3px 9px",borderRadius:20}}>{allClients.filter(c=>c.assignedAgentId===m.id).length} clients</span>}
-            <Btn variant="ghost" size="sm" onClick={()=>setTeamView(m.id)}>View logs</Btn>
-            {isStaffMgr&&m.role==="agent"&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"assign",agent:m})}>Assign clients</Btn>}
-            {isAdmin&&m.role==="manager"&&<Btn variant={m.canImpersonate?"green":"ghost"} size="sm" onClick={()=>R(async()=>{await api.setImpersonateGrant(m.id,!m.canImpersonate);await audit("grant.impersonate",{targetType:"staff",targetId:m.id,targetName:m.name,detail:m.canImpersonate?"revoked":"granted"});},m.canImpersonate?"Account access revoked":"Account access granted")}>{m.canImpersonate?"✓ Can view accounts":"Allow account access"}</Btn>}
-            {isAdmin&&m.id!==user.id&&m.role!=="super_admin"&&!m.protected&&<Btn variant="danger" size="sm" onClick={()=>setConfirm({title:"Remove team member?",msg:`Remove ${m.name} from the team?`,danger:true,yes:"Remove",onYes:()=>R(async()=>api.deleteUser(m.id),`${m.name} removed`)})}>Remove</Btn>}
-            {m.protected&&<span style={{fontSize:11,color:T.faint}}>🔒 Demo</span>}
+            <Btn variant="soft" size="sm" onClick={()=>setModal({type:"permissions",member:m})}>Permissions</Btn>
+            {isAdmin&&m.id!==user.id&&<Btn variant="danger" size="sm" onClick={()=>setConfirm({title:"Remove team member?",msg:`Remove ${m.name} from the team?`,danger:true,yes:"Remove",onYes:()=>R(async()=>api.deleteUser(m.id),`${m.name} removed`)})}>Remove</Btn>}
           </div>
         </div>
         {m.staffPassword&&!m.protected&&<CredsRow m={m}/>}
@@ -1798,6 +1891,7 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
   </Shell>
   {modal?.type==="clientForm"&&<ClientFormModal client={modal.client} onClose={()=>setModal(null)}/>}
   {modal?.type==="team"&&<TeamModal onClose={()=>setModal(null)}/>}
+  {modal?.type==="permissions"&&<PermissionsModal member={modal.member} onClose={()=>setModal(null)}/>}
   {modal?.type==="assign"&&<AssignModal agent={modal.agent} onClose={()=>setModal(null)}/>}
   {modal?.type==="suspend"&&<SuspendModal client={modal.client} onClose={()=>setModal(null)}/>}
   {modal?.type==="napConfirm"&&<NapConfirmModal client={modal.client} newScore={modal.newScore} onClose={()=>setModal(null)}/>}
