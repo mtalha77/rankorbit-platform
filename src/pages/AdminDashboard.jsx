@@ -4,10 +4,11 @@ import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { T, FONT_D, FONT_B, SHADOW } from "../lib/theme";
 import { api } from "../lib/api";
 import { PLANS, CATEGORIES, US_CA_STATES, livePlanEntries } from "../lib/constants";
-import { today, todayFull, uid, actIcon, toDateInputValue, fromDateInputValue, isPastMeetingNotif, isBookingPast } from "../lib/helpers";
+import { today, todayFull, uid, actIcon, toDateInputValue, fromDateInputValue, isPastMeetingNotif, isBookingPast, buildListingsActivitySeries } from "../lib/helpers";
 import { Badge, Card, Btn, Input, Select, Modal, Confirm, StatCard, ChartTip, SectionTitle, Empty, ListToolbar, PageHead } from "../components/atoms";
 import Shell from "../components/Shell";
 import ChatThread from "../components/ChatThread";
+import AccountSettings, { UserAvatar } from "../components/AccountSettings";
 import ClientDashboard from "./ClientDashboard";
 import { useWindowSize, useToast } from "../hooks";
 
@@ -150,7 +151,7 @@ function StaffMessagesInbox({user,clients,selClient,setSelClient,setChatUnreadTo
   </div>);
 }
 
-export default function AdminDashboard({user,data,reload,onLogout}){
+export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate}){
   const[page,setPage]=useState("overview");
   const[selClient,setSelClient]=useState(null);
   const[modal,setModal]=useState(null);
@@ -199,6 +200,12 @@ export default function AdminDashboard({user,data,reload,onLogout}){
   };
   const R=async(fn,msg)=>{try{await fn();if(msg)toast(msg);await reload();}catch(e){console.error(e);toast(e.message||"Save failed","info");}};
 
+  // Super admin: no client/agent ops alerts — only peer team-chat pings.
+  const visibleStaffNotifs=(rows)=>{
+    const live=(rows||[]).filter(x=>!isPastMeetingNotif(x));
+    if(user.role!=="super_admin")return live;
+    return live.filter(x=>x.type==="staff_message");
+  };
   const[notifBadge,setNotifBadge]=useState(0);
   const[chatUnreadTotal,setChatUnreadTotal]=useState(0);
   useEffect(()=>{
@@ -206,13 +213,34 @@ export default function AdminDashboard({user,data,reload,onLogout}){
     const pull=async()=>{
       const rows=await api.listMyNotifications();
       if(cancelled)return;
-      const n=(rows||[]).filter(x=>!x.read&&!isPastMeetingNotif(x)).length;
+      const n=visibleStaffNotifs(rows).filter(x=>!x.read).length;
       setNotifBadge(prev=>prev===n?prev:n);
     };
     pull();
     const t=setInterval(pull,45000);
     return()=>{cancelled=true;clearInterval(t);};
-  },[user.id]);
+  },[user.id,user.role]);
+
+  // OAuth return: ?gbp=pick|error&gbpClient=…
+  useEffect(()=>{
+    if(typeof window==="undefined")return;
+    const params=new URLSearchParams(window.location.search);
+    const gbp=params.get("gbp");
+    const clientId=params.get("gbpClient");
+    if(!gbp||!clientId)return;
+    const msg=params.get("gbpMsg")||"";
+    window.history.replaceState({},"",window.location.pathname+(window.location.hash||""));
+    const c=clients.find(x=>x.id===clientId)||{id:clientId,businessName:"Client"};
+    setSelClient(clientId);
+    setPage("clientDetail");
+    if(gbp==="error"){
+      toast(msg||"Google connect failed","info");
+      setModal({type:"integrations",client:c,pickLocation:false});
+    }else if(gbp==="pick"){
+      toast("Google connected — pick a location");
+      setModal({type:"integrations",client:c,pickLocation:true});
+    }
+  },[clients.length]);
 
   const pageRef=useRef(page);
   pageRef.current=page;
@@ -247,7 +275,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
     {id:"finance",icon:"💰",label:"Finance",roles:["super_admin"]},
     {id:"audit",icon:"🛡️",label:"Audit Trail",roles:["super_admin"]},
     {id:"trash",icon:"🗑️",label:"Trash",roles:["super_admin"]},
-    {id:"settings",icon:"⚙️",label:"Settings",roles:["super_admin"]},
+    {id:"settings",icon:"🛠️",label:"Control Panel",roles:["super_admin"]},
   ].filter(n=>n.roles.includes(user.role));
   const roleBadge=(<div style={{marginTop:14,padding:"9px 13px",background:T.surface2,borderRadius:12}}>
     <div style={{fontSize:10,color:T.faint,fontWeight:800,letterSpacing:".5px"}}>SIGNED IN AS</div>
@@ -641,18 +669,150 @@ export default function AdminDashboard({user,data,reload,onLogout}){
       </div>
     </Modal>);
   };
-  const IntegrationsModal=({client,onClose})=>{
+  const IntegrationsModal=({client,onClose,pickLocation})=>{
     const[gaId,setGaId]=useState(client.gaId||"");
     const[gbpId,setGbpId]=useState(client.gbpId||"");
-    return(<Modal open onClose={onClose} title={`Integrations · ${client.businessName}`} width={520}>
+    const[conn,setConn]=useState(null);
+    const[configured,setConfigured]=useState(false);
+    const[loading,setLoading]=useState(true);
+    const[busy,setBusy]=useState("");
+    const[locations,setLocations]=useState([]);
+    const[picking,setPicking]=useState(!!pickLocation);
+    const[err,setErr]=useState("");
+
+    const refreshStatus=async()=>{
+      const st=await api.googleGbpStatus(client.id);
+      if(st.error){setErr(st.error);setConn(null);setConfigured(false);}
+      else{setConfigured(!!st.configured);setConn(st.connection||null);setErr("");}
+    };
+
+    useEffect(()=>{
+      let cancelled=false;
+      (async()=>{
+        setLoading(true);
+        await refreshStatus();
+        if(cancelled)return;
+        if(pickLocation){
+          setPicking(true);
+          setBusy("locations");
+          const loc=await api.googleGbpLocations(client.id);
+          if(!cancelled){
+            if(loc.error)setErr(loc.error);
+            else setLocations(loc.locations||[]);
+            setBusy("");
+          }
+        }
+        if(!cancelled)setLoading(false);
+      })();
+      return()=>{cancelled=true;};
+    },[client.id,pickLocation]);
+
+    const fmtSync=(iso)=>{
+      if(!iso)return"Never";
+      try{return new Date(iso).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});}
+      catch{return iso;}
+    };
+
+    return(<Modal open onClose={onClose} title={`Integrations · ${client.businessName||client.name}`} width={560}>
       <div style={{padding:"12px 14px",background:T.blueSoft,borderRadius:11,marginBottom:16,fontSize:12,color:T.blue,lineHeight:1.5}}>
-        Store the client's IDs here. Live auto-pull (OAuth) is coming next; for now, use the manual GMB/Analytics entry to feed their dashboards.
+        Connect Google Business Profile to auto-sync views, calls, directions, and NAP. GA4 OAuth is a later phase — Measurement ID stays manual for now.
       </div>
+      {err&&<div style={{padding:"10px 12px",background:T.redSoft,borderRadius:10,marginBottom:12,fontSize:12,color:T.red,lineHeight:1.45}}>{err}</div>}
+
+      <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".5px",marginBottom:8}}>GOOGLE BUSINESS PROFILE</div>
+      {loading?<div style={{fontSize:12.5,color:T.sub,marginBottom:14}}>Loading connection…</div>:(
+        <div style={{padding:"14px 15px",background:T.surface2,borderRadius:12,marginBottom:16,border:`1px solid ${T.line}`}}>
+          {!configured&&<div style={{fontSize:12,color:T.amber,marginBottom:10,lineHeight:1.5}}>OAuth env not set on the server yet. Add <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code>, <code>GOOGLE_REDIRECT_URI</code>, and <code>CRON_SECRET</code> in Vercel (see Control Panel).</div>}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:8}}>
+            <div>
+              <div style={{fontSize:13.5,fontWeight:800}}>{conn?.locationTitle||conn?.locationName||"Not connected"}</div>
+              <div style={{fontSize:11.5,color:T.sub,marginTop:3}}>
+                Status: {conn?.status||"none"} · Last sync: {fmtSync(conn?.syncedAt)}
+              </div>
+              {conn?.lastError&&<div style={{fontSize:11,color:T.red,marginTop:4}}>{conn.lastError}</div>}
+            </div>
+            <Badge type={conn?.hasLocation?"connected":conn?"pending":"manual"} label={conn?.hasLocation?"Connected":conn?"Pick location":"Disconnected"}/>
+          </div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            {!conn&&configured&&(
+              <Btn size="sm" disabled={!!busy} onClick={async()=>{
+                setBusy("connect");setErr("");
+                const r=await api.googleGbpStart(client.id);
+                setBusy("");
+                if(r.error){setErr(r.error);return;}
+                if(r.url)window.location.href=r.url;
+              }}>Connect Google</Btn>
+            )}
+            {conn&&(
+              <Btn size="sm" variant="soft" disabled={!!busy} onClick={async()=>{
+                setBusy("locations");setErr("");setPicking(true);
+                const loc=await api.googleGbpLocations(client.id);
+                setBusy("");
+                if(loc.error){setErr(loc.error);return;}
+                setLocations(loc.locations||[]);
+              }}>{conn.hasLocation?"Change location":"Pick location"}</Btn>
+            )}
+            {conn?.hasLocation&&(
+              <Btn size="sm" variant="green" disabled={!!busy} onClick={async()=>{
+                setBusy("sync");setErr("");
+                const r=await api.googleGbpSync(client.id);
+                setBusy("");
+                if(r.error){setErr(r.error);return;}
+                toast("GMB synced from Google");
+                await refreshStatus();
+                await reload();
+              }}>{busy==="sync"?"Syncing…":"Sync now"}</Btn>
+            )}
+            {conn&&(
+              <Btn size="sm" variant="ghost" disabled={!!busy} onClick={()=>setConfirm({
+                title:"Disconnect Google?",
+                msg:"Tokens will be removed. Manual Update GMB will work again until you reconnect.",
+                yes:"Disconnect",
+                onYes:()=>R(async()=>{
+                  const r=await api.googleGbpDisconnect(client.id);
+                  if(r.error)throw new Error(r.error);
+                  setConn(null);setPicking(false);setLocations([]);
+                },"Google disconnected"),
+              })}>Disconnect</Btn>
+            )}
+          </div>
+          {picking&&(
+            <div style={{marginTop:14,paddingTop:12,borderTop:`1px solid ${T.line}`}}>
+              <div style={{fontSize:12.5,fontWeight:800,marginBottom:8}}>Select a location</div>
+              {busy==="locations"&&<div style={{fontSize:12,color:T.sub}}>Loading locations…</div>}
+              {!busy&&locations.length===0&&<div style={{fontSize:12,color:T.sub}}>No locations found for this Google account.</div>}
+              <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:220,overflowY:"auto"}}>
+                {locations.map(loc=>(
+                  <button key={loc.locationName} type="button" disabled={busy==="select"} onClick={async()=>{
+                    setBusy("select");setErr("");
+                    const r=await api.googleGbpSelectLocation(client.id,{
+                      locationName:loc.locationName,
+                      accountName:loc.accountName,
+                      locationTitle:loc.title,
+                    });
+                    setBusy("");
+                    if(r.error){setErr(r.error);return;}
+                    if(r.warning)toast(r.warning,"info");
+                    else toast("Location saved & synced");
+                    setPicking(false);
+                    await refreshStatus();
+                    await reload();
+                  }} style={{textAlign:"left",padding:"10px 12px",borderRadius:10,border:`1.5px solid ${T.line}`,background:"#fff",cursor:"pointer",fontFamily:FONT_B}}>
+                    <div style={{fontSize:13,fontWeight:800}}>{loc.title||loc.locationName}</div>
+                    <div style={{fontSize:11.5,color:T.sub,marginTop:2}}>{loc.address||"–"}{loc.phone?` · ${loc.phone}`:""}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <Input label="Google Analytics 4 Measurement ID" value={gaId} onChange={setGaId} placeholder="G-XXXXXXXXXX"/>
-      <Input label="Google Business Profile ID / Name" value={gbpId} onChange={setGbpId} placeholder="accounts/123/locations/456"/>
+      <Input label="GBP ID (auto-filled when connected)" value={gbpId} onChange={setGbpId} placeholder="locations/…"/>
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:4}}>
-        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-        <Btn onClick={()=>R(async()=>api.upsertProfile({...client,gaId,gbpId}),"Integration IDs saved").then(onClose)}>Save</Btn>
+        <Btn variant="ghost" onClick={onClose}>Close</Btn>
+        <Btn onClick={()=>R(async()=>api.upsertProfile({...client,gaId,gbpId}),"Integration IDs saved").then(onClose)}>Save IDs</Btn>
       </div>
     </Modal>);
   };
@@ -668,12 +828,12 @@ export default function AdminDashboard({user,data,reload,onLogout}){
     const load=async()=>{
       setLoading(true);
       const rows=await api.listMyNotifications();
-      const live=(rows||[]).filter(n=>!isPastMeetingNotif(n));
+      const live=visibleStaffNotifs(rows);
       setNotifs(live);
       setNotifBadge(live.filter(n=>!n.read).length);
       setLoading(false);
     };
-    useEffect(()=>{load();},[user.id]);
+    useEffect(()=>{load();},[user.id,user.role]);
     const unread=notifs.filter(n=>!n.read);
     const markAll=async()=>{
       const ids=unread.map(n=>n.id);
@@ -694,7 +854,11 @@ export default function AdminDashboard({user,data,reload,onLogout}){
       const bookingId=n.meta?.bookingId;
       if(!bookingId){toast("This notification has no booking linked","info");return;}
       const meetingUrl=(zoomByNotif[n.id]||"").trim();
-      if(action==="confirm"&&meetingUrl){
+      if(action==="confirm"||action==="share_link"){
+        if(!meetingUrl){
+          setZoomErr(prev=>({...prev,[n.id]:"Zoom / meeting link is required"}));
+          return;
+        }
         try{new URL(meetingUrl);}catch{
           setZoomErr(prev=>({...prev,[n.id]:"Enter a valid Zoom link (https://…)"}));
           return;
@@ -702,15 +866,17 @@ export default function AdminDashboard({user,data,reload,onLogout}){
       }
       setZoomErr(prev=>({...prev,[n.id]:""}));
       setBusyId(n.id+action);
-      const r=await api.respondCall({bookingId,action,notificationId:n.id,meetingUrl:action==="confirm"?meetingUrl:undefined});
+      const r=await api.respondCall({bookingId,action,notificationId:n.id,meetingUrl:(action==="confirm"||action==="share_link")?meetingUrl:undefined});
       setBusyId(null);
       if(r.error){toast(r.error,"info");return;}
       toast(action==="confirm"
-        ?(meetingUrl?"Meeting confirmed — Zoom link shared with client":"Meeting confirmed — client notified")
+        ?"Meeting confirmed — Zoom link shared with client"
+        :action==="share_link"
+        ?"Zoom link shared with client"
         :"Meeting cancelled — client notified");
       setNotifs(prev=>prev.map(x=>{
         if(x.id!==n.id&&x.meta?.bookingId!==bookingId)return x;
-        return{...x,read:true,meta:{...(x.meta||{}),status:r.status,meetingUrl:r.meetingUrl||meetingUrl||null,respondedAt:new Date().toISOString()}};
+        return{...x,read:true,meta:{...(x.meta||{}),status:r.status||x.meta?.status,meetingUrl:r.meetingUrl||meetingUrl||null,respondedAt:new Date().toISOString()}};
       }));
     };
     const typeIcon=(t)=>({
@@ -735,14 +901,14 @@ export default function AdminDashboard({user,data,reload,onLogout}){
       meeting_confirmed:"Meeting",
       meeting_cancelled:"Meeting",
     }[t]||"Update");
-    // Super admins get report copies — agents act on call_booked.
+    // Agents/managers act on call_booked — super admin does not receive those alerts.
     const canRespond=(n)=>!isAdmin&&n.type==="call_booked"&&n.meta?.bookingId&&(!n.meta?.status||n.meta.status==="pending")&&!n.meta?.reportOnly&&!isBookingPast(n.meta?.slotDate,n.meta?.slotTime);
     const emptySub=isAdmin
-      ?"When staff are added, clients are assigned, or meetings are booked, it shows here."
+      ?"Team chat pings show here. Client and agent activity stays with managers and agents."
       :"When a client is assigned to you or schedules a meeting, it appears here.";
     return(<div>
       <PageHead isMobile={isMobile} title="Notifications"
-        sub={isAdmin?"Staff adds, client assignments, and meeting activity across the platform":"Client assignments, meeting requests, and messages"}
+        sub={isAdmin?"Team messages only — no client or agent ops alerts":"Client assignments, meeting requests, and messages"}
         right={unread.length>0?<Btn variant="soft" size="sm" onClick={markAll}>Mark all read</Btn>:null}/>
       <Card>
         {loading?(<div style={{padding:28,textAlign:"center",color:T.faint,fontSize:13}}>Loading…</div>):
@@ -771,7 +937,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
                 {openId===n.id&&canRespond(n)&&(
                   <div style={{padding:"0 6px 14px 54px"}}>
                     <div style={{marginBottom:10}}>
-                      <div style={{fontSize:11.5,fontWeight:700,color:T.sub,marginBottom:6}}>Zoom / meeting link (optional, shared with client)</div>
+                      <div style={{fontSize:11.5,fontWeight:700,color:T.sub,marginBottom:6}}>Zoom / meeting link (required)</div>
                       <input
                         value={zoomByNotif[n.id]||""}
                         onChange={e=>{setZoomByNotif(prev=>({...prev,[n.id]:e.target.value}));setZoomErr(prev=>({...prev,[n.id]:""}));}}
@@ -790,7 +956,24 @@ export default function AdminDashboard({user,data,reload,onLogout}){
                     </div>
                   </div>
                 )}
-                {openId===n.id&&n.type==="call_booked"&&n.meta?.status&&n.meta.status!=="pending"&&(
+                {openId===n.id&&n.type==="call_booked"&&n.meta?.status==="confirmed"&&!n.meta?.meetingUrl&&!isAdmin&&(
+                  <div style={{padding:"0 6px 14px 54px"}}>
+                    <div style={{fontSize:12.5,color:T.amber,fontWeight:700,marginBottom:10}}>Confirmed without a join link — share one so the client can join.</div>
+                    <div style={{marginBottom:10}}>
+                      <input
+                        value={zoomByNotif[n.id]||""}
+                        onChange={e=>{setZoomByNotif(prev=>({...prev,[n.id]:e.target.value}));setZoomErr(prev=>({...prev,[n.id]:""}));}}
+                        placeholder="https://zoom.us/j/…"
+                        style={{width:"100%",maxWidth:420,padding:"10px 12px",borderRadius:10,border:`1.5px solid ${zoomErr[n.id]?T.red:T.line}`,background:T.surface,color:T.ink,fontSize:13,fontFamily:FONT_B,boxSizing:"border-box"}}
+                      />
+                      {zoomErr[n.id]&&<div style={{fontSize:11,color:T.red,marginTop:5,fontWeight:600}}>{zoomErr[n.id]}</div>}
+                    </div>
+                    <Btn variant="green" size="sm" disabled={!!busyId} onClick={()=>respond(n,"share_link")}>
+                      {busyId===n.id+"share_link"?"Sharing…":"Share Zoom link"}
+                    </Btn>
+                  </div>
+                )}
+                {openId===n.id&&n.type==="call_booked"&&n.meta?.status&&n.meta.status!=="pending"&&!(n.meta.status==="confirmed"&&!n.meta?.meetingUrl&&!isAdmin)&&(
                   <div style={{padding:"0 6px 14px 54px",fontSize:12.5,color:n.meta.status==="confirmed"?T.green:T.amber,fontWeight:700}}>
                     Meeting {n.meta.status}.{isAdmin?"":" Client has been notified."}
                     {n.meta.meetingUrl&&(
@@ -828,7 +1011,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
 
   const Overview=()=>{
     const revData=[{m:"Mar",r:138},{m:"Apr",r:187},{m:"May",r:236},{m:"Jun",r:revenue},{m:"Jul",r:revenue}];
-    const listData=[{m:"Mar",n:12,l:12},{m:"Apr",n:10,l:18},{m:"May",n:8,l:26},{m:"Jun",n:10,l:totalLive}];
+    const listData=buildListingsActivitySeries(flat,5);
     return(<div>
       <PageHead isMobile={isMobile} title="Platform Overview" sub={`Welcome back, ${user.name.split(" ")[0]}`}
         right={notifBadge>0?<Btn variant="soft" size="sm" onClick={()=>setPage("notifications")}>🔔 {notifBadge} new</Btn>:null}/>
@@ -850,7 +1033,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
               <Area type="monotone" dataKey="r" name="MRR $" stroke={T.green} strokeWidth={2.5} fill="url(#rev)" dot={{fill:T.green,r:4,strokeWidth:2,stroke:"#fff"}} animationDuration={1100}/>
             </AreaChart>
           </ResponsiveContainer>
-        </Card>):(<Card><SectionTitle sub="New live vs cumulative total">Listings Activity</SectionTitle>
+        </Card>):(<Card><SectionTitle sub="New go-lives vs cumulative live (from live dates)">Listings Activity</SectionTitle>
           <ResponsiveContainer width="100%" height={190}>
             <BarChart data={listData} barGap={4}>
               <CartesianGrid strokeDasharray="3 3" stroke={T.line} vertical={false}/>
@@ -881,7 +1064,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
         clients.map((c,i)=>{const cl=listings[c.id]||[];const lv=cl.filter(l=>l.status==="live").length;const an=cl.filter(l=>l.actionNeeded).length;
           return(<div key={c.id} className="hoverRow" onClick={()=>{setSelClient(c.id);setPage("clientDetail");}} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 10px",borderRadius:12,cursor:"pointer",borderBottom:i<clients.length-1?`1px solid ${T.line}`:"none",flexWrap:"wrap",gap:8}}>
             <div style={{display:"flex",gap:12,alignItems:"center"}}>
-              <div style={{width:36,height:36,borderRadius:"50%",background:`linear-gradient(135deg,${PLANS[c.plan]?.color||T.faint},${T.violet})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:"#fff"}}>{c.avatar}</div>
+              <UserAvatar user={c} size={36}/>
               <div><div style={{fontSize:13.5,fontWeight:800}}>{c.businessName||c.name}</div><div style={{fontSize:11,color:T.faint}}>{c.plan?`${PLANS[c.plan].name} · $${PLANS[c.plan].price}/mo`:"No plan"}</div></div>
             </div>
             <div style={{display:"flex",gap:14,alignItems:"center"}}>
@@ -929,7 +1112,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
           return(<Card key={c.id} hover style={{cursor:"pointer"}}>
             <div onClick={()=>{setSelClient(c.id);setPage("clientDetail");}} style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
               <div style={{display:"flex",gap:14,alignItems:"center"}}>
-                <div style={{width:46,height:46,borderRadius:14,background:`linear-gradient(135deg,${PLANS[c.plan]?.color||T.faint},${T.violet})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,fontWeight:800,color:"#fff",flexShrink:0}}>{c.avatar}</div>
+                <UserAvatar user={c} size={46} style={{borderRadius:14}}/>
                 <div>
                   <div style={{fontSize:14.5,fontWeight:800,fontFamily:FONT_D,display:"flex",alignItems:"center",gap:8}}>{c.businessName||c.name}{c.status==="suspended"&&<Badge type="suspended"/>}</div>
                   <div style={{fontSize:12,color:T.sub}}>{c.name} · {c.city||"–"}{c.state?", "+c.state:""} · {c.category||"–"}</div>
@@ -993,9 +1176,10 @@ export default function AdminDashboard({user,data,reload,onLogout}){
         <Btn variant={chatOpen?"soft":"ghost"} size="sm" onClick={()=>setChatOpen(o=>!o)}>{chatOpen?"Hide chat":"💬 Open chat"}</Btn>
         {isStaffMgr&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"clientForm",client:c})}>✏️ Edit Info</Btn>}
         {canImpersonate&&<Btn variant="soft" size="sm" onClick={()=>{audit("client.impersonate",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name});setViewAs(c.id);}}>👁️ Open Account (read-only)</Btn>}
-        {isStaffMgr&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"integrations",client:c})}>🔗 Integrations</Btn>}
+        {(isStaffMgr||can("gmb"))&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"integrations",client:c})}>🔗 Integrations</Btn>}
         {isStaffMgr&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"analytics",client:c})}>📈 Update Analytics</Btn>}
-        {c.plan==="gmb"&&can("gmb")&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"gmb",client:c})}>📍 Update GMB</Btn>}
+        {c.plan==="gmb"&&can("gmb")&&(gmb[c.id]?.source!=="google")&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"gmb",client:c})}>📍 Update GMB</Btn>}
+        {c.plan==="gmb"&&can("gmb")&&gmb[c.id]?.source==="google"&&<Btn variant="soft" size="sm" onClick={()=>setModal({type:"integrations",client:c})}>📍 Google synced</Btn>}
         {c.plan==="gmb"&&isStaffMgr&&<Btn variant="soft" size="sm" onClick={()=>{const month=new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"});setConfirm({title:"Mark report as sent?",msg:`Confirm you've emailed the ${month} GMB report to ${c.reportEmail||c.email}. The client will see "Report sent for ${month}".`,yes:"Mark sent",onYes:()=>R(async()=>{await api.patchProfile(c.id,{reportSentMonth:month});await audit("report.sent",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name,detail:month});await addActivity(c.id,"gmb_update",`Monthly report sent for ${month}`);},"Report marked as sent")});}}>📤 Mark Report Sent</Btn>}
         {isStaffMgr&&(c.status==="active"?
           <Btn variant="ghost" size="sm" onClick={()=>setModal({type:"suspend",client:c})}>⏸ Suspend</Btn>:
@@ -1119,7 +1303,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
           return(<Card key={c.id} hover style={{marginBottom:12}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
               <div style={{display:"flex",gap:13,alignItems:"center"}}>
-                <div style={{width:42,height:42,borderRadius:13,background:`linear-gradient(135deg,${T.violet},${T.brand})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:800,color:"#fff"}}>{c.avatar}</div>
+                <UserAvatar user={c} size={42} style={{borderRadius:13}}/>
                 <div>
                   <div style={{fontSize:14,fontWeight:800,fontFamily:FONT_D}}>{c.businessName}</div>
                   <div style={{fontSize:12,color:T.sub,marginTop:2}}>{d?`${d.views?.toLocaleString()||0} views · ${d.calls||0} calls · ${d.directions||0} directions · ${d.posts?.length||0} posts`:"No GMB data yet"}</div>
@@ -1127,7 +1311,11 @@ export default function AdminDashboard({user,data,reload,onLogout}){
               </div>
               <div style={{display:"flex",gap:8}}>
                 <Btn variant="ghost" size="sm" onClick={()=>{setSelClient(c.id);setPage("clientDetail");}}>View</Btn>
-                <Btn variant="green" size="sm" onClick={()=>setModal({type:"gmb",client:c})}>Update GMB</Btn>
+                {d?.source==="google"?(
+                  <Btn variant="soft" size="sm" onClick={()=>setModal({type:"integrations",client:c})}>Google sync</Btn>
+                ):(
+                  <Btn variant="green" size="sm" onClick={()=>setModal({type:"gmb",client:c})}>Update GMB</Btn>
+                )}
               </div>
             </div>
           </Card>);})}
@@ -1171,7 +1359,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
       return(<div>
         <button onClick={()=>setTeamView(null)} style={{background:"none",border:"none",color:T.brand,fontWeight:700,fontSize:13,cursor:"pointer",marginBottom:14,fontFamily:FONT_B}}>← Back to Team</button>
         <div style={{display:"flex",gap:14,alignItems:"center",marginBottom:20,flexWrap:"wrap"}}>
-          <div style={{width:52,height:52,borderRadius:"50%",background:m.role==="manager"?`linear-gradient(135deg,${T.amber},#E8A33D)`:`linear-gradient(135deg,${T.blue},#5B9FE8)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,fontWeight:800,color:"#fff"}}>{m.avatar}</div>
+          <UserAvatar user={m} size={52}/>
           <div><div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800}}>{m.name}</div><div style={{fontSize:13,color:T.sub}}>{m.email} · {m.role==="manager"?"Manager":m.role==="super_admin"?"Super Admin":"Agent"}</div></div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(3,1fr)",gap:14,marginBottom:20}}>
@@ -1200,7 +1388,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
       {visibleStaff.map((m)=>(<Card key={m.id} hover style={{marginBottom:12}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
           <div style={{display:"flex",gap:13,alignItems:"center"}}>
-            <div style={{width:42,height:42,borderRadius:"50%",background:m.role==="super_admin"?`linear-gradient(135deg,${T.brand},${T.violet})`:m.role==="manager"?`linear-gradient(135deg,${T.amber},#E8A33D)`:`linear-gradient(135deg,${T.blue},#5B9FE8)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:800,color:"#fff"}}>{m.avatar}</div>
+            <UserAvatar user={m} size={42}/>
             <div><div style={{fontSize:14,fontWeight:800}}>{m.name}</div><div style={{fontSize:12,color:T.sub}}>{m.email}</div></div>
           </div>
           <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
@@ -1436,7 +1624,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
       </label>
     );
     return(<div>
-      <PageHead isMobile={isMobile} title="Settings" sub="Control panel, payments, and platform configuration"/>
+      <PageHead isMobile={isMobile} title="Control Panel" sub="Payments and platform configuration"/>
 
       <Card style={{marginBottom:16}}>
         <SectionTitle sub="Change these anytime, no developer needed. Saved to your database and applied across the platform.">Control Panel</SectionTitle>
@@ -1500,6 +1688,21 @@ export default function AdminDashboard({user,data,reload,onLogout}){
       </Card>
 
       <Card style={{marginBottom:16}}>
+        <SectionTitle sub="Staff Connect Google on a client → OAuth → pick location → daily cron syncs Performance metrics + NAP into the GMB dashboard. Secrets live only in Vercel.">Google Business Profile</SectionTitle>
+        <div style={{padding:"14px 16px",background:T.greenSoft,borderRadius:12,marginBottom:12,fontSize:12.5,color:T.green,lineHeight:1.7}}>
+          <div style={{fontWeight:800,marginBottom:6}}>Setup (Google Cloud + Vercel):</div>
+          <div><b>1.</b> Google Cloud → enable <b>Business Profile Performance API</b> and <b>My Business Business Information API</b> (+ Account Management).</div>
+          <div><b>2.</b> OAuth consent screen (External / Testing) → scope <code>business.manage</code>.</div>
+          <div><b>3.</b> Create OAuth Web client. Redirect URI:</div>
+          <div style={{margin:"6px 0",padding:"8px 11px",background:"#fff",borderRadius:8,fontFamily:"monospace",fontSize:11.5,color:T.ink,wordBreak:"break-all",userSelect:"all"}}>{(typeof window!=="undefined"?window.location.origin:"https://your-app.vercel.app")+"/api/google-gbp-callback"}</div>
+          <div><b>4.</b> Vercel env: <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code>, <code>GOOGLE_REDIRECT_URI</code> (same URL as above), <code>CRON_SECRET</code>.</div>
+          <div><b>5.</b> Run <code>supabase/google-gbp.sql</code> in the Supabase SQL Editor (one time).</div>
+          <div><b>6.</b> Cron hits <code>/api/cron/google-gbp-sync</code> daily at 06:00 UTC (see vercel.json).</div>
+        </div>
+        <div style={{fontSize:12,color:T.sub,lineHeight:1.55}}>After setup, open a client → Integrations → <b>Connect Google</b>. Manual Update GMB stays available when not connected.</div>
+      </Card>
+
+      <Card style={{marginBottom:16}}>
         <SectionTitle sub="Checkout, cancel, upgrades, and invoices run through Stripe Checkout + webhooks. Secrets live only in Vercel env — never in the database.">Stripe Billing</SectionTitle>
         <div style={{padding:"14px 16px",background:T.blueSoft,borderRadius:12,marginBottom:18,fontSize:12.5,color:T.blue,lineHeight:1.7}}>
           <div style={{fontWeight:800,marginBottom:6}}>Setup (Vercel env + Stripe Dashboard):</div>
@@ -1527,9 +1730,13 @@ export default function AdminDashboard({user,data,reload,onLogout}){
           <span style={{fontSize:13,color:T.sub}}>Stripe Checkout</span>
           <Badge type={stripeLive?"connected":"manual"} label={stripeLive?"Configured":"Env not set (demo mode)"}/>
         </div>
+        <div style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${T.line}`}}>
+          <span style={{fontSize:13,color:T.sub}}>GBP OAuth + nightly sync</span>
+          <Badge type="connected" label="Step 1 live (env required)"/>
+        </div>
         <div style={{display:"flex",justifyContent:"space-between",padding:"10px 0"}}>
-          <span style={{fontSize:13,color:T.sub}}>Live GA4 / GBP auto-sync</span>
-          <Badge type="pending" label="Next phase (OAuth)"/>
+          <span style={{fontSize:13,color:T.sub}}>GA4 auto-sync</span>
+          <Badge type="pending" label="Later phase"/>
         </div>
       </Card>
     </div>);
@@ -1550,7 +1757,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
     </>);
   }
 
-  return(<><Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} planBadge={roleBadge} brandTag="ADMIN" badgeCounts={{notifications:notifBadge,messages:chatUnreadTotal}}>
+  return(<><Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} planBadge={roleBadge} brandTag="ADMIN" badgeCounts={{notifications:notifBadge,messages:chatUnreadTotal}} settingsPageId="account">
     {page==="overview"&&<Overview/>}
     {page==="notifications"&&<NotificationsPage/>}
     {page==="messages"&&(
@@ -1574,6 +1781,17 @@ export default function AdminDashboard({user,data,reload,onLogout}){
     {page==="finance"&&<Finance/>}
     {page==="audit"&&<AuditTrail/>}
     {page==="trash"&&<Trash/>}
+    {page==="account"&&(
+      <AccountSettings
+        user={user}
+        toast={toast}
+        reload={reload}
+        onUserUpdate={onUserUpdate}
+        isMobile={isMobile}
+        title="My Account"
+        sub="Update your name, photo, and password"
+      />
+    )}
     {page==="settings"&&<Settings/>}
   </Shell>
   {modal?.type==="clientForm"&&<ClientFormModal client={modal.client} onClose={()=>setModal(null)}/>}
@@ -1586,7 +1804,7 @@ export default function AdminDashboard({user,data,reload,onLogout}){
   {modal?.type==="updateListing"&&<UpdateListingModal listing={modal.listing} clientId={modal.clientId} onClose={()=>setModal(null)}/>}
   {modal?.type==="gmb"&&<GmbModal client={modal.client} onClose={()=>setModal(null)}/>}
   {modal?.type==="analytics"&&<AnalyticsModal client={modal.client} onClose={()=>setModal(null)}/>}
-  {modal?.type==="integrations"&&<IntegrationsModal client={modal.client} onClose={()=>setModal(null)}/>}
+  {modal?.type==="integrations"&&<IntegrationsModal client={modal.client} pickLocation={!!modal.pickLocation} onClose={()=>setModal(null)}/>}
   <Confirm data={confirm} onClose={()=>setConfirm(null)}/>
   <Toasts/></>);
 }

@@ -5,11 +5,12 @@ import { T, FONT_D, FONT_B, SHADOW, SHADOW_LG } from "../lib/theme";
 import { api } from "../lib/api";
 import { downloadBlob, openExternalFile } from "../lib/export";
 import { PLANS, CATEGORIES, US_CA_STATES, planLive } from "../lib/constants";
-import { nextMonthFirst, actIcon, clientBy, isBookingPast, isPastMeetingNotif } from "../lib/helpers";
+import { actIcon, clientBy, isBookingPast, isPastMeetingNotif, CALL_SLOT_TIMES, isSlotStillOpen, slotKey, buildLiveGrowthSeries, growthMomTrend } from "../lib/helpers";
 import { Badge, Card, Btn, Input, Select, Confirm, StatCard, ChartTip, SectionTitle, Empty, PageHead } from "../components/atoms";
 import { Orbit } from "../components/Orbit";
 import Shell from "../components/Shell";
 import ChatThread from "../components/ChatThread";
+import AccountSettings from "../components/AccountSettings";
 import UserManual from "./UserManual";
 import { useWindowSize, useToast } from "../hooks";
 
@@ -117,29 +118,49 @@ function ReportCard({user,reload,toast}){
 
 function ClientCallPage({user,isMobile,toast,reload,onOpenMessages}){
   const now=new Date();
-  const year=now.getFullYear();
-  const month=now.getMonth();
-  const monthName=now.toLocaleString("en-US",{month:"long"});
-  const totalDays=new Date(year,month+1,0).getDate();
-  const firstDay=new Date(year,month,1).getDay();
-  const today=now.getDate();
+  const nowY=now.getFullYear();
+  const nowM=now.getMonth();
+  const startOfToday=new Date(nowY,nowM,now.getDate());
+  const maxView=new Date(nowY,nowM+2,1); // current + next 2 months
+  const[viewY,setViewY]=useState(nowY);
+  const[viewM,setViewM]=useState(nowM);
+  const monthName=new Date(viewY,viewM,1).toLocaleString("en-US",{month:"long"});
+  const totalDays=new Date(viewY,viewM+1,0).getDate();
+  const firstDay=new Date(viewY,viewM,1).getDay();
   const[selDay,setSelDay]=useState(null);
   const[selTime,setSelTime]=useState(null);
   const[note,setNote]=useState("");
   const[busy,setBusy]=useState(false);
   const[bdm,setBdm]=useState(null);
+  const[supportPeer,setSupportPeer]=useState(false);
   const[bookings,setBookings]=useState([]);
+  const[takenSlots,setTakenSlots]=useState([]);
   const[showScheduler,setShowScheduler]=useState(false);
+  const[rescheduleId,setRescheduleId]=useState(null);
   const[loadingCall,setLoadingCall]=useState(true);
+  const[confirm,setConfirm]=useState(null);
+  const shiftMonth=(delta)=>{
+    const d=new Date(viewY,viewM+delta,1);
+    const min=new Date(nowY,nowM,1);
+    if(d<min||d>maxView)return;
+    setViewY(d.getFullYear());
+    setViewM(d.getMonth());
+    setSelDay(null);
+    setSelTime(null);
+  };
+  const canPrev=new Date(viewY,viewM,1)>new Date(nowY,nowM,1);
+  const canNext=new Date(viewY,viewM+1,1)<=maxView;
   const loadCall=async()=>{
     setLoadingCall(true);
     try{
       const r=await api.getMyBdm();
       setBdm(r.agent||null);
+      setSupportPeer(!!r.support||!!r.needsBdm);
       const rows=r.bookings||[];
       setBookings(rows);
-      // Upcoming confirmed/pending only — past slots don't lock the calendar.
-      if(rows.some(b=>(b.status==="pending"||b.status==="confirmed")&&!isBookingPast(b.slotDate,b.slotTime)))setShowScheduler(false);
+      setTakenSlots(Array.isArray(r.takenSlots)?r.takenSlots:[]);
+      const hasActive=rows.some(b=>(b.status==="pending"||b.status==="confirmed")&&!isBookingPast(b.slotDate,b.slotTime));
+      if(hasActive&&!rescheduleId)setShowScheduler(false);
     }finally{
       setLoadingCall(false);
     }
@@ -151,8 +172,10 @@ function ClientCallPage({user,isMobile,toast,reload,onOpenMessages}){
       const r=await api.getMyBdm();
       if(cancelled)return;
       setBdm(r.agent||null);
+      setSupportPeer(!!r.support||!!r.needsBdm);
       const rows=r.bookings||[];
       setBookings(rows);
+      setTakenSlots(Array.isArray(r.takenSlots)?r.takenSlots:[]);
       if(rows.some(b=>(b.status==="pending"||b.status==="confirmed")&&!isBookingPast(b.slotDate,b.slotTime)))setShowScheduler(false);
       setLoadingCall(false);
     })();
@@ -161,26 +184,73 @@ function ClientCallPage({user,isMobile,toast,reload,onOpenMessages}){
   const upcomingBookings=bookings.filter(b=>!isBookingPast(b.slotDate,b.slotTime));
   const activeBooking=upcomingBookings.find(b=>b.status==="confirmed")||upcomingBookings.find(b=>b.status==="pending")||null;
   const showCalendar=!loadingCall&&(showScheduler||!activeBooking);
-  const times=["9:00 AM","9:30 AM","10:00 AM","10:30 AM","11:00 AM","2:00 PM","2:30 PM","3:00 PM","3:30 PM","4:00 PM"];
-  const bdmLabel=bdm?.name||bdm?.email||"your BDM";
-  const slotDateLabel=selDay?`${monthName} ${selDay}, ${year}`:"";
+  const times=CALL_SLOT_TIMES;
+  const bdmLabel=supportPeer?(bdm?.name||"a team member"):(bdm?.name||bdm?.email||"your BDM");
+  const slotDateLabel=selDay?`${monthName} ${selDay}, ${viewY}`:"";
+  const takenKeys=new Set((takenSlots||[]).map(s=>slotKey(s.slotDate,s.slotTime)));
+  // While rescheduling, keep the current slot selectable until the new booking replaces it.
+  const freeOwnSlot=rescheduleId&&activeBooking?slotKey(activeBooking.slotDate,activeBooking.slotTime):null;
+  const availableTimes=selDay
+    ? times.filter(t=>{
+        const k=slotKey(slotDateLabel,t);
+        if(takenKeys.has(k)&&k!==freeOwnSlot)return false;
+        return isSlotStillOpen(slotDateLabel,t);
+      })
+    : [];
+  const dayHasSlots=(day)=>{
+    const label=`${monthName} ${day}, ${viewY}`;
+    return times.some(t=>{
+      const k=slotKey(label,t);
+      if(takenKeys.has(k)&&k!==freeOwnSlot)return false;
+      return isSlotStillOpen(label,t);
+    });
+  };
   const confirmBooking=async()=>{
     if(!selDay||!selTime)return;
     setBusy(true);
-    const r=await api.bookCall({slotDate:slotDateLabel,slotTime:selTime,note});
+    const r=await api.bookCall({
+      slotDate:slotDateLabel,
+      slotTime:selTime,
+      note,
+      replaceBookingId:rescheduleId||undefined,
+    });
     setBusy(false);
     if(r.error){toast(r.error,"info");return;}
-    if(r.agent)setBdm(r.agent);
-    toast("Request sent — waiting for your BDM to confirm");
-    setSelDay(null);setSelTime(null);    setNote("");
+    if(r.agent){setBdm(r.agent);setSupportPeer(!!r.support||!!r.needsBdm);}
+    toast(rescheduleId
+      ?"Rescheduled — waiting for confirmation"
+      :(r.support||supportPeer)
+        ?"Request sent — a team member will confirm"
+        :"Request sent — waiting for your BDM to confirm");
+    setSelDay(null);setSelTime(null);setNote("");
     setShowScheduler(false);
+    setRescheduleId(null);
     await loadCall();
     await reload();
+  };
+  const cancelMeeting=async()=>{
+    if(!activeBooking?.id)return;
+    setBusy(true);
+    const r=await api.cancelCall({bookingId:activeBooking.id});
+    setBusy(false);
+    if(r.error){toast(r.error,"info");return;}
+    toast("Meeting cancelled");
+    setShowScheduler(false);
+    setRescheduleId(null);
+    await loadCall();
+    await reload();
+  };
+  const startReschedule=()=>{
+    if(!activeBooking?.id)return;
+    setRescheduleId(activeBooking.id);
+    setShowScheduler(true);
+    setSelDay(null);
+    setSelTime(null);
   };
   const statusLabel=(s)=>({pending:"Awaiting BDM confirmation",confirmed:"Confirmed"}[s]||s);
   const statusColor=(s)=>s==="confirmed"?T.green:T.amber;
   return(<div>
-    <PageHead isMobile={isMobile} title="Book a Call" sub={bdm?`30 minutes with ${bdm.name||"your BDM"}`:"30 minutes with your dedicated Business Development Manager"}/>
+    <PageHead isMobile={isMobile} title="Book a Call" sub={bdm?`30 minutes with ${supportPeer?(bdm.name||"our team"):(bdm.name||"your BDM")}`:"30 minutes with your dedicated Business Development Manager"}/>
     {loadingCall&&(
       <Card style={{marginBottom:16,padding:28,textAlign:"center",color:T.faint,fontSize:13}}>
         Loading your meeting…
@@ -189,14 +259,29 @@ function ClientCallPage({user,isMobile,toast,reload,onOpenMessages}){
 
     {!loadingCall&&bdm&&(<Card style={{marginBottom:16,padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
       <div>
-        <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".7px"}}>YOUR BDM</div>
-        <div style={{fontFamily:FONT_D,fontSize:16,fontWeight:800}}>{bdm.name||"Assigned manager"}</div>
+        <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".7px"}}>{supportPeer?"YOUR TEAM CONTACT":"YOUR BDM"}</div>
+        <div style={{fontFamily:FONT_D,fontSize:16,fontWeight:800}}>{bdm.name||(supportPeer?"Team support":"Assigned manager")}</div>
         {bdm.email&&<div style={{fontSize:12.5,color:T.sub}}>{bdm.email}</div>}
       </div>
-      <div style={{fontSize:12,color:T.sub}}>You'll get matched automatically when you subscribe if you don't have one yet.</div>
+      <div style={{fontSize:12,color:T.sub}}>
+        {supportPeer
+          ?"No dedicated BDM yet — a manager can take this call and assign one."
+          :"You'll get matched automatically when you subscribe if you don't have one yet."}
+      </div>
     </Card>)}
 
-    {!loadingCall&&activeBooking&&(
+    {!loadingCall&&!bdm&&(
+      <Card style={{marginBottom:16,padding:"14px 16px",background:T.amberSoft,border:`1.5px solid ${T.amber}33`}}>
+        <div style={{fontSize:13,fontWeight:800,color:T.amber,marginBottom:6}}>Team temporarily unavailable</div>
+        <div style={{fontSize:12.5,color:T.sub,lineHeight:1.45,marginBottom:10}}>No agent or manager is free to take calls right now. Try again shortly, or message us.</div>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          <Btn variant="soft" size="sm" onClick={()=>loadCall()}>Try again</Btn>
+          {typeof onOpenMessages==="function"&&<Btn size="sm" onClick={onOpenMessages}>Open Messages →</Btn>}
+        </div>
+      </Card>
+    )}
+
+    {!loadingCall&&activeBooking&&!showScheduler&&(
       <Card style={{marginBottom:16,background:`linear-gradient(135deg,${activeBooking.status==="confirmed"?T.greenSoft:T.amberSoft},#fff)`,border:`1.5px solid ${activeBooking.status==="confirmed"?T.green:T.amber}33`}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap",marginBottom:12}}>
           <div>
@@ -215,10 +300,14 @@ function ClientCallPage({user,isMobile,toast,reload,onOpenMessages}){
         </div>
         {activeBooking.note&&<div style={{fontSize:12.5,color:T.sub,marginBottom:10}}>Note: {activeBooking.note}</div>}
         {activeBooking.status==="pending"&&(
-          <div style={{fontSize:12.5,color:T.sub,marginBottom:12}}>Your BDM will confirm soon. When they share a Zoom link, it will appear here.</div>
+          <div style={{fontSize:12.5,color:T.sub,marginBottom:12}}>
+            {supportPeer
+              ?"A team member will confirm and share a Zoom link here. Your dedicated BDM is being assigned."
+              :"Your BDM will confirm and share a Zoom link here."}
+          </div>
         )}
         {activeBooking.meetingUrl?(
-          <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
+          <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center",marginBottom:12}}>
             <a href={activeBooking.meetingUrl} target="_blank" rel="noreferrer"
               style={{display:"inline-flex",alignItems:"center",gap:8,padding:"11px 18px",background:T.brand,color:"#fff",borderRadius:12,fontWeight:800,fontSize:13.5,textDecoration:"none",fontFamily:FONT_B}}>
               Join Zoom meeting →
@@ -229,18 +318,46 @@ function ClientCallPage({user,isMobile,toast,reload,onOpenMessages}){
             </button>
           </div>
         ):activeBooking.status==="confirmed"?(
-          <div style={{fontSize:12.5,color:T.amber,fontWeight:700}}>Confirmed — waiting for your BDM to share the Zoom link.</div>
+          <div style={{padding:"12px 14px",background:T.amberSoft,borderRadius:12,marginBottom:12}}>
+            <div style={{fontSize:12.5,color:T.amber,fontWeight:700,marginBottom:8}}>Confirmed — join link not shared yet.</div>
+            <div style={{fontSize:12,color:T.sub,marginBottom:12,lineHeight:1.45}}>Message your BDM and ask for the Zoom link, or refresh this page after they send it.</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {typeof onOpenMessages==="function"&&(
+                <Btn size="sm" onClick={onOpenMessages}>Message BDM →</Btn>
+              )}
+              <Btn variant="soft" size="sm" onClick={()=>loadCall()}>Refresh</Btn>
+            </div>
+          </div>
         ):null}
-        {!showScheduler&&(
-          <Btn variant="soft" size="sm" style={{marginTop:14}} onClick={()=>setShowScheduler(true)}>Schedule another time</Btn>
-        )}
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:4}}>
+          <Btn variant="soft" size="sm" disabled={busy} onClick={startReschedule}>Reschedule</Btn>
+          <Btn variant="danger" size="sm" disabled={busy} onClick={()=>setConfirm({
+            title:"Cancel this meeting?",
+            msg:`Cancel ${activeBooking.slotDate} at ${activeBooking.slotTime}? Your BDM will be notified.`,
+            danger:true,
+            yes:"Cancel meeting",
+            onYes:cancelMeeting,
+          })}>Cancel meeting</Btn>
+        </div>
       </Card>
     )}
 
-    {showCalendar&&(
+    {showCalendar&&bdm&&(
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr 0.8fr",gap:16}}>
       <Card>
-        <SectionTitle>{monthName} {year}</SectionTitle>
+        {rescheduleId&&(
+          <div style={{padding:"10px 12px",background:T.amberSoft,borderRadius:11,marginBottom:12,fontSize:12.5,color:T.amber,fontWeight:700,display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+            <span>Pick a new time — your current meeting is replaced when you confirm.</span>
+            <Btn variant="ghost" size="sm" onClick={()=>{setRescheduleId(null);setShowScheduler(false);setSelDay(null);setSelTime(null);}}>Keep current</Btn>
+          </div>
+        )}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:12}}>
+          <button type="button" disabled={!canPrev} onClick={()=>shiftMonth(-1)}
+            style={{width:36,height:36,borderRadius:10,border:`1.5px solid ${T.line}`,background:canPrev?T.surface2:T.surface,color:canPrev?T.ink:T.faint,cursor:canPrev?"pointer":"default",fontWeight:800,fontFamily:FONT_B}}>‹</button>
+          <div style={{fontFamily:FONT_D,fontSize:18,fontWeight:800}}>{monthName} {viewY}</div>
+          <button type="button" disabled={!canNext} onClick={()=>shiftMonth(1)}
+            style={{width:36,height:36,borderRadius:10,border:`1.5px solid ${T.line}`,background:canNext?T.surface2:T.surface,color:canNext?T.ink:T.faint,cursor:canNext?"pointer":"default",fontWeight:800,fontFamily:FONT_B}}>›</button>
+        </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4,marginBottom:8}}>
           {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d=><div key={d} style={{textAlign:"center",fontSize:10.5,color:T.faint,fontWeight:800,padding:"3px 0"}}>{d}</div>)}
         </div>
@@ -249,9 +366,11 @@ function ClientCallPage({user,isMobile,toast,reload,onOpenMessages}){
           {Array.from({length:totalDays}).map((_,i)=>{
             const day=i+1;
             const isSel=selDay===day;
-            const isPast=day<today;
+            const cell=new Date(viewY,viewM,day);
+            const isPast=cell<startOfToday;
             const isWknd=(firstDay+i)%7===0||(firstDay+i)%7===6;
-            const dead=isPast||isWknd;
+            const noSlots=!isPast&&!isWknd&&!dayHasSlots(day);
+            const dead=isPast||isWknd||noSlots;
             return(<div key={day} onClick={()=>!dead&&(setSelDay(day),setSelTime(null))} style={{textAlign:"center",padding:"8px 2px",borderRadius:10,fontSize:12.5,fontWeight:isSel?800:600,cursor:dead?"default":"pointer",background:isSel?T.brand:dead?"transparent":T.surface2,color:isSel?"#fff":dead?T.faint:T.ink,position:"relative",transition:"all .15s"}}>
               {day}
             </div>);
@@ -260,19 +379,25 @@ function ClientCallPage({user,isMobile,toast,reload,onOpenMessages}){
       </Card>
       <Card>
         {selDay?(<>
-          <SectionTitle sub="Pick a 30-minute slot">{slotDateLabel}</SectionTitle>
+          <SectionTitle sub="Open 30-minute slots with your BDM">{slotDateLabel}</SectionTitle>
+          {availableTimes.length===0?(
+            <Empty icon="📅" title="No open times" sub="All slots for this day are booked or past. Try another weekday."/>
+          ):(
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
-            {times.map(t=>{const isSel=selTime===t;
+            {availableTimes.map(t=>{const isSel=selTime===t;
               return(<div key={t} onClick={()=>setSelTime(t)} style={{padding:"10px 8px",borderRadius:10,textAlign:"center",border:`1.5px solid ${isSel?T.brand:T.line}`,background:isSel?T.brandSoft:T.surface,color:isSel?T.brand:T.ink,fontSize:12.5,fontWeight:isSel?800:600,cursor:"pointer",transition:"all .15s"}}>{t}</div>);})}
           </div>
-          {selTime&&(<div className="pop" style={{marginTop:14}}>
+          )}
+          {selTime&&availableTimes.includes(selTime)&&(<div className="pop" style={{marginTop:14}}>
             <div style={{padding:13,background:T.greenSoft,borderRadius:12,marginBottom:12}}>
               <div style={{fontSize:13,color:T.green,fontWeight:800}}>✓ {slotDateLabel} at {selTime}</div>
               <div style={{fontSize:11.5,color:T.sub,marginTop:2}}>30 min with {bdmLabel}</div>
             </div>
-            <Btn variant="green" style={{width:"100%"}} onClick={confirmBooking} disabled={busy}>{busy?"Booking…":"Confirm Booking"}</Btn>
+            <Btn variant="green" style={{width:"100%"}} onClick={confirmBooking} disabled={busy}>
+              {busy?"Saving…":rescheduleId?"Confirm new time":"Confirm Booking"}
+            </Btn>
           </div>)}
-        </>):(<Empty icon="📅" title="Pick a date" sub="Choose a weekday on the calendar to see open times."/>)}
+        </>):(<Empty icon="📅" title="Pick a date" sub="Choose a weekday with open times. You can browse this month and the next two."/>)}
       </Card>
       <Card>
         <SectionTitle>What we'll cover</SectionTitle>
@@ -289,22 +414,26 @@ function ClientCallPage({user,isMobile,toast,reload,onOpenMessages}){
         </div>
       </Card>
     </div>)}
+    {confirm&&<Confirm data={confirm} onClose={()=>setConfirm(null)}/>}
   </div>);
 }
 
 function ClientLegalPage({isMobile}){
   const[tab,setTab]=useState("terms");
   const co="NAP Orbit";const eff=new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"});
-  const H=({children})=>(<div style={{fontSize:14,fontWeight:800,fontFamily:FONT_D,color:T.ink,margin:"18px 0 7px"}}>{children}</div>);
-  const P=({children})=>(<p style={{fontSize:13,color:T.sub,lineHeight:1.65,margin:"0 0 10px"}}>{children}</p>);
+  const H=({children})=>(<div style={{fontSize:13.5,fontWeight:800,fontFamily:FONT_D,color:T.ink,margin:"8px 0 3px"}}>{children}</div>);
+  const P=({children})=>(<p style={{fontSize:12.5,color:T.sub,lineHeight:1.55,margin:"0 0 6px"}}>{children}</p>);
   return(<div>
-    <PageHead isMobile={isMobile} title="Terms & Privacy" sub={`Effective ${eff}`}/>
-    <div style={{display:"flex",gap:8,marginBottom:16}}>
-      {[["terms","Terms of Service"],["privacy","Privacy Policy"]].map(([id,l])=>(
-        <button key={id} onClick={()=>setTab(id)} style={{padding:"8px 18px",borderRadius:20,border:`1.5px solid ${tab===id?T.brand:T.line}`,background:tab===id?T.brandSoft:T.surface,color:tab===id?T.brand:T.sub,fontSize:13,fontWeight:tab===id?800:600,cursor:"pointer",fontFamily:FONT_B}}>{l}</button>))}
+    <div style={{marginBottom:6}}>
+      <div style={{fontFamily:FONT_D,fontSize:isMobile?20:22,fontWeight:800,letterSpacing:"-.5px",lineHeight:1.1}}>Terms & Privacy</div>
+      <div style={{fontSize:12,color:T.sub,marginTop:2}}>Effective {eff}</div>
     </div>
-    <Card style={{maxWidth:820}}>
-      <div style={{padding:"11px 15px",background:T.amberSoft,borderRadius:11,marginBottom:18,fontSize:11.5,color:T.amber,lineHeight:1.5}}>
+    <div style={{display:"flex",gap:6,marginBottom:6}}>
+      {[["terms","Terms of Service"],["privacy","Privacy Policy"]].map(([id,l])=>(
+        <button key={id} onClick={()=>setTab(id)} style={{padding:"5px 12px",borderRadius:18,border:`1.5px solid ${tab===id?T.brand:T.line}`,background:tab===id?T.brandSoft:T.surface,color:tab===id?T.brand:T.sub,fontSize:12,fontWeight:tab===id?800:600,cursor:"pointer",fontFamily:FONT_B}}>{l}</button>))}
+    </div>
+    <Card style={{maxWidth:820,padding:isMobile?12:14}}>
+      <div style={{padding:"7px 10px",background:T.amberSoft,borderRadius:8,marginBottom:6,fontSize:11,color:T.amber,lineHeight:1.4}}>
         <b>Template notice:</b> This is a starting-point document. Have it reviewed by a qualified lawyer in your jurisdiction before relying on it for real clients.
       </div>
       {tab==="terms"?(<div>
@@ -356,7 +485,7 @@ function ClientLegalPage({isMobile}){
   </div>);
 }
 
-export default function ClientDashboard({user:userProp,data,reload,onLogout,impersonating=false}){
+export default function ClientDashboard({user:userProp,data,reload,onLogout,impersonating=false,onUserUpdate}){
   const[page,setPage]=useState("home");
   const[toast,Toasts]=useToast();
   const[showManual,setShowManual]=useState(false);
@@ -511,10 +640,12 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
     {id:"messages",icon:"💬",label:"Messages"},
     {id:"listings",icon:"📋",label:"Listings"},
     {id:"analytics",icon:"📈",label:"Analytics"},
+    ...(user.plan==="gmb"?[{id:"gmb",icon:"📍",label:"GMB"}]:[]),
     {id:"billing",icon:"💳",label:"Plan & Billing"},
     {id:"call",icon:"📞",label:"Book a Call"},
   ];
-  const growthData=[{m:"Mar",live:Math.max(0,live-6)},{m:"Apr",live:Math.max(0,live-4)},{m:"May",live:Math.max(0,live-2)},{m:"Jun",live:Math.max(0,live-1)},{m:"Jul",live}];
+  const growthData=buildLiveGrowthSeries(my,5);
+  const liveMomTrend=growthMomTrend(growthData);
   const planBadge=user.plan?(<div style={{marginTop:14,padding:"10px 13px",background:plan.soft,borderRadius:13}}>
     <div style={{fontSize:10,color:T.sub,fontWeight:800,letterSpacing:".5px"}}>YOUR PLAN</div>
     <div style={{fontSize:14,fontWeight:800,color:plan.color,marginTop:2,fontFamily:FONT_D}}>{plan.name} · ${plan.price}/mo</div>
@@ -533,11 +664,11 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
   })();
   const visLabel=visScore>=75?"Excellent":visScore>=50?"Good":visScore>=25?"Building":"Getting started";
   const visColor=visScore>=75?T.green:visScore>=50?T.brand:visScore>=25?T.amber:T.faint;
-  // Home plan card: days left + renew date (same calendar-day math as Billing).
+  // Home plan card: only show renew date from Stripe-synced currentPeriodEnd (no invented +1 month).
   const homePeriodEnd=(()=>{
-    const iso=user.currentPeriodEnd||(()=>{const d=new Date();d.setMonth(d.getMonth()+1);return d.toISOString();})();
-    const end=new Date(iso);
-    if(Number.isNaN(end.getTime()))return{label:null,daysLeft:null,daysLeftLabel:null};
+    if(!user.currentPeriodEnd)return{label:null,daysLeft:null,daysLeftLabel:null,pending:!!user.plan};
+    const end=new Date(user.currentPeriodEnd);
+    if(Number.isNaN(end.getTime()))return{label:null,daysLeft:null,daysLeftLabel:null,pending:!!user.plan};
     const start=new Date();start.setHours(0,0,0,0);
     const endDay=new Date(end);endDay.setHours(0,0,0,0);
     const daysLeft=Math.max(0,Math.round((endDay-start)/86400000));
@@ -545,6 +676,7 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
       label:end.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}),
       daysLeft,
       daysLeftLabel:daysLeft===0?"Ends today":daysLeft===1?"1 day left":`${daysLeft} days left`,
+      pending:false,
     };
   })();
 
@@ -653,8 +785,6 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
   );
 
   const Home=()=>(<div>
-    <PageHead isMobile={isMobile} title={`${greet}, ${(user.name||"there").split(" ")[0]} 👋`} sub={`Here's what we're doing for ${user.businessName||"your business"} right now`}
-      right={<Btn variant="soft" size="sm" onClick={()=>setPage("call")}>📞 Talk to your BDM</Btn>}/>
     {!user.plan&&(<Card style={{marginBottom:18,background:`linear-gradient(135deg,${T.brandSoft},#fff)`,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
       <div><div style={{fontFamily:FONT_D,fontSize:16,fontWeight:800}}>Welcome to NAP Orbit 🚀</div><div style={{fontSize:13,color:T.sub,marginTop:3}}>Choose a plan to start getting listed, or your account manager will set you up after your call.</div></div>
       <Btn onClick={()=>setPage("billing")}>Choose a plan</Btn>
@@ -687,12 +817,16 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
           <div style={{fontSize:14,color:T.sub,marginBottom:12}}>${plan.price}<span style={{color:T.faint}}>/month</span>
             {user.cancelAtPeriodEnd&&<span style={{marginLeft:8,fontSize:12,fontWeight:700,color:T.amber}}>Cancels on renewal</span>}
           </div>
-          {homePeriodEnd.daysLeftLabel&&(
+          {homePeriodEnd.daysLeftLabel?(
             <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"6px 12px",background:user.cancelAtPeriodEnd?T.amberSoft:T.brandSoft,borderRadius:10,alignSelf:"flex-start",marginBottom:14}}>
               <span style={{fontSize:12,fontWeight:800,color:user.cancelAtPeriodEnd?T.amber:T.brand}}>{homePeriodEnd.daysLeftLabel}</span>
               <span style={{fontSize:11.5,color:T.sub}}>renews {homePeriodEnd.label}</span>
             </div>
-          )}
+          ):homePeriodEnd.pending?(
+            <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"6px 12px",background:T.surface2,borderRadius:10,alignSelf:"flex-start",marginBottom:14}}>
+              <span style={{fontSize:12,fontWeight:700,color:T.sub}}>Renewal date syncing from Stripe…</span>
+            </div>
+          ):null}
           <Btn variant="soft" size="sm" onClick={()=>setPage("billing")} style={{alignSelf:"flex-start"}}>Manage billing →</Btn>
         </>):(<>
           <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".8px",marginBottom:6}}>YOUR PLAN</div>
@@ -703,14 +837,14 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
       </Card>
     </div>
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:14,marginBottom:22}}>
-      <StatCard label="Listings Live" value={live} sub={`${pending} pending approval`} icon={<ListingsLiveIcon/>} color={T.green} soft={T.greenSoft} trend={live>0?12:null} delay={0}/>
+      <StatCard label="Listings Live" value={live} sub={`${pending} pending approval`} icon={<ListingsLiveIcon/>} color={T.green} soft={T.greenSoft} trend={liveMomTrend} delay={0}/>
       <StatCard label="NAP Score" value={`${user.napScore||0}%`} sub="Info matches everywhere" icon={<NapScoreIcon/>} delay={80}/>
       <StatCard label="Edits Blocked" value={myAct.filter(a=>a.type==="edit_blocked").length} sub="Unauthorized changes reverted" icon={<EditsBlockedIcon/>} color={T.amber} soft={T.amberSoft} delay={160}/>
       <StatCard label="Directories" value={my.length} sub="Managed for you" icon={<DirectoriesIcon/>} color={T.blue} soft={T.blueSoft} delay={240}/>
     </div>
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1.7fr 1fr",gap:16,marginBottom:16}}>
       <Card>
-        <SectionTitle sub="Directories live for your business over time">Your Visibility Is Growing</SectionTitle>
+        <SectionTitle sub="Cumulative live listings by go-live date">Your Visibility Is Growing</SectionTitle>
         <div style={{width:"100%",height:200,minWidth:0}}>
         <ResponsiveContainer width="100%" height="100%" debounce={50}>
           <AreaChart data={growthData}>
@@ -828,8 +962,15 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
       </Card>
     </div>);
     const d=myGmb||{views:0,calls:0,directions:0,trend:[],posts:[],qa:[],completeness:{}};
+    const fromGoogle=d.source==="google"||d.source==="connected";
+    const lastSync=d.syncedAt?(()=>{try{return new Date(d.syncedAt).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});}catch{return d.syncedAt;}})():null;
     return(<div>
-      <PageHead isMobile={isMobile} title="GMB Management" sub="Your Google Business Profile, actively managed" right={<Badge type={d.source==="connected"?"connected":"manual"}/>}/>
+      <PageHead isMobile={isMobile} title="GMB Management" sub={fromGoogle&&lastSync?`Last synced ${lastSync}`:"Your Google Business Profile, actively managed"} right={<Badge type={fromGoogle?"connected":"manual"} label={fromGoogle?"Synced from Google":undefined}/>}/>
+      {fromGoogle&&(
+        <div style={{padding:"10px 14px",background:T.greenSoft,borderRadius:12,marginBottom:14,fontSize:12.5,color:T.green,lineHeight:1.5}}>
+          Metrics pull automatically from your Google Business Profile{lastSync?` · Last sync ${lastSync}`:""}.
+        </div>
+      )}
       <Card style={{marginBottom:16,background:`linear-gradient(135deg,${T.violetSoft},#fff)`,display:"flex",gap:14,alignItems:"center"}}>
         <div style={{width:44,height:44,borderRadius:13,background:"#fff",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:SHADOW}}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={T.violet} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
@@ -891,26 +1032,13 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
   };
 
   const Billing=()=>{
-    // Live when server has Stripe secret + price IDs. Falls back to demo when not configured.
+    // Paid plans only — Stripe Checkout / change-subscription. No free activate path.
     const stripeReady=stripeConfigured===true;
-    const demoMode=stripeConfigured===false;
+    const billingBlocked=stripeConfigured===false;
     const goStripe=async(planId)=>{
       try{sessionStorage.setItem("ro_pending_plan",planId);}catch{}
-    if(demoMode){
-        // DEMO / local: activate without charge when Stripe env is not set.
-        if(api.mode!=="supabase"){
-          await R(async()=>{await api.patchProfile(user.id,{plan:planId,status:"active",currentPeriodEnd:nextMonthFirst(),subscriptionStatus:"active",cancelAtPeriodEnd:false});},`${PLANS[planId].name} activated (demo mode, no charge)`);
-          try{sessionStorage.removeItem("ro_pending_plan");}catch{}
-          return;
-        }
-        const r=await api.demoActivatePlan(planId);
-        if(r.error){toast(r.error,"info");return;}
-        if(r.local){
-          await R(async()=>{await api.patchProfile(user.id,{plan:planId,status:"active",currentPeriodEnd:nextMonthFirst(),subscriptionStatus:"active",cancelAtPeriodEnd:false});},`${PLANS[planId].name} activated (demo mode, no charge)`);
-        }else{
-          await R(async()=>{},`${PLANS[planId].name} activated (demo mode, no charge)`);
-        }
-        try{sessionStorage.removeItem("ro_pending_plan");}catch{}
+      if(billingBlocked){
+        toast("Billing is not connected yet. Checkout opens once Stripe is configured.","info");
         return;
       }
       if(stripeConfigured!==true){
@@ -932,7 +1060,7 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
     const doCancel=async()=>{
       if(api.mode!=="supabase"){
         const ok=await R(async()=>{
-          await api.patchProfile(user.id,{cancelAtPeriodEnd:true,canceledAt:new Date().toISOString(),currentPeriodEnd:user.currentPeriodEnd||nextMonthFirst()});
+          await api.patchProfile(user.id,{cancelAtPeriodEnd:true,canceledAt:new Date().toISOString()});
         },"Subscription set to cancel at period end");
         if(!ok)throw new Error("Cancel failed");
         return;
@@ -961,18 +1089,17 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
       if(r.error){toast(r.error,"info");return;}
       if(r.url)window.location.href=r.url;
     };
-    // Monthly renews on the same calendar day next month (Stripe). Fallback matches that, not "1st of month".
-    const periodEndIso=user.currentPeriodEnd||(()=>{const d=new Date();d.setMonth(d.getMonth()+1);return d.toISOString();})();
-    const periodEndDate=new Date(periodEndIso);
-    const periodLabel=Number.isNaN(periodEndDate.getTime())
-      ?"the end of your billing period"
-      :periodEndDate.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"});
-    const nextChargeLabel=Number.isNaN(periodEndDate.getTime())
-      ?"on your next billing date"
-      :periodEndDate.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"});
-    // Calendar-day count (midnight→midnight). Math.ceil + end-of-day was showing 32 for a 31-day month.
+    // Only Stripe-synced currentPeriodEnd — never invent +1 month.
+    const periodEndDate=user.currentPeriodEnd?new Date(user.currentPeriodEnd):null;
+    const periodSynced=!!(periodEndDate&&!Number.isNaN(periodEndDate.getTime()));
+    const periodLabel=periodSynced
+      ?periodEndDate.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})
+      :"the end of your billing period";
+    const nextChargeLabel=periodSynced
+      ?periodEndDate.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})
+      :"Renewal date syncing from Stripe…";
     const daysLeft=(()=>{
-      if(Number.isNaN(periodEndDate.getTime()))return null;
+      if(!periodSynced)return null;
       const start=new Date();start.setHours(0,0,0,0);
       const end=new Date(periodEndDate);end.setHours(0,0,0,0);
       return Math.max(0,Math.round((end-start)/86400000));
@@ -1029,7 +1156,7 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
         </Card>
       </div>)}
       <SectionTitle sub="Pick a plan to start, or upgrade anytime, secure checkout via Stripe">{user.plan?"Change Plan":"Choose Your Plan"}</SectionTitle>
-      {demoMode&&<div style={{padding:"10px 14px",background:T.amberSoft,borderRadius:11,marginBottom:14,fontSize:12,color:T.amber,fontWeight:600}}>Demo mode: plans activate instantly with no payment. Real Stripe checkout goes live once billing keys are configured on the server.</div>}
+      {billingBlocked&&<div style={{padding:"10px 14px",background:T.amberSoft,borderRadius:11,marginBottom:14,fontSize:12,color:T.amber,fontWeight:600}}>Checkout is unavailable until Stripe is configured. All plans are paid — there is no free activation.</div>}
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:14}}>
         {Object.entries(PLANSV).map(([id,p],i)=>{
           const current=id===user.plan;
@@ -1042,7 +1169,9 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
             <div style={{height:1,background:T.line,marginBottom:14}}/>
             {p.features.map((f,j)=><div key={j} style={{fontSize:12,color:T.sub,marginBottom:8,display:"flex",gap:7}}><span style={{color:T.green,fontWeight:800}}>✓</span>{f}</div>)}
             {current?<Btn variant="ghost" size="sm" style={{width:"100%",marginTop:10}} onClick={()=>toast("This is your active plan")}>Your current plan</Btn>:
-              <Btn size="sm" style={{width:"100%",marginTop:10}} onClick={()=>goStripe(id)}>{demoMode?"Activate ":user.plan?"Switch to ":"Subscribe to "}{p.name} →</Btn>}
+              <Btn size="sm" style={{width:"100%",marginTop:10}} disabled={billingBlocked||stripeConfigured===null} onClick={()=>goStripe(id)}>
+                {billingBlocked?"Checkout unavailable":`${user.plan?"Switch to ":"Subscribe to "}${p.name} →`}
+              </Btn>}
           </div>);
         })}
       </div>
@@ -1093,7 +1222,27 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
 
   // IMPORTANT: call page bodies as functions (Home()), not <Home/>.
   // Inner `const Home=()=>` recreated each render would remount the whole page (flicker).
-  return(<><Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} planBadge={planBadge} showLegalLinks headerRight={NotifBell()} badgeCounts={{notifications:unreadSys,messages:chatUnread}}>
+  const homeHeaderLeft=page==="home"?(
+    <div style={{minWidth:0}}>
+      <div style={{fontFamily:FONT_D,fontSize:isMobile?20:26,fontWeight:800,letterSpacing:"-.6px",lineHeight:1.15,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+        {greet}, {(user.name||"there").split(" ")[0]} 👋
+      </div>
+      <div style={{fontSize:isMobile?12:13.5,color:T.sub,marginTop:2,lineHeight:1.35,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:isMobile?"normal":"nowrap"}}>
+        Here's what we're doing for {user.businessName||"your business"} right now
+      </div>
+    </div>
+  ):null;
+  const homeHeaderRight=(
+    <>
+      {page==="home"&&(
+        <Btn variant="soft" size="sm" onClick={()=>setPage("call")} style={{whiteSpace:"nowrap"}}>
+          📞 Talk to your BDM
+        </Btn>
+      )}
+      {NotifBell()}
+    </>
+  );
+  return(<><Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} planBadge={planBadge} showLegalLinks headerLeft={homeHeaderLeft} headerRight={homeHeaderRight} badgeCounts={{notifications:unreadSys,messages:chatUnread}} settingsPageId={impersonating?null:"settings"} contentPadding={page==="legal"?(isMobile?"6px 14px 4px":"8px 34px 4px"):page==="home"?(isMobile?"14px 16px 40px":"20px 34px 50px"):null}>
     {page==="home"&&Home()}
     {page==="notifications"&&NotificationsPage()}
     {page==="messages"&&(
@@ -1109,7 +1258,7 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
           <PageHead isMobile={isMobile} title="Messages" sub="Chat with your Business Development Manager"/>
         </div>
         <div style={{flex:1,minHeight:0,marginTop:-8,overflow:"hidden"}}>
-          <ChatThread myId={userId} toast={toast} onUnreadChange={setChatUnread} fill/>
+          <ChatThread myId={userId} toast={toast} onUnreadChange={setChatUnread} onOpenCall={()=>setPage("call")} fill/>
         </div>
       </div>
     )}
@@ -1119,6 +1268,15 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
     {page==="billing"&&Billing()}
     {page==="call"&&(
       <ClientCallPage user={user} isMobile={isMobile} toast={toast} reload={reload} onOpenMessages={()=>setPage("messages")}/>
+    )}
+    {page==="settings"&&!impersonating&&(
+      <AccountSettings
+        user={user}
+        toast={toast}
+        reload={reload}
+        onUserUpdate={onUserUpdate}
+        isMobile={isMobile}
+      />
     )}
     {page==="legal"&&<ClientLegalPage isMobile={isMobile}/>}
   </Shell>

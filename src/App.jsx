@@ -45,7 +45,7 @@ function ClientAuth({mode="login",user,onLogin,passwordRecovery}){
 
 // /dashboard — clients with an active plan only. No plan → pricing on landing.
 // After Stripe success, briefly poll until webhook writes the plan.
-function ClientDashboardRoute({user,data,reload,onLogin,onLogout,passwordRecovery}){
+function ClientDashboardRoute({user,data,reload,onLogin,onLogout,passwordRecovery,onUserUpdate}){
   const nav=useNavigate();
   const[params]=useSearchParams();
   const billing=params.get("billing");
@@ -77,18 +77,18 @@ function ClientDashboardRoute({user,data,reload,onLogin,onLogout,passwordRecover
   if(awaitingPlan&&!waitDone)return <Loading label="Activating your plan…"/>;
   if(!hasClientPlan(user))return <Navigate to="/?focus=pricing" replace/>;
   if(!viewData)return <Loading label="Loading your dashboard…"/>;
-  return <ClientDashboard user={user} data={viewData} reload={reload} onLogout={handleLogout}/>;
+  return <ClientDashboard user={user} data={viewData} reload={reload} onLogout={handleLogout} onUserUpdate={onUserUpdate}/>;
 }
 
 // /admin — staff (super_admin, manager, agent). Unchanged access rules.
-function StaffPortal({user,data,reload,onLogin,onLogout,passwordRecovery}){
+function StaffPortal({user,data,reload,onLogin,onLogout,passwordRecovery,onUserUpdate}){
   const nav=useNavigate();
   const viewData=useStableData(data);
   if(passwordRecovery)return <Navigate to="/reset-password" replace/>;
   if(user&&!STAFF_ROLES.includes(user.role))return <Navigate to="/" replace/>;
   if(!user)return <AuthScreen portal="staff" onLogin={async(u)=>{await onLogin(u);}}/>;
   if(!viewData)return <Loading label="Loading admin…"/>;
-  return <AdminDashboard user={user} data={viewData} reload={reload} onLogout={async()=>{await onLogout();nav("/admin");}}/>;
+  return <AdminDashboard user={user} data={viewData} reload={reload} onLogout={async()=>{await onLogout();nav("/admin");}} onUserUpdate={onUserUpdate}/>;
 }
 
 function LandingRoute({user,passwordRecovery}){
@@ -156,7 +156,7 @@ export default function App(){
     loadedForRef.current.id=prof.id;
     setCurrentUser(prev=>{
       if(!prev||prev.id!==prof.id)return prof;
-      const keys=["plan","role","name","email","subscriptionStatus","currentPeriodEnd","cancelAtPeriodEnd","assignedAgentId","status","businessName","napScore","canImpersonate"];
+      const keys=["plan","role","name","email","avatar","subscriptionStatus","currentPeriodEnd","cancelAtPeriodEnd","assignedAgentId","status","businessName","napScore","canImpersonate"];
       if(keys.every(k=>prev[k]===prof[k]))return prev;
       return prof;
     });
@@ -282,8 +282,13 @@ export default function App(){
     setData(null);
   },[]);
 
+  const onUserUpdate=useCallback((fields)=>{
+    if(!fields||typeof fields!=="object")return;
+    setCurrentUser(prev=>prev?{...prev,...fields}:prev);
+  },[]);
+
   if(!ready)return(<><GlobalStyle/><Loading/><Toaster position="top-right" richColors closeButton duration={3200}/></>);
-  const shared={user:currentUser,data,reload,onLogin,onLogout,passwordRecovery};
+  const shared={user:currentUser,data,reload,onLogin,onLogout,passwordRecovery,onUserUpdate};
   return(<><GlobalStyle/>
     <BrowserRouter>
       <Routes>

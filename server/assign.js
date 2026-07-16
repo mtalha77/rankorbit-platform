@@ -134,7 +134,7 @@ export async function resolveClientAgent(admin, clientId) {
   if (client.assignedAgentId) {
     const { data: agent } = await admin
       .from("profiles")
-      .select("id,email,name")
+      .select("id,email,name,role")
       .eq("id", client.assignedAgentId)
       .maybeSingle();
     return { client, agent };
@@ -142,6 +142,87 @@ export async function resolveClientAgent(admin, clientId) {
 
   const result = await autoAssignLeastLoadedAgent(admin, clientId);
   return { client, agent: result?.agent || null };
+}
+
+/** Active manager with the fewest assigned clients (for chat support fallback). */
+export async function pickLeastLoadedManager(admin) {
+  const { data: managers, error } = await admin
+    .from("profiles")
+    .select("id,email,name,createdAt,status,deletedAt")
+    .eq("role", "manager");
+  if (error) throw new Error(error.message);
+  const active = (managers || []).filter((m) => !m.deletedAt && m.status !== "suspended");
+  if (!active.length) return null;
+
+  const { data: clients } = await admin
+    .from("profiles")
+    .select("assignedAgentId,deletedAt,role")
+    .eq("role", "client");
+  const counts = Object.fromEntries(active.map((m) => [m.id, 0]));
+  for (const c of clients || []) {
+    if (c.deletedAt) continue;
+    if (c.assignedAgentId && counts[c.assignedAgentId] != null) counts[c.assignedAgentId]++;
+  }
+  active.sort((a, b) => {
+    const d = (counts[a.id] || 0) - (counts[b.id] || 0);
+    if (d !== 0) return d;
+    return String(a.createdAt || "").localeCompare(String(b.createdAt || ""));
+  });
+  return active[0] || null;
+}
+
+/**
+ * Staff peer for client chat / Book a Call: assigned/auto BDM, else a manager (support).
+ * Does not set assignedAgentId to a manager — a real agent can still be assigned later.
+ */
+export async function resolveClientChatPeer(admin, clientId) {
+  const { client, agent } = await resolveClientAgent(admin, clientId);
+  if (!client) return { client: null, peer: null, kind: "none", needsBdm: true };
+
+  if (agent) {
+    return {
+      client,
+      peer: agent,
+      kind: agent.role === "manager" ? "support" : "bdm",
+      needsBdm: agent.role === "manager",
+    };
+  }
+
+  const manager = await pickLeastLoadedManager(admin);
+  if (manager) {
+    return {
+      client,
+      peer: { id: manager.id, email: manager.email, name: manager.name, role: "manager" },
+      kind: "support",
+      needsBdm: true,
+    };
+  }
+
+  return { client, peer: null, kind: "none", needsBdm: true };
+}
+
+/** Ping every active manager that a client needs a BDM / support reply. */
+export async function notifyManagersInApp(admin, { clientId, type, title, body, meta }) {
+  const { data: managers } = await admin
+    .from("profiles")
+    .select("id,status,deletedAt")
+    .eq("role", "manager");
+  const targets = (managers || []).filter((m) => m.id && !m.deletedAt && m.status !== "suspended");
+  for (const m of targets) {
+    try {
+      await createNotification(admin, {
+        userId: m.id,
+        clientId: clientId || null,
+        type: type || "info",
+        title,
+        body,
+        meta: { ...(meta || {}), audience: "manager" },
+      });
+    } catch (e) {
+      console.warn("notifyManagersInApp:", e.message);
+    }
+  }
+  return targets.length;
 }
 
 export async function createNotification(admin, row) {
@@ -173,6 +254,17 @@ export async function createNotification(admin, row) {
 /** Notify any user (client or staff) in-app only. */
 export async function notifyUser(admin, { userId, clientId, type, title, body, meta }) {
   if (!userId) return null;
+  // Super admins only get peer team-chat pings — never client/agent ops copies.
+  if (type && type !== "staff_message") {
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("role")
+      .eq("id", userId)
+      .maybeSingle();
+    if (profile?.role === "super_admin") {
+      return null;
+    }
+  }
   return createNotification(admin, { userId, clientId, type, title, body, meta });
 }
 
@@ -287,43 +379,28 @@ export async function notifyStaffRoute(admin, { kind, title, body }) {
 }
 
 /**
- * Fan-out in-app notifications to every super_admin (for ops reports).
- * Used for staff adds, assignments, and meeting activity.
+ * Super admins intentionally do not receive client/agent ops notifications
+ * (assignments, meetings, chat copies, staff-created alerts, etc.).
+ * Kept as a no-op so existing call sites stay safe.
  */
-export async function notifySuperAdmins(admin, { type, title, body, clientId, meta, excludeUserId }) {
-  if (!admin) return [];
-  const { data: admins, error } = await admin
-    .from("profiles")
-    .select("id")
-    .eq("role", "super_admin");
-  if (error) {
-    console.warn("notifySuperAdmins lookup:", error.message);
-    return [];
-  }
-  const targets = (admins || []).filter((a) => a.id && a.id !== excludeUserId);
-  const rows = [];
-  for (const a of targets) {
-    try {
-      rows.push(
-        await createNotification(admin, {
-          userId: a.id,
-          clientId: clientId || null,
-          type,
-          title,
-          body,
-          meta: { ...(meta || {}), audience: "super_admin" },
-        })
-      );
-    } catch (e) {
-      console.warn("notifySuperAdmins insert:", e.message);
-    }
-  }
-  return rows;
+export async function notifySuperAdmins(_admin, _payload) {
+  return [];
 }
 
 /** In-app notification + optional email to agent and routeBdm addresses. */
 export async function notifyBdm(admin, { agentId, clientId, type, title, body, meta }) {
   if (!agentId) return { notified: false };
+
+  const { data: agent } = await admin
+    .from("profiles")
+    .select("email,name,role")
+    .eq("id", agentId)
+    .maybeSingle();
+
+  // Never deliver client/agent workflow alerts to a super_admin inbox.
+  if (agent?.role === "super_admin") {
+    return { notified: false, reason: "super_admin_skipped" };
+  }
 
   const row = await createNotification(admin, {
     userId: agentId,
@@ -333,12 +410,6 @@ export async function notifyBdm(admin, { agentId, clientId, type, title, body, m
     body,
     meta,
   });
-
-  const { data: agent } = await admin
-    .from("profiles")
-    .select("email,name")
-    .eq("id", agentId)
-    .maybeSingle();
 
   const emails = new Set();
   if (agent?.email) emails.add(agent.email.toLowerCase());

@@ -16,6 +16,7 @@ export function GlobalStyle(){
     @keyframes pulseDot{0%,100%{box-shadow:0 0 0 0 rgba(15,164,122,.35)}50%{box-shadow:0 0 0 6px rgba(15,164,122,0)}}
     @keyframes revealUp{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:none}}
     @keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+    .marqueeTrack{display:flex;width:max-content;animation:marquee 32s linear infinite}
     @keyframes countUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
     .reveal{opacity:0}
     .reveal.in{animation:revealUp .7s cubic-bezier(.22,.8,.36,1) both}

@@ -38,11 +38,99 @@ export function isBookingPast(slotDate, slotTime, now = new Date()) {
   return start.getTime() + 30 * 60 * 1000 <= now.getTime();
 }
 
+export const CALL_SLOT_TIMES = [
+  "9:00 AM",
+  "9:30 AM",
+  "10:00 AM",
+  "10:30 AM",
+  "11:00 AM",
+  "2:00 PM",
+  "2:30 PM",
+  "3:00 PM",
+  "3:30 PM",
+  "4:00 PM",
+];
+
+export function isSlotStillOpen(slotDate, slotTime, now = new Date(), bufferMs = 5 * 60 * 1000) {
+  const start = parseBookingSlot(slotDate, slotTime);
+  if (!start) return false;
+  return start.getTime() > now.getTime() + bufferMs;
+}
+
+export function slotKey(slotDate, slotTime) {
+  return `${String(slotDate || "").trim()}|${String(slotTime || "").trim()}`;
+}
+
 /** Meeting-related notification whose slot is over. */
 export function isPastMeetingNotif(n) {
   const t = n?.type;
   if (t !== "call_booked" && t !== "meeting_confirmed" && t !== "meeting_pending") return false;
   return isBookingPast(n?.meta?.slotDate, n?.meta?.slotTime);
+}
+
+/** Parse listing liveDate → timestamp, or null if missing/invalid. */
+export function listingGoLiveAt(listing, fallbackMs = null) {
+  const iso = toDateInputValue(listing?.liveDate);
+  if (iso) {
+    const [y, m, d] = iso.split("-").map(Number);
+    if (y && m && d) return new Date(y, m - 1, d).getTime();
+  }
+  return fallbackMs;
+}
+
+/**
+ * Last N months of cumulative live listings from current listing rows + liveDate.
+ * Listings without a parseable liveDate count from the start of the current month.
+ */
+export function buildLiveGrowthSeries(listings, months = 5, now = new Date()) {
+  const liveOnes = (listings || []).filter((l) => l.status === "live");
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const goLiveTimes = liveOnes.map((l) => listingGoLiveAt(l, monthStart));
+
+  const series = [];
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const end = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+    series.push({
+      m: d.toLocaleString("en-US", { month: "short" }),
+      live: goLiveTimes.filter((t) => t != null && t <= end).length,
+    });
+  }
+  if (series.length) series[series.length - 1].live = liveOnes.length;
+  return series;
+}
+
+/**
+ * Staff overview bars: new go-lives per month (`n`) + cumulative live (`l`) from liveDate.
+ */
+export function buildListingsActivitySeries(listings, months = 5, now = new Date()) {
+  const liveOnes = (listings || []).filter((l) => l.status === "live");
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const goLiveTimes = liveOnes.map((l) => listingGoLiveAt(l, monthStart));
+
+  const series = [];
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const start = d.getTime();
+    const end = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+    series.push({
+      m: d.toLocaleString("en-US", { month: "short" }),
+      n: goLiveTimes.filter((t) => t != null && t >= start && t <= end).length,
+      l: goLiveTimes.filter((t) => t != null && t <= end).length,
+    });
+  }
+  if (series.length) series[series.length - 1].l = liveOnes.length;
+  return series;
+}
+
+/** % change last month → this month from a growth series. null when not meaningful. */
+export function growthMomTrend(series) {
+  if (!series || series.length < 2) return null;
+  const prev = Number(series[series.length - 2]?.live) || 0;
+  const cur = Number(series[series.length - 1]?.live) || 0;
+  if (prev === 0 && cur === 0) return null;
+  if (prev === 0) return cur > 0 ? 100 : null;
+  return Math.round(((cur - prev) / prev) * 100);
 }
 
 // Password policy: exactly 8 chars, upper+lower+number+symbol.

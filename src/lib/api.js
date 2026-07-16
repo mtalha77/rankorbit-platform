@@ -146,16 +146,34 @@ export const api={
   async billingStatus(){
     try{
       const r=await fetch("/api/billing-status");
-      if(!r.ok){
-        // API missing (old deploy / Vite without plugin) → treat as not configured.
-        return{configured:false,demo:true,unreachable:true};
-      }
+      if(!r.ok)return{configured:false,demo:false,unreachable:true};
       const j=await r.json().catch(()=>({}));
-      return{configured:!!j.configured,demo:!j.configured};
+      return{configured:!!j.configured,demo:false,hasWebhookSecret:!!j.hasWebhookSecret};
     }catch{
-      return{configured:false,demo:true,unreachable:true};
+      return{configured:false,demo:false,unreachable:true};
     }
   },
+  async _gbpPost(path,body={}){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch(path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,...body})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Request failed"};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
+  googleGbpStatus(clientId){return this._gbpPost("/api/google-gbp-status",{clientId});},
+  googleGbpStart(clientId){
+    const returnOrigin=typeof window!=="undefined"?window.location.origin:undefined;
+    return this._gbpPost("/api/google-gbp-start",{clientId,returnOrigin});
+  },
+  googleGbpLocations(clientId){return this._gbpPost("/api/google-gbp-locations",{clientId});},
+  googleGbpSelectLocation(clientId,{locationName,accountName,locationTitle}={}){
+    return this._gbpPost("/api/google-gbp-select-location",{clientId,locationName,accountName,locationTitle});
+  },
+  googleGbpSync(clientId){return this._gbpPost("/api/google-gbp-sync",{clientId});},
+  googleGbpDisconnect(clientId){return this._gbpPost("/api/google-gbp-disconnect",{clientId});},
   async createCheckout(planId){
     const token=await this._accessToken();
     if(!token)return{error:"Not signed in"};
@@ -203,19 +221,6 @@ export const api={
       return{url:j.url};
     }catch(e){return{error:e.message||"Network error"};}
   },
-  async demoActivatePlan(planId){
-    const token=await this._accessToken();
-    if(!token){
-      // Local demo (no Supabase): activate on the profile directly.
-      return{local:true};
-    }
-    try{
-      const r=await fetch("/api/demo-activate-plan",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,planId})});
-      const j=await r.json().catch(()=>({}));
-      if(!r.ok)return{error:j.error||"Could not activate plan"};
-      return{ok:true};
-    }catch(e){return{error:e.message||"Network error"};}
-  },
   async listInvoices(clientId){
     if(supa){
       const{data,error}=await supa.from("invoices").select("*").eq("clientId",clientId).order("createdAt",{ascending:false}).limit(24);
@@ -234,13 +239,23 @@ export const api={
       return{invoices:j.invoices||[],synced:j.synced||0,profile:j.profile||null,currentPeriodEnd:j.currentPeriodEnd||null};
     }catch(e){return{error:e.message||"Network error",invoices:[]};}
   },
-  async bookCall({slotDate,slotTime,note}={}){
+  async bookCall({slotDate,slotTime,note,replaceBookingId}={}){
     const token=await this._accessToken();
     if(!token)return{error:"Not signed in"};
     try{
-      const r=await fetch("/api/book-call",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,slotDate,slotTime,note})});
+      const r=await fetch("/api/book-call",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,slotDate,slotTime,note,replaceBookingId})});
       const j=await r.json().catch(()=>({}));
       if(!r.ok)return{error:j.error||"Could not book call"};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
+  async cancelCall({bookingId}={}){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/cancel-call",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,bookingId})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not cancel meeting"};
       return{ok:true,...j};
     }catch(e){return{error:e.message||"Network error"};}
   },
@@ -407,13 +422,19 @@ export const api={
   },
   async getMyBdm(){
     const token=await this._accessToken();
-    if(!token)return{agent:null,bookings:[]};
+    if(!token)return{agent:null,bookings:[],takenSlots:[]};
     try{
       const r=await fetch("/api/my-bdm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token})});
       const j=await r.json().catch(()=>({}));
-      if(!r.ok)return{agent:null,bookings:[],error:j.error};
-      return{agent:j.agent||null,bookings:j.bookings||[]};
-    }catch(e){return{agent:null,bookings:[],error:e.message};}
+      if(!r.ok)return{agent:null,bookings:[],takenSlots:[],error:j.error};
+      return{
+        agent:j.agent||null,
+        bookings:j.bookings||[],
+        takenSlots:Array.isArray(j.takenSlots)?j.takenSlots:[],
+        support:!!j.support,
+        needsBdm:!!j.needsBdm,
+      };
+    }catch(e){return{agent:null,bookings:[],takenSlots:[],error:e.message};}
   },
   async listMyBookings(){
     const r=await this.getMyBdm();
@@ -458,6 +479,41 @@ export const api={
     if(issues.length)return{error:"Password needs "+issues.join(", ")+"."};
     const{error}=await supa.auth.updateUser({password});
     return error?{error:error.message}:{ok:true};
+  },
+  /** Upload profile photo to Storage (or data-URL fallback locally). Returns {url} or {error}. */
+  async uploadAvatar(blobOrFile,userId){
+    if(!blobOrFile)return{error:"No image selected"};
+    if(supa){
+      const{data:{session}}=await supa.auth.getSession();
+      const id=userId||session?.user?.id;
+      if(!id)return{error:"Not signed in"};
+      const path=`${id}/${Date.now()}.jpg`;
+      const{error:upErr}=await supa.storage.from("avatars").upload(path,blobOrFile,{
+        upsert:true,
+        contentType:blobOrFile.type||"image/jpeg",
+      });
+      if(upErr){
+        const missing=/bucket|not found|row-level security/i.test(upErr.message||"");
+        return{error:missing
+          ?"Avatar storage is not set up. Run supabase/avatars-storage.sql in the Supabase SQL editor."
+          :upErr.message};
+      }
+      const{data:pub}=supa.storage.from("avatars").getPublicUrl(path);
+      const url=pub?.publicUrl;
+      if(!url)return{error:"Could not get photo URL"};
+      const{error:pErr}=await supa.from("profiles").update({avatar:url}).eq("id",id);
+      if(pErr)return{error:pErr.message};
+      return{ok:true,url};
+    }
+    if(!userId)return{error:"Not signed in"};
+    const dataUrl=await new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onload=()=>resolve(reader.result);
+      reader.onerror=()=>reject(new Error("Could not read image"));
+      reader.readAsDataURL(blobOrFile);
+    });
+    await this.patchProfile(userId,{avatar:String(dataUrl)});
+    return{ok:true,url:String(dataUrl)};
   },
   async logout(){if(supa)await supa.auth.signOut();},
   async loadAll(){
