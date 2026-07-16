@@ -1,10 +1,12 @@
 // ─── LANDING PAGE ────────────────────────────────────────────────────────────
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { useNavigate } from "react-router-dom";
 import { T, FONT_D, FONT_B, SHADOW, SHADOW_LG } from "../lib/theme";
 import { api } from "../lib/api";
 import { PLANS, planLive } from "../lib/constants";
 import { Btn } from "../components/atoms";
+import CssIoButton from "../components/CssIoButton";
+import CtaFillButton from "../components/CtaFillButton";
 import { Orbit, MiniOrbit } from "../components/Orbit";
 import { Reveal } from "../components/Reveal";
 import { useWindowSize, useCounter } from "../hooks";
@@ -129,6 +131,13 @@ export default function LandingPage({user=null,focusPricing=false,billingFlag=nu
   // Load which plans are live + any price overrides (set by super-admin control panel).
   const[cfg,setCfg]=useState({});
   useEffect(()=>{(async()=>{try{const s=await api.getSettings?.();if(s?.config)setCfg(s.config);}catch{}})();},[]);
+  const[navSolid,setNavSolid]=useState(false);
+  useEffect(()=>{
+    const onScroll=()=>setNavSolid(window.scrollY>40);
+    onScroll();
+    window.addEventListener("scroll",onScroll,{passive:true});
+    return()=>window.removeEventListener("scroll",onScroll);
+  },[]);
   const lprice=(id)=>{const m={essentials:"priceEssentials",growth:"priceGrowth",gmb:"priceGmb"};const v=cfg[m[id]];return v!=null&&v!==""?Number(v):PLANS[id]?.price;};
 
   // Bold section heading
@@ -136,37 +145,40 @@ export default function LandingPage({user=null,focusPricing=false,billingFlag=nu
     <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"7px 15px",background:T.surface,border:`1.5px solid ${T.line}`,borderRadius:30,fontSize:12.5,fontWeight:800,letterSpacing:".4px",color,marginBottom:18,boxShadow:SHADOW}}>{children}</div>
   );
   const Ico=({d,c=T.brand,s=24})=>(<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{d}</svg>);
-  const CountStat=({value,suffix,label,icon,last})=>{
+  const StatNumberCard=({value,suffix,title,sub,accent,icon,suffixColor,splitSuffix})=>{
     const[el,setEl]=useState(null);const[go2,setGo2]=useState(false);
-    useEffect(()=>{if(!el)return;const io=new IntersectionObserver(e=>{e.forEach(x=>{if(x.isIntersecting){setGo2(true);io.disconnect();}});},{threshold:.4});io.observe(el);return()=>io.disconnect();},[el]);
+    useEffect(()=>{if(!el)return;const io=new IntersectionObserver(e=>{e.forEach(x=>{if(x.isIntersecting){setGo2(true);io.disconnect();}});},{threshold:.35});io.observe(el);return()=>io.disconnect();},[el]);
     const v=useCounter(go2?value:0,1400);
-    return(<div ref={setEl} style={{textAlign:"center",position:"relative",padding:isMobile?"0":"0 16px",borderRight:(!last&&!isMobile)?"1px solid rgba(255,255,255,.1)":"none"}}>
-      <div style={{width:38,height:38,borderRadius:11,background:"rgba(255,255,255,.08)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px"}}>
-        <Ico d={icon} c={T.green} s={19}/>
+    return(
+      <div ref={setEl} style={{background:"rgba(255,255,255,.05)",border:`1px solid rgba(255,255,255,.08)`,borderLeft:`4px solid ${accent}`,borderRadius:14,padding:"18px 16px 16px",backdropFilter:"blur(6px)"}}>
+        <div style={{width:34,height:34,borderRadius:10,background:"rgba(0,0,0,.25)",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:12}}>
+          <Ico d={icon} c={accent} s={17}/>
+        </div>
+        <div style={{fontFamily:FONT_D,fontSize:isMobile?30:36,fontWeight:800,color:"#fff",letterSpacing:"-1.2px",lineHeight:1,marginBottom:8}}>
+          {splitSuffix?(<>{v}<span style={{color:suffixColor||accent}}>{suffix}</span></>):(<>{v}<span style={{color:suffixColor||accent}}>{suffix}</span></>)}
+        </div>
+        <div style={{fontSize:14,fontWeight:800,color:"#fff",marginBottom:4}}>{title}</div>
+        <div style={{fontSize:12,color:"rgba(255,255,255,.55)",fontWeight:500,lineHeight:1.4}}>{sub}</div>
       </div>
-      <div style={{fontFamily:FONT_D,fontSize:isMobile?34:48,fontWeight:800,color:"#fff",letterSpacing:"-1.5px",lineHeight:1}}>
-        {v}<span style={{color:T.green}}>{suffix}</span>
-      </div>
-      <div style={{fontSize:isMobile?12:13,color:"rgba(255,255,255,.62)",fontWeight:600,marginTop:9,letterSpacing:".2px"}}>{label}</div>
-    </div>);
+    );
   };
 
   return(<div style={{minHeight:"100vh",background:T.bg,fontFamily:FONT_B,color:T.ink,overflowX:"hidden"}}>
-    {/* ── Sticky Nav ── */}
-    <div style={{position:"sticky",top:0,zIndex:100,background:"rgba(255,255,255,.82)",backdropFilter:"blur(12px)",borderBottom:`1px solid ${T.line}`}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:isMobile?"13px 20px":"15px 40px",maxWidth:maxW,margin:"0 auto"}}>
+    {/* ── Nav ── */}
+    <div style={{position:"fixed",top:0,left:0,right:0,zIndex:100,background:navSolid?"rgba(255,255,255,.86)":"transparent",backdropFilter:navSolid?"blur(12px)":"none",borderBottom:navSolid?`1px solid ${T.line}`:"1px solid transparent",transition:"background .22s ease,border-color .22s ease,backdrop-filter .22s ease"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:isMobile?"13px 8px":"15px 8px",maxWidth:1400,margin:"0 auto",width:"100%",boxSizing:"border-box"}}>
         <div style={{display:"flex",alignItems:"center",gap:11}}>
-          <img src="/nap-orbit-logo.png" alt="NAP Orbit" style={{height:isMobile?26:30,width:"auto",display:"block"}}/>
+          <img src="/nap-orbit-logo-removebg-preview.png" alt="NAP Orbit" style={{height:isMobile?26:30,width:"auto",display:"block"}}/>
         </div>
         <div style={{display:"flex",gap:isMobile?8:14,alignItems:"center"}}>
           {user?(<>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
               <div style={{width:isMobile?32:36,height:isMobile?32:36,borderRadius:"50%",background:`linear-gradient(135deg,${T.brand},${T.violet})`,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT_D,fontWeight:800,fontSize:isMobile?13:14,flexShrink:0}}>{avatarLetter}</div>
-              {!isMobile&&<span style={{fontSize:14.5,fontWeight:700,color:T.ink}}>{displayName}</span>}
+              {!isMobile&&<span style={{fontSize:14.5,fontWeight:700,color:navSolid?T.ink:"#fff",textShadow:navSolid?"none":"0 1px 10px rgba(0,0,0,.25)"}}>{displayName}</span>}
             </div>
             <Btn size={isMobile?"sm":"md"} onClick={goDash}>{user.plan?"Dashboard":"Choose a plan"}</Btn>
           </>):(<>
-            {!isMobile&&<button onClick={goLogin} style={{background:"none",border:"none",color:T.sub,fontSize:14.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>Sign in</button>}
+            {!isMobile&&<button onClick={goLogin} style={{background:"none",border:"none",color:navSolid?T.sub:"#fff",fontSize:14.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B,textShadow:navSolid?"none":"0 1px 10px rgba(0,0,0,.25)"}}>Sign in</button>}
             <Btn size={isMobile?"sm":"md"} onClick={goSignup}>Get started</Btn>
           </>)}
         </div>
@@ -174,47 +186,51 @@ export default function LandingPage({user=null,focusPricing=false,billingFlag=nu
     </div>
 
     {/* ── Hero ── */}
-    <div style={{position:"relative"}}>
-      <div style={{position:"absolute",top:-140,left:"-8%",width:460,height:460,borderRadius:"50%",background:T.brandSoft,filter:"blur(60px)",opacity:.7,animation:"blob 18s ease-in-out infinite"}}/>
-      <div style={{position:"absolute",top:80,right:"-8%",width:400,height:400,borderRadius:"50%",background:T.greenSoft,filter:"blur(60px)",opacity:.6,animation:"blob 22s ease-in-out infinite reverse"}}/>
-      <div style={{position:"relative",maxWidth:maxW,margin:"0 auto",padding:isMobile?"44px 20px 34px":"72px 40px 54px",textAlign:"center"}}>
-        <Reveal><Eyebrow><span style={{width:8,height:8,borderRadius:"50%",background:T.green,animation:"pulseDot 2s infinite"}}/>Built for local service businesses</Eyebrow></Reveal>
-        <Reveal delay={80}>
-          <h1 style={{fontFamily:FONT_D,fontSize:isMobile?38:isTab?54:66,fontWeight:800,lineHeight:1.04,letterSpacing:isMobile?"-1.5px":"-2.5px",margin:"0 0 20px",maxWidth:900,marginLeft:"auto",marginRight:"auto"}}>
-            When customers search,<br/>make sure they find <span style={{color:T.brand,position:"relative"}}>you</span>.
-          </h1>
-        </Reveal>
-        <Reveal delay={160}>
-          <p style={{fontSize:isMobile?16.5:20,color:T.sub,lineHeight:1.6,maxWidth:600,margin:"0 auto 30px",fontWeight:450}}>
-            We get your business onto every map, directory and listing that matters, keep your details correct everywhere, and fix bad edits before they cost you calls. You just watch the customers come in.
-          </p>
-        </Reveal>
-        <Reveal delay={240}>
-          <div style={{display:"flex",gap:13,justifyContent:"center",flexWrap:"wrap"}}>
-            <Btn size="lg" onClick={user?goDash:goSignup}>Get found now</Btn>
-            <Btn size="lg" variant="ghost" onClick={()=>document.getElementById("how")?.scrollIntoView({behavior:"smooth"})}>See how it works</Btn>
+    <div style={{position:"relative",overflow:"hidden",backgroundImage:"url(/hero-bg.png)",backgroundSize:"cover",backgroundPosition:"center 35%"}}>
+      {/* Light black shade so headline / CTAs stay readable */}
+      <div aria-hidden="true" style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(15,15,28,.42) 0%,rgba(15,15,28,.55) 55%,rgba(15,15,28,.62) 100%)"}}/>
+      <div style={{position:"relative",maxWidth:1400,margin:"0 auto",padding:isMobile?"96px 8px 40px":"132px 8px 64px",textAlign:"left",width:"100%",boxSizing:"border-box"}}>
+        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1.05fr 0.95fr",gap:isMobile?36:48,alignItems:"center"}}>
+          <div>
+            <Reveal><Eyebrow color={T.green}><span style={{width:8,height:8,borderRadius:"50%",background:T.green,animation:"pulseDot 2s infinite"}}/>Built for local service businesses</Eyebrow></Reveal>
+            <Reveal delay={80}>
+              <h1 style={{fontFamily:FONT_D,fontSize:isMobile?36:isTab?48:58,fontWeight:800,lineHeight:1.06,letterSpacing:isMobile?"-1.5px":"-2.2px",margin:"0 0 18px",maxWidth:560,color:"#fff",textShadow:"0 2px 24px rgba(0,0,0,.25)"}}>
+                When customers<br/>search, make sure they find <span style={{color:"#B8B8FF",position:"relative"}}>you</span>.
+              </h1>
+            </Reveal>
+            <Reveal delay={160}>
+              <p style={{fontSize:isMobile?16:18.5,color:"rgba(255,255,255,.88)",lineHeight:1.6,maxWidth:520,margin:"0 0 28px",fontWeight:450,textShadow:"0 1px 12px rgba(0,0,0,.2)"}}>
+                We get your business onto every map, directory and listing that matters, keep your details correct everywhere, and fix bad edits before they cost you calls. You just watch the customers come in.
+              </p>
+            </Reveal>
+            <Reveal delay={240}>
+              <div style={{display:"flex",gap:13,justifyContent:"flex-start",flexWrap:"wrap"}}>
+                <CssIoButton onClick={user?goDash:goSignup}>Get found now</CssIoButton>
+                <CtaFillButton onClick={()=>document.getElementById("how")?.scrollIntoView({behavior:"smooth"})}>See how it works</CtaFillButton>
+              </div>
+              <div style={{marginTop:16,fontSize:13.5,color:"rgba(255,255,255,.72)",fontWeight:600}}>No setup fees. Cancel anytime. Live dashboard from day one.</div>
+            </Reveal>
           </div>
-          <div style={{marginTop:18,fontSize:13.5,color:T.faint,fontWeight:600}}>No setup fees. Cancel anytime. Live dashboard from day one.</div>
-        </Reveal>
 
-        {/* Hero dashboard preview */}
-        <Reveal delay={340}>
-          <div className="lift" style={{marginTop:isMobile?38:52,maxWidth:820,marginLeft:"auto",marginRight:"auto",background:T.surface,borderRadius:isMobile?18:24,padding:isMobile?16:26,boxShadow:"0 30px 80px -20px rgba(23,23,50,.28)",border:`1px solid ${T.line}`,textAlign:"left"}}>
-            <div style={{display:"flex",gap:8,marginBottom:18}}>{[T.red,T.amber,T.green].map(c=><div key={c} style={{width:12,height:12,borderRadius:"50%",background:c}}/>)}</div>
-            <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:12,marginBottom:18}}>
-              {[["Listings live","42",T.green],["Pending","6",T.amber],["NAP match","96%",T.brand],["Edits reverted","8",T.violet]].map(([l,v,c])=>(
-                <div key={l} style={{background:T.surface2,borderRadius:14,padding:"16px 12px"}}>
-                  <div style={{fontFamily:FONT_D,fontSize:26,fontWeight:800,color:c,letterSpacing:"-1px"}}>{v}</div>
-                  <div style={{fontSize:11,color:T.faint,fontWeight:700,marginTop:4}}>{l}</div>
-                </div>))}
+          {/* Hero dashboard preview — right side on desktop */}
+          <Reveal delay={280}>
+            <div className="lift" style={{width:"100%",background:T.surface,borderRadius:isMobile?18:22,padding:isMobile?16:22,boxShadow:"0 30px 80px -20px rgba(23,23,50,.45)",border:`1px solid ${T.line}`,textAlign:"left"}}>
+              <div style={{display:"flex",gap:8,marginBottom:16}}>{[T.red,T.amber,T.green].map(c=><div key={c} style={{width:12,height:12,borderRadius:"50%",background:c}}/>)}</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
+                {[["Listings live","42",T.green],["Pending","6",T.amber],["NAP match","96%",T.brand],["Edits reverted","8",T.violet]].map(([l,v,c])=>(
+                  <div key={l} style={{background:T.surface2,borderRadius:14,padding:"14px 12px"}}>
+                    <div style={{fontFamily:FONT_D,fontSize:isMobile?22:24,fontWeight:800,color:c,letterSpacing:"-1px"}}>{v}</div>
+                    <div style={{fontSize:11,color:T.faint,fontWeight:700,marginTop:4}}>{l}</div>
+                  </div>))}
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9}}>
+                <span style={{fontSize:13,fontWeight:700,color:T.sub}}>Visibility score</span>
+                <span style={{fontSize:13,fontWeight:800,color:T.green}}>84 / 100</span>
+              </div>
+              <div style={{height:10,background:T.surface2,borderRadius:6,overflow:"hidden"}}><div style={{width:"84%",height:"100%",background:`linear-gradient(90deg,${T.brand},${T.green})`,borderRadius:6}}/></div>
             </div>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9}}>
-              <span style={{fontSize:13,fontWeight:700,color:T.sub}}>Visibility score</span>
-              <span style={{fontSize:13,fontWeight:800,color:T.green}}>84 / 100</span>
-            </div>
-            <div style={{height:10,background:T.surface2,borderRadius:6,overflow:"hidden"}}><div style={{width:"84%",height:"100%",background:`linear-gradient(90deg,${T.brand},${T.green})`,borderRadius:6}}/></div>
-          </div>
-        </Reveal>
+          </Reveal>
+        </div>
       </div>
     </div>
 
@@ -228,7 +244,7 @@ export default function LandingPage({user=null,focusPricing=false,billingFlag=nu
         borderBottom: `1px solid rgba(255,255,255,.08)`,
         overflow: "hidden",
         padding: isMobile ? "12px 0" : "14px 0",
-        marginTop: isMobile ? 20 : 40,
+        marginTop: 0,
       }}
     >
       <div className="marqueeTrack" aria-hidden="true">
@@ -267,86 +283,486 @@ export default function LandingPage({user=null,focusPricing=false,billingFlag=nu
       </span>
     </div>
 
-    {/* ── Stat band ── */}
-    <div style={{background:`linear-gradient(135deg,${T.ink},#2B2B58)`,padding:isMobile?"38px 20px":"56px 40px",marginTop:0,position:"relative",overflow:"hidden"}}>
-      <div style={{position:"absolute",top:-60,right:-40,width:240,height:240,borderRadius:"50%",background:`radial-gradient(circle,${T.brand}30,transparent 70%)`,pointerEvents:"none"}}/>
-      <div style={{maxWidth:maxW,margin:"0 auto",position:"relative"}}>
-        <div style={{textAlign:"center",marginBottom:isMobile?28:38}}>
-          <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"5px 14px",background:"rgba(255,255,255,.08)",borderRadius:30,fontSize:12,fontWeight:800,color:T.green,letterSpacing:".4px"}}>BY THE NUMBERS</div>
+    {/* ── By the numbers ── */}
+    <div style={{background:`linear-gradient(135deg,#0F1028 0%,#171732 45%,#1E1B4B 100%)`,padding:isMobile?"40px 16px":"56px 24px 0",marginTop:0,position:"relative",overflow:"hidden"}}>
+      {/* Soft glow */}
+      <div aria-hidden="true" style={{position:"absolute",top:"-20%",right:"-10%",width:420,height:420,borderRadius:"50%",background:`radial-gradient(circle,${T.brand}33,transparent 68%)`,pointerEvents:"none"}}/>
+      <div aria-hidden="true" style={{position:"absolute",bottom:"-30%",left:"10%",width:360,height:360,borderRadius:"50%",background:`radial-gradient(circle,${T.green}22,transparent 70%)`,pointerEvents:"none"}}/>
+
+      <div style={{maxWidth:1400,margin:"0 auto",position:"relative",display:"grid",gridTemplateColumns:isMobile?"1fr":"0.95fr 1.15fr",gap:isMobile?28:40,alignItems:"center"}}>
+        {/* Left: person centered in orbit rings */}
+        <div style={{position:"relative",display:"flex",justifyContent:"center",alignItems:"center",order:isMobile?2:1,minHeight:isMobile?440:700}}>
+          {(()=>{
+            const stage=isMobile?420:680;
+            const rings=[
+              {scale:1,color:T.green,dur:"22s",dir:"orbitSpin",delay:"0s"},
+              {scale:0.74,color:T.brand,dur:"16s",dir:"orbitSpinR",delay:"-4s"},
+              {scale:0.5,color:"#B8B8FF",dur:"12s",dir:"orbitSpin",delay:"-2s"},
+            ];
+            return(
+              <div style={{position:"relative",width:stage,height:stage,maxWidth:"100%"}}>
+                {rings.map((ring,i)=>{
+                  const size=stage*ring.scale;
+                  const inset=(stage-size)/2;
+                  return(
+                    <div key={i} aria-hidden="true" style={{position:"absolute",top:inset,left:inset,width:size,height:size,borderRadius:"50%",border:`1px solid rgba(255,255,255,${0.1+i*0.035})`,pointerEvents:"none"}}>
+                      {/* spinner keeps ring still; only the arm rotates so the dot rides the boundary */}
+                      <div style={{position:"absolute",inset:0,borderRadius:"50%",animation:`${ring.dir} ${ring.dur} linear infinite`,animationDelay:ring.delay}}>
+                        <span style={{
+                          position:"absolute",
+                          top:-5,
+                          left:"50%",
+                          transform:"translateX(-50%)",
+                          width:10,
+                          height:10,
+                          borderRadius:"50%",
+                          background:ring.color,
+                          boxShadow:`0 0 14px ${ring.color}`,
+                        }}/>
+                      </div>
+                    </div>
+                  );
+                })}
+                <img
+                  src="/men-cutout.png"
+                  alt="NAP Orbit expert"
+                  style={{
+                    position:"absolute",
+                    left:"50%",
+                    top:"50%",
+                    transform:"translate(-50%,-42%)",
+                    zIndex:2,
+                    height:isMobile?440:680,
+                    width:"auto",
+                    maxWidth:"98%",
+                    objectFit:"contain",
+                    filter:"drop-shadow(0 24px 40px rgba(0,0,0,.45))",
+                    display:"block",
+                    pointerEvents:"none",
+                  }}
+                />
+              </div>
+            );
+          })()}
         </div>
-        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:isMobile?"30px 20px":0}}>
-          <CountStat value={60} suffix="+" label="Directories we manage" icon={<><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.4 8 12 8 12s8-6.6 8-12a8 8 0 0 0-8-8z"/></>}/>
-          <CountStat value={96} suffix="%" label="Average NAP accuracy" icon={<path d="M20 6 9 17l-5-5"/>}/>
-          <CountStat value={30} suffix="+" label="New listings a month" icon={<><path d="M12 5v14M5 12h14"/></>}/>
-          <CountStat value={24} suffix="/7" label="Edit protection" icon={<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>} last/>
+
+        {/* Right: copy + stat cards */}
+        <div style={{paddingBottom:isMobile?8:56,paddingTop:isMobile?0:24,order:isMobile?1:2}}>
+          <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"6px 14px",background:"rgba(15,164,122,.12)",border:`1px solid ${T.green}66`,borderRadius:30,fontSize:11.5,fontWeight:800,color:"#fff",letterSpacing:".5px",marginBottom:18}}>
+            <span style={{width:7,height:7,borderRadius:"50%",background:T.green,boxShadow:`0 0 8px ${T.green}`}}/>
+            BY THE NUMBERS
+          </div>
+          <h2 style={{fontFamily:FONT_D,fontSize:isMobile?30:44,fontWeight:800,letterSpacing:"-1.4px",margin:"0 0 12px",lineHeight:1.12,color:"#fff"}}>
+            More visibility.<br/>
+            <span style={{color:"#fff"}}>Less </span>
+            <span style={{color:T.green}}>manual work.</span>
+          </h2>
+          <p style={{fontSize:isMobile?14.5:16.5,color:"rgba(255,255,255,.65)",lineHeight:1.6,margin:"0 0 28px",maxWidth:480}}>
+            NAP Orbit keeps your business accurate and visible everywhere, while protecting your listings around the clock.
+          </p>
+
+          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:14}}>
+            {[
+              {value:60,suffix:"+",title:"Directories managed",sub:"Google, Apple, Yelp and more",accent:T.green,icon:<><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.4 8 12 8 12s8-6.6 8-12a8 8 0 0 0-8-8z"/></>,suffixColor:T.green},
+              {value:96,suffix:"%",title:"Average NAP accuracy",sub:"Consistent details everywhere",accent:T.brand,icon:<path d="M20 6 9 17l-5-5"/>,suffixColor:"#B8B8FF"},
+              {value:30,suffix:"+",title:"New listings monthly",sub:"Fresh coverage every month",accent:T.green,icon:<><path d="M12 5v14M5 12h14"/></>,suffixColor:T.green},
+              {value:24,suffix:"/7",title:"Edit protection",sub:"Unauthorized changes caught fast",accent:T.brand,icon:<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>,suffixColor:"#B8B8FF",splitSuffix:true},
+            ].map((card)=>(
+              <StatNumberCard key={card.title} {...card}/>
+            ))}
+          </div>
         </div>
       </div>
     </div>
 
-    {/* ── AI search band ── */}
-    <div style={{maxWidth:maxW,margin:"0 auto",padding:isMobile?"48px 20px 0":"80px 40px 0"}}>
+    {/* ── AI discovery ── */}
+    <div style={{maxWidth:1400,margin:"0 auto",padding:isMobile?"40px 12px":"64px 16px",width:"100%",boxSizing:"border-box"}}>
       <Reveal>
-        <div className="lift" style={{background:`linear-gradient(135deg,${T.violetSoft},${T.brandSoft})`,border:`1px solid ${T.line}`,borderRadius:isMobile?20:26,padding:isMobile?"30px 24px":"46px 48px",display:"grid",gridTemplateColumns:isMobile?"1fr":"1.3fr 1fr",gap:isMobile?24:40,alignItems:"center"}}>
+        <div style={{
+          background:`linear-gradient(135deg,#F4F2FA 0%,#EEF0F8 48%,#F7F5FC 100%)`,
+          border:`1px solid ${T.line}`,
+          borderRadius:isMobile?24:36,
+          padding:isMobile?"32px 22px":"48px 52px",
+          display:"grid",
+          gridTemplateColumns:isMobile?"1fr":"1.05fr 1fr",
+          gap:isMobile?36:48,
+          alignItems:"center",
+          overflow:"visible",
+          position:"relative",
+        }}>
+          {/* Left copy */}
           <div>
-            <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"6px 14px",background:"#fff",borderRadius:30,fontSize:12.5,fontWeight:800,color:T.violet,marginBottom:16,boxShadow:SHADOW}}>New in 2026</div>
-            <h2 style={{fontFamily:FONT_D,fontSize:isMobile?26:38,fontWeight:800,letterSpacing:"-1.2px",margin:"0 0 14px",lineHeight:1.1}}>Now customers ask AI, not just Google.</h2>
-            <p style={{fontSize:isMobile?15.5:17.5,color:T.sub,lineHeight:1.65,margin:0}}>When someone asks ChatGPT, Gemini or Google's AI Overviews for "the best plumber near me," those answers come from the same listings and consistent business data we manage for you. Get listed right, and you show up in AI answers too, not just the old blue links.</p>
+            <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"6px 14px",background:"rgba(91,91,214,.08)",border:`1px solid rgba(91,91,214,.18)`,borderRadius:30,fontSize:11.5,fontWeight:800,color:T.brand,letterSpacing:".6px",marginBottom:18}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.brand} strokeWidth="2.2" strokeLinecap="round"><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1l2.1-2.1M17 7l2.1-2.1"/></svg>
+              AI DISCOVERY
+            </div>
+            <h2 style={{fontFamily:FONT_D,fontSize:isMobile?28:40,fontWeight:800,letterSpacing:"-1.3px",margin:"0 0 14px",lineHeight:1.12,color:T.ink}}>
+              Customers ask AI.<br/>Make sure it finds <span style={{color:T.brand}}>you.</span>
+            </h2>
+            <p style={{fontSize:isMobile?15:16.5,color:T.sub,lineHeight:1.65,margin:"0 0 22px",maxWidth:460}}>
+              NAP Orbit keeps your business details accurate across the trusted sources AI assistants use to recommend local businesses.
+            </p>
+            <div style={{display:"flex",flexWrap:"wrap",gap:isMobile?"12px 18px":"14px 22px",marginBottom:22}}>
+              {[
+                {t:"Accurate",c:T.green},
+                {t:"AI trusted",c:T.brand},
+                {t:"Local discovery",c:T.blue},
+              ].map(x=>(
+                <div key={x.t} style={{display:"flex",alignItems:"center",gap:8,fontSize:14,fontWeight:700,color:T.ink}}>
+                  <span style={{width:20,height:20,borderRadius:"50%",background:`${x.c}18`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={x.c} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                  </span>
+                  {x.t}
+                </div>
+              ))}
+            </div>
+            <div style={{borderTop:`1px solid ${T.line}`,paddingTop:16,fontSize:13.5,color:T.faint,fontWeight:600}}>
+              One consistent business profile. More ways to be found.
+            </div>
           </div>
-          <div style={{display:"flex",flexDirection:"column",gap:12}}>
-            {["Shows up in ChatGPT & Gemini answers","Feeds Google AI Overviews","Consistent data AI engines trust"].map(x=>(
-              <div key={x} style={{display:"flex",gap:12,alignItems:"center",background:"#fff",borderRadius:14,padding:"14px 16px",boxShadow:SHADOW}}>
-                <div style={{width:34,height:34,borderRadius:10,background:T.violetSoft,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Ico d={<><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></>} c={T.violet} s={17}/></div>
-                <span style={{fontSize:14.5,fontWeight:700,color:T.ink}}>{x}</span>
-              </div>))}
+
+          {/* Right: AI orbit graphic */}
+          <div style={{position:"relative",width:"100%",maxWidth:isMobile?360:450,height:isMobile?360:450,margin:isMobile?"0 auto":"0 0 0 auto"}}>
+            {/* Dashed orbits + 2 evenly spaced rotating dots per ring */}
+            {[
+              {scale:1,colors:[T.green,T.brand],dur:"32s",dir:"orbitSpinR",delay:"0s"},
+              {scale:0.8,colors:[T.blue,"#B8B8FF"],dur:"26s",dir:"orbitSpin",delay:"-4s"},
+              {scale:0.62,colors:[T.brand,T.green],dur:"20s",dir:"orbitSpinR",delay:"-7s"},
+              {scale:0.44,colors:[T.blue,T.brand],dur:"14s",dir:"orbitSpin",delay:"-2s"},
+            ].map((ring,i)=>(
+              <div
+                key={i}
+                aria-hidden="true"
+                style={{
+                  position:"absolute",
+                  left:"50%",top:"50%",
+                  width:`${ring.scale*100}%`,
+                  height:`${ring.scale*100}%`,
+                  marginLeft:`-${ring.scale*50}%`,
+                  marginTop:`-${ring.scale*50}%`,
+                  borderRadius:"50%",
+                  border:`1.5px dashed rgba(91,91,214,${0.24-i*0.035})`,
+                  pointerEvents:"none",
+                }}
+              >
+                <div style={{
+                  position:"absolute",
+                  inset:0,
+                  borderRadius:"50%",
+                  animation:`${ring.dir} ${ring.dur} linear infinite`,
+                  animationDelay:ring.delay,
+                }}>
+                  {/* 2 dots opposite each other — same spacing */}
+                  {ring.colors.map((c,di)=>(
+                    <span
+                      key={di}
+                      style={{
+                        position:"absolute",
+                        top:di===0?-5:"auto",
+                        bottom:di===1?-5:"auto",
+                        left:"50%",
+                        transform:"translateX(-50%)",
+                        width:9,
+                        height:9,
+                        borderRadius:"50%",
+                        background:c,
+                        boxShadow:`0 0 12px ${c}`,
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            {/* Center AI sun */}
+            <div style={{
+              position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",
+              width:isMobile?72:88,height:isMobile?72:88,borderRadius:"50%",
+              background:`linear-gradient(135deg,${T.brand},${T.brandDark})`,
+              color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",
+              fontFamily:FONT_D,fontWeight:800,fontSize:isMobile?22:26,letterSpacing:"-0.5px",
+              boxShadow:`0 10px 32px ${T.brandGlow}`,zIndex:5,
+            }}>
+              AI
+              <div aria-hidden="true" style={{position:"absolute",inset:-14,borderRadius:"50%",background:`radial-gradient(circle,transparent 55%,${T.brand}22 56%,transparent 70%)`,pointerEvents:"none"}}/>
+            </div>
+
+            {/* Orbiting labels — Your Business alone on outermost ring */}
+            {[
+              {label:"Your Business",dot:T.green,scale:1,dur:"32s",dir:"orbitSpinR",delay:"-6s",business:true},
+              {label:"ChatGPT answers",dot:T.green,scale:0.8,dur:"26s",dir:"orbitSpin",delay:"0s"},
+              {label:"Google AI",dot:T.blue,scale:0.62,dur:"20s",dir:"orbitSpinR",delay:"-8s"},
+              {label:"Gemini",dot:T.brand,scale:0.44,dur:"14s",dir:"orbitSpin",delay:"-4s"},
+            ].map((card)=>{
+              const reverse=card.dir==="orbitSpin"?"orbitSpinR":"orbitSpin";
+              return(
+                <div
+                  key={card.label}
+                  aria-hidden={!card.business}
+                  style={{
+                    position:"absolute",
+                    left:"50%",top:"50%",
+                    width:`${card.scale*100}%`,
+                    height:`${card.scale*100}%`,
+                    marginLeft:`-${card.scale*50}%`,
+                    marginTop:`-${card.scale*50}%`,
+                    animation:`${card.dir} ${card.dur} linear infinite`,
+                    animationDelay:card.delay,
+                    zIndex:4,
+                    pointerEvents:"none",
+                  }}
+                >
+                  <div style={{
+                    position:"absolute",
+                    top:0,
+                    left:"50%",
+                    transform:"translate(-50%,-50%)",
+                    animation:`${reverse} ${card.dur} linear infinite`,
+                    animationDelay:card.delay,
+                  }}>
+                    {card.business?(
+                      <div style={{
+                        background:"#fff",
+                        borderRadius:16,
+                        padding:"10px 14px",
+                        boxShadow:SHADOW_LG,
+                        border:`1px solid ${T.line}`,
+                        minWidth:isMobile?150:170,
+                        pointerEvents:"auto",
+                      }}>
+                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
+                          <div style={{width:28,height:28,borderRadius:9,background:T.brandSoft,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.brand} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21s7-4.5 7-11a7 7 0 1 0-14 0c0 6.5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+                          </div>
+                          <div style={{fontSize:13.5,fontWeight:800,color:T.ink,fontFamily:FONT_D}}>Your Business</div>
+                        </div>
+                        <div style={{fontSize:11.5,fontWeight:700,color:T.green,paddingLeft:36}}>✓ Verified and consistent</div>
+                      </div>
+                    ):(
+                      <div style={{
+                        background:"#fff",
+                        borderRadius:14,
+                        padding:"9px 13px",
+                        boxShadow:SHADOW,
+                        border:`1px solid ${T.line}`,
+                        display:"flex",alignItems:"center",gap:8,
+                        fontSize:12.5,fontWeight:700,color:T.ink,
+                        whiteSpace:"nowrap",
+                        pointerEvents:"auto",
+                      }}>
+                        <span style={{width:8,height:8,borderRadius:"50%",background:card.dot,boxShadow:`0 0 8px ${card.dot}`,flexShrink:0}}/>
+                        {card.label}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </Reveal>
     </div>
 
-    {/* ── Problem → benefit ── */}
-    <div style={{maxWidth:maxW,margin:"0 auto",padding:isMobile?"48px 20px":"80px 40px"}}>
-      <div style={{textAlign:"center",marginBottom:isMobile?32:52}}>
+    {/* ── Problem → benefit (bento) ── */}
+    <div style={{maxWidth:1400,margin:"0 auto",padding:isMobile?"48px 16px":"80px 24px",width:"100%",boxSizing:"border-box"}}>
+      <div style={{marginBottom:isMobile?28:36}}>
         <Reveal><Eyebrow color={T.green}>Why it matters</Eyebrow></Reveal>
-        <Reveal delay={80}><h2 style={{fontFamily:FONT_D,fontSize:isMobile?28:42,fontWeight:800,letterSpacing:"-1.2px",margin:"0 0 14px",lineHeight:1.1}}>Wrong info online means<br/>lost customers. Full stop.</h2></Reveal>
-        <Reveal delay={140}><p style={{fontSize:isMobile?15.5:17,color:T.sub,maxWidth:560,margin:"0 auto",lineHeight:1.6}}>Most local businesses have wrong phone numbers, old addresses, or missing listings scattered across the web. Every one is a customer who couldn't reach you. We fix that.</p></Reveal>
+        <Reveal delay={60}>
+          <h2 style={{fontFamily:FONT_D,fontSize:isMobile?30:44,fontWeight:800,letterSpacing:"-1.4px",margin:0,lineHeight:1.12,color:T.ink}}>
+            Bad business data<br/>costs real customers.
+          </h2>
+        </Reveal>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:isMobile?16:22}}>
-        {[
-          {t:"Get listed everywhere",b:"We put your business on the maps, directories and apps your customers actually use, and add new ones every month. This also feeds the data AI search tools like ChatGPT and Google AI Overviews rely on, so you get found there too.",ic:<><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.4 8 12 8 12s8-6.6 8-12a8 8 0 0 0-8-8z"/></>,c:T.brand,cs:T.brandSoft},
-          {t:"Kept correct everywhere",b:"Your name, address and phone stay identical across every platform. Search engines trust consistent businesses, and rank them higher.",ic:<><path d="M20 6 9 17l-5-5"/></>,c:T.green,cs:T.greenSoft},
-          {t:"Bad edits reversed",b:"When Google or Apple lets a stranger change your hours or address, we catch it and change it back. You stay in control of your own business.",ic:<><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></>,c:T.violet,cs:T.violetSoft},
-        ].map((f,i)=>(
-          <Reveal key={f.t} delay={i*100}>
-            <div className="lift" style={{background:T.surface,border:`1px solid ${T.line}`,borderRadius:20,padding:isMobile?24:28,height:"100%",boxShadow:SHADOW}}>
-              <div style={{width:52,height:52,borderRadius:15,background:f.cs,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:18}}><Ico d={f.ic} c={f.c} s={26}/></div>
-              <h3 style={{fontFamily:FONT_D,fontSize:19,fontWeight:800,margin:"0 0 10px",letterSpacing:"-.4px"}}>{f.t}</h3>
-              <p style={{fontSize:14.5,color:T.sub,lineHeight:1.65,margin:0}}>{f.b}</p>
+
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1.35fr 1fr",gap:16,alignItems:"stretch"}}>
+        {/* Card 01 — dark featured */}
+        <Reveal delay={100}>
+          <div style={{
+            background:`linear-gradient(145deg,#171732 0%,#1E1B4B 55%,#2A2460 100%)`,
+            borderRadius:24,
+            padding:isMobile?"28px 22px":"32px 32px 28px",
+            minHeight:isMobile?320:380,
+            display:"grid",
+            gridTemplateColumns:isMobile?"1fr":"1fr 1fr",
+            gap:20,
+            alignItems:"center",
+            position:"relative",
+            overflow:"hidden",
+            height:"100%",
+            boxSizing:"border-box",
+          }}>
+            <div style={{position:"relative",zIndex:2}}>
+              <div style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:36,height:28,borderRadius:8,background:"rgba(255,255,255,.1)",color:"#fff",fontSize:12,fontWeight:800,marginBottom:18,letterSpacing:".4px"}}>01</div>
+              <h3 style={{fontFamily:FONT_D,fontSize:isMobile?24:28,fontWeight:800,color:"#fff",margin:"0 0 10px",letterSpacing:"-.6px",lineHeight:1.15}}>Get listed everywhere</h3>
+              <p style={{fontSize:14.5,color:"rgba(255,255,255,.68)",lineHeight:1.6,margin:"0 0 22px",maxWidth:280}}>
+                Reach customers across maps, directories, apps and AI-powered local search.
+              </p>
+              <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"7px 14px",borderRadius:20,background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.12)",fontSize:12.5,fontWeight:700,color:"#fff"}}>
+                <span style={{width:7,height:7,borderRadius:"50%",background:T.green,boxShadow:`0 0 8px ${T.green}`}}/>
+                60+ publisher destinations
+              </div>
             </div>
-          </Reveal>))}
+
+            {/* Orbit graphic */}
+            <div style={{position:"relative",width:"100%",aspectRatio:"1",maxWidth:isMobile?220:260,margin:isMobile?"0 auto":"0 0 0 auto"}}>
+              {[1,0.72,0.5].map((scale,i)=>(
+                <div key={i} aria-hidden="true" style={{
+                  position:"absolute",left:"50%",top:"50%",
+                  width:`${scale*92}%`,height:`${scale*92}%`,
+                  marginLeft:`-${scale*46}%`,marginTop:`-${scale*46}%`,
+                  borderRadius:"50%",
+                  border:`1px solid rgba(255,255,255,${0.14-i*0.03})`,
+                }}>
+                  <div style={{
+                    position:"absolute",inset:0,borderRadius:"50%",
+                    animation:`${i%2? "orbitSpinR":"orbitSpin"} ${18+i*6}s linear infinite`,
+                  }}>
+                    {[T.green,T.brand,T.blue].slice(0,i===0?2:i===1?2:1).map((c,di)=>(
+                      <span key={di} style={{
+                        position:"absolute",
+                        top:di===0?-4:"auto",
+                        bottom:di===1?-4:"auto",
+                        left:di===2?"auto":"50%",
+                        right:di===2?-4:"auto",
+                        transform:di<2?"translateX(-50%)":"none",
+                        width:8,height:8,borderRadius:"50%",
+                        background:c,boxShadow:`0 0 10px ${c}`,
+                      }}/>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <div style={{
+                position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",
+                width:44,height:44,borderRadius:"50%",
+                background:"#fff",display:"flex",alignItems:"center",justifyContent:"center",
+                boxShadow:"0 8px 24px rgba(0,0,0,.25)",zIndex:2,
+              }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.brand} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21s7-4.5 7-11a7 7 0 1 0-14 0c0 6.5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+              </div>
+            </div>
+          </div>
+        </Reveal>
+
+        {/* Cards 02 + 03 stacked */}
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <Reveal delay={160}>
+            <div className="lift" style={{background:T.surface,border:`1px solid ${T.line}`,borderRadius:22,padding:isMobile?22:26,boxShadow:SHADOW,flex:1}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+                <div style={{width:44,height:44,borderRadius:14,background:T.greenSoft,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  <Ico d={<path d="M20 6 9 17l-5-5"/>} c={T.green} s={22}/>
+                </div>
+                <div style={{display:"inline-flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:20,background:T.greenSoft,fontSize:10.5,fontWeight:800,color:T.green,letterSpacing:".3px"}}>ALL MATCHED</div>
+              </div>
+              <div style={{fontSize:12,fontWeight:800,color:T.faint,marginBottom:6,letterSpacing:".4px"}}>02 · CONSISTENCY</div>
+              <h3 style={{fontFamily:FONT_D,fontSize:20,fontWeight:800,margin:"0 0 8px",letterSpacing:"-.4px"}}>Stay correct everywhere</h3>
+              <p style={{fontSize:14,color:T.sub,lineHeight:1.6,margin:0}}>Name, address and phone stay identical across every platform so search engines trust you.</p>
+            </div>
+          </Reveal>
+          <Reveal delay={220}>
+            <div className="lift" style={{background:T.surface,border:`1px solid ${T.line}`,borderRadius:22,padding:isMobile?22:26,boxShadow:SHADOW,flex:1}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+                <div style={{width:44,height:44,borderRadius:14,background:T.violetSoft,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  <Ico d={<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>} c={T.violet} s={22}/>
+                </div>
+                <div style={{display:"inline-flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:20,background:T.violetSoft,fontSize:10.5,fontWeight:800,color:T.violet,letterSpacing:".3px"}}>24/7 ACTIVE</div>
+              </div>
+              <div style={{fontSize:12,fontWeight:800,color:T.faint,marginBottom:6,letterSpacing:".4px"}}>03 · PROTECTION</div>
+              <h3 style={{fontFamily:FONT_D,fontSize:20,fontWeight:800,margin:"0 0 8px",letterSpacing:"-.4px"}}>Reverse harmful edits</h3>
+              <p style={{fontSize:14,color:T.sub,lineHeight:1.6,margin:0}}>When someone changes your hours or address, we catch it and put the correct details back.</p>
+            </div>
+          </Reveal>
+        </div>
       </div>
     </div>
 
     {/* ── How it works ── */}
-    <div id="how" style={{background:T.surface2,padding:isMobile?"48px 20px":"80px 40px"}}>
-      <div style={{maxWidth:maxW,margin:"0 auto"}}>
-        <div style={{textAlign:"center",marginBottom:isMobile?32:52}}>
-          <Reveal><Eyebrow>How it works</Eyebrow></Reveal>
-          <Reveal delay={80}><h2 style={{fontFamily:FONT_D,fontSize:isMobile?28:42,fontWeight:800,letterSpacing:"-1.2px",margin:"0 0 14px",lineHeight:1.1}}>Three steps. Then we handle it.</h2></Reveal>
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:isMobile?20:26}}>
-          {[
-            {n:"1",t:"Tell us about your business",b:"Share your business name, address, phone and category once. That is all we need to start."},
-            {n:"2",t:"We get you listed",b:"We submit and verify your business across dozens of directories, and monitor them constantly."},
-            {n:"3",t:"You watch it grow",b:"Track live listings, your visibility score and new activity from one simple dashboard. We do the work."},
-          ].map((s,i)=>(
-            <Reveal key={s.n} delay={i*120}>
-              <div style={{position:"relative",background:T.surface,borderRadius:20,padding:isMobile?26:30,border:`1px solid ${T.line}`,boxShadow:SHADOW,height:"100%"}}>
-                <div style={{fontFamily:FONT_D,fontSize:56,fontWeight:800,color:T.brandSoft,lineHeight:.8,letterSpacing:"-3px",marginBottom:14}}>{s.n}</div>
-                <h3 style={{fontFamily:FONT_D,fontSize:19,fontWeight:800,margin:"0 0 10px",letterSpacing:"-.4px"}}>{s.t}</h3>
-                <p style={{fontSize:14.5,color:T.sub,lineHeight:1.65,margin:0}}>{s.b}</p>
-              </div>
-            </Reveal>))}
-        </div>
+    <div id="how" style={{background:`linear-gradient(180deg,#F4F2FA 0%,#EEF0F8 100%)`,padding:isMobile?"48px 16px":"80px 24px"}}>
+      <div style={{maxWidth:1400,margin:"0 auto",width:"100%",boxSizing:"border-box"}}>
+        <Reveal>
+          <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"6px 14px",background:"rgba(91,91,214,.08)",border:`1px solid rgba(91,91,214,.18)`,borderRadius:30,fontSize:11.5,fontWeight:800,color:T.brand,letterSpacing:".5px",marginBottom:16}}>
+            <span style={{width:6,height:6,borderRadius:"50%",background:T.brand}}/>
+            HOW IT WORKS
+          </div>
+        </Reveal>
+        <Reveal delay={60}>
+          <h2 style={{fontFamily:FONT_D,fontSize:isMobile?30:44,fontWeight:800,letterSpacing:"-1.4px",margin:"0 0 12px",lineHeight:1.12,color:T.ink}}>
+            Set it once. <span style={{color:T.brand}}>We handle the rest.</span>
+          </h2>
+        </Reveal>
+        <Reveal delay={100}>
+          <p style={{fontSize:isMobile?15:16.5,color:T.sub,lineHeight:1.6,margin:"0 0 32px",maxWidth:520}}>
+            Share your business details once, then NAP Orbit handles publishing, protection and growth.
+          </p>
+        </Reveal>
+
+        <Reveal delay={140}>
+          <div style={{
+            background:"#fff",
+            borderRadius:isMobile?24:32,
+            border:`1px solid ${T.line}`,
+            boxShadow:SHADOW_LG,
+            padding:isMobile?"28px 20px 22px":"40px 36px 28px",
+          }}>
+            <div style={{
+              display:"grid",
+              gridTemplateColumns:isMobile?"1fr":"1fr auto 1fr auto 1fr",
+              gap:isMobile?28:12,
+              alignItems:"start",
+            }}>
+              {[
+                {
+                  badge:"5 MIN SETUP",badgeBg:T.brandSoft,badgeC:T.brand,
+                  step:"01 · SHARE",stepC:T.brand,
+                  title:"Tell us about your business",
+                  body:"Add your name, address, phone and category just once.",
+                  iconBg:T.brandSoft,iconC:T.brand,
+                  icon:<><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1.2" fill="currentColor"/><circle cx="4" cy="12" r="1.2" fill="currentColor"/><circle cx="4" cy="18" r="1.2" fill="currentColor"/></>,
+                },
+                {
+                  badge:"ALWAYS ON",badgeBg:T.greenSoft,badgeC:T.green,
+                  step:"02 · PUBLISH",stepC:T.green,
+                  title:"We publish and protect",
+                  body:"We create listings, verify them and monitor every change.",
+                  iconBg:T.greenSoft,iconC:T.green,
+                  icon:<><path d="M4 7h16M4 12h16M4 17h10"/><circle cx="20" cy="7" r="1.5" fill="currentColor"/><circle cx="20" cy="12" r="1.5" fill="currentColor"/><circle cx="16" cy="17" r="1.5" fill="currentColor"/></>,
+                },
+                {
+                  badge:"LIVE RESULTS",badgeBg:T.violetSoft,badgeC:T.violet,
+                  step:"03 · GROW",stepC:T.violet,
+                  title:"Watch visibility grow",
+                  body:"Track listings and progress from one simple dashboard.",
+                  iconBg:T.violetSoft,iconC:T.violet,
+                  icon:<><path d="M4 19V5M4 19h16"/><path d="M8 15v-3M12 15V9M16 15v-6"/><path d="M14 7l3-3 3 3"/></>,
+                },
+              ].map((s,i,arr)=>(
+                <Fragment key={s.step}>
+                  <div style={{textAlign:isMobile?"left":"center",position:"relative"}}>
+                    <div style={{display:"flex",justifyContent:isMobile?"flex-start":"center",marginBottom:14}}>
+                      <span style={{padding:"5px 11px",borderRadius:20,background:s.badgeBg,color:s.badgeC,fontSize:10.5,fontWeight:800,letterSpacing:".4px"}}>{s.badge}</span>
+                    </div>
+                    <div style={{width:56,height:56,borderRadius:"50%",background:s.iconBg,display:"flex",alignItems:"center",justifyContent:"center",margin:isMobile?"0 0 14px":"0 auto 14px",color:s.iconC}}>
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{s.icon}</svg>
+                    </div>
+                    <div style={{fontSize:12,fontWeight:800,color:s.stepC,letterSpacing:".4px",marginBottom:8}}>{s.step}</div>
+                    <h3 style={{fontFamily:FONT_D,fontSize:18,fontWeight:800,margin:"0 0 8px",letterSpacing:"-.3px",color:T.ink}}>{s.title}</h3>
+                    <p style={{fontSize:14,color:T.sub,lineHeight:1.55,margin:0,maxWidth:260,marginLeft:isMobile?0:"auto",marginRight:isMobile?0:"auto"}}>{s.body}</p>
+                  </div>
+                  {!isMobile&&i<arr.length-1&&(
+                    <div aria-hidden="true" style={{display:"flex",alignItems:"center",justifyContent:"center",paddingTop:72}}>
+                      <div style={{width:48,height:2,background:`linear-gradient(90deg,${T.brand}55,${T.brand})`,borderRadius:2,position:"relative"}}>
+                        <span style={{position:"absolute",right:-2,top:"50%",transform:"translateY(-50%)",width:0,height:0,borderTop:"5px solid transparent",borderBottom:"5px solid transparent",borderLeft:`7px solid ${T.brand}`}}/>
+                      </div>
+                    </div>
+                  )}
+                </Fragment>
+              ))}
+            </div>
+            <div style={{marginTop:isMobile?28:32,paddingTop:18,borderTop:`1px solid ${T.line}`,textAlign:"center",fontSize:13,color:T.faint,fontWeight:600}}>
+              One simple setup <span style={{margin:"0 8px",opacity:.5}}>·</span> Continuous visibility <span style={{margin:"0 8px",opacity:.5}}>·</span> Clear progress
+            </div>
+          </div>
+        </Reveal>
       </div>
     </div>
 
@@ -411,28 +827,114 @@ export default function LandingPage({user=null,focusPricing=false,billingFlag=nu
       </div>
     </div>
 
-    {/* ── Social proof ── */}
-    <div style={{background:T.surface2,padding:isMobile?"48px 20px":"72px 40px"}}>
-      <div style={{maxWidth:maxW,margin:"0 auto"}}>
-        <Reveal><div style={{textAlign:"center",marginBottom:isMobile?30:44}}><Eyebrow color={T.green}>Loved by local businesses</Eyebrow><h2 style={{fontFamily:FONT_D,fontSize:isMobile?26:38,fontWeight:800,letterSpacing:"-1.2px",margin:0,lineHeight:1.1}}>Owners who stopped worrying about listings</h2></div></Reveal>
-        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:isMobile?16:22}}>
-          {[
-            {q:"We were getting calls at an old number for months and had no idea. NAP Orbit fixed it everywhere in a week. The phone actually rings now.",n:"Mike D.",r:"Plumbing, Austin TX"},
-            {q:"I do not have time to manage dozens of websites. I check one dashboard and everything is just handled. That is worth every penny.",n:"Sarah M.",r:"Dental clinic, Houston TX"},
-            {q:"Someone changed our hours on Google and we lost a whole Saturday of walk-ins. Now that never happens. They catch it instantly.",n:"John D.",r:"Auto repair, Dallas TX"},
-          ].map((t,i)=>(
-            <Reveal key={t.n} delay={i*100}>
-              <div style={{background:T.surface,borderRadius:20,padding:isMobile?24:28,border:`1px solid ${T.line}`,boxShadow:SHADOW,height:"100%",display:"flex",flexDirection:"column"}}>
-                <div style={{display:"flex",gap:3,marginBottom:16}}>{[0,1,2,3,4].map(s=><Ico key={s} d={<path d="M12 2l3 6.5 7 .6-5.3 4.6 1.6 6.8L12 17l-6.1 3.6 1.6-6.8L2 9.1l7-.6z"/>} c={T.amber} s={17}/>)}</div>
-                <p style={{fontSize:15,color:T.ink,lineHeight:1.6,margin:"0 0 18px",fontWeight:500,flex:1}}>"{t.q}"</p>
-                <div style={{display:"flex",alignItems:"center",gap:11}}>
-                  <div style={{width:42,height:42,borderRadius:"50%",background:`linear-gradient(135deg,${T.brand},${T.violet})`,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT_D,fontWeight:800,fontSize:16}}>{t.n[0]}</div>
-                  <div><div style={{fontSize:14,fontWeight:800}}>{t.n}</div><div style={{fontSize:12.5,color:T.faint}}>{t.r}</div></div>
+    {/* ── Customer stories ── */}
+    <div style={{background:`linear-gradient(180deg,#F7F5FC 0%,#EEF0F8 100%)`,padding:isMobile?"48px 16px":"72px 24px"}}>
+      <div style={{maxWidth:1400,margin:"0 auto",width:"100%",boxSizing:"border-box"}}>
+        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1.2fr 1fr",gap:isMobile?20:32,alignItems:"end",marginBottom:isMobile?28:36}}>
+          <div>
+            <Reveal>
+              <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"6px 14px",background:"#fff",border:`1px solid ${T.line}`,borderRadius:30,fontSize:11.5,fontWeight:800,color:T.green,letterSpacing:".5px",marginBottom:16,boxShadow:SHADOW}}>
+                <span style={{width:7,height:7,borderRadius:"50%",background:T.green}}/>
+                CUSTOMER STORIES
+              </div>
+            </Reveal>
+            <Reveal delay={60}>
+              <h2 style={{fontFamily:FONT_D,fontSize:isMobile?28:42,fontWeight:800,letterSpacing:"-1.3px",margin:0,lineHeight:1.12,color:T.ink}}>
+                Less listing stress.<br/>More calls that <span style={{color:T.brand}}>connect.</span>
+              </h2>
+            </Reveal>
+          </div>
+          <Reveal delay={100}>
+            <div>
+              <div style={{fontSize:14.5,color:T.sub,marginBottom:12,fontWeight:600}}>What changes when business information stays accurate:</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                {[
+                  {t:"Correct phone",c:T.green},
+                  {t:"Accurate hours",c:T.brand},
+                  {t:"One dashboard",c:T.blue},
+                ].map(x=>(
+                  <span key={x.t} style={{display:"inline-flex",alignItems:"center",gap:7,padding:"6px 12px",borderRadius:20,background:"#fff",border:`1px solid ${T.line}`,fontSize:12.5,fontWeight:700,color:T.ink}}>
+                    <span style={{width:7,height:7,borderRadius:"50%",background:x.c}}/>
+                    {x.t}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </Reveal>
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1.35fr 1fr",gap:16,alignItems:"stretch"}}>
+          {/* Featured dark quote */}
+          <Reveal delay={120}>
+            <div style={{
+              background:`linear-gradient(145deg,#171732 0%,#1E1B4B 55%,#2A2460 100%)`,
+              borderRadius:24,
+              padding:isMobile?"28px 22px":"34px 32px",
+              minHeight:isMobile?280:340,
+              display:"flex",flexDirection:"column",
+              position:"relative",overflow:"hidden",
+              height:"100%",boxSizing:"border-box",
+            }}>
+              <div aria-hidden="true" style={{position:"absolute",top:18,right:22,fontFamily:FONT_D,fontSize:80,fontWeight:800,color:"rgba(255,255,255,.08)",lineHeight:1}}>“</div>
+              <div style={{display:"flex",gap:4,marginBottom:18}}>
+                {[0,1,2,3,4].map(s=><Ico key={s} d={<path d="M12 2l3 6.5 7 .6-5.3 4.6 1.6 6.8L12 17l-6.1 3.6 1.6-6.8L2 9.1l7-.6z"/>} c={T.amber} s={18}/>)}
+              </div>
+              <p style={{fontFamily:FONT_D,fontSize:isMobile?20:24,fontWeight:700,color:"#fff",lineHeight:1.45,margin:"0 0 auto",letterSpacing:"-.3px",position:"relative",zIndex:1}}>
+                “We were getting calls at an old number for months. NAP Orbit fixed it everywhere in a week—the phone actually rings now.”
+              </p>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginTop:28,flexWrap:"wrap"}}>
+                <div style={{display:"flex",alignItems:"center",gap:12}}>
+                  <div style={{width:44,height:44,borderRadius:"50%",background:T.brand,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT_D,fontWeight:800,fontSize:18}}>M</div>
+                  <div>
+                    <div style={{fontSize:15,fontWeight:800,color:"#fff"}}>Mike D.</div>
+                    <div style={{fontSize:12.5,color:"rgba(255,255,255,.6)"}}>Plumbing · Austin, Texas</div>
+                  </div>
+                </div>
+                <div style={{display:"inline-flex",alignItems:"center",gap:7,padding:"6px 12px",borderRadius:20,background:"rgba(15,164,122,.18)",border:"1px solid rgba(15,164,122,.3)",fontSize:11,fontWeight:800,color:T.green,letterSpacing:".3px"}}>
+                  <span style={{width:6,height:6,borderRadius:"50%",background:T.green}}/>
+                  PHONE FIXED
                 </div>
               </div>
-            </Reveal>))}
+            </div>
+          </Reveal>
+
+          {/* Side cards */}
+          <div style={{display:"flex",flexDirection:"column",gap:16}}>
+            <Reveal delay={180}>
+              <div className="lift" style={{background:"#fff",border:`1px solid ${T.line}`,borderLeft:`4px solid ${T.green}`,borderRadius:20,padding:isMobile?20:24,boxShadow:SHADOW,flex:1}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,marginBottom:12}}>
+                  <div style={{display:"flex",gap:3}}>{[0,1,2,3,4].map(s=><Ico key={s} d={<path d="M12 2l3 6.5 7 .6-5.3 4.6 1.6 6.8L12 17l-6.1 3.6 1.6-6.8L2 9.1l7-.6z"/>} c={T.amber} s={14}/>)}</div>
+                  <span style={{padding:"4px 10px",borderRadius:20,background:T.greenSoft,color:T.green,fontSize:10.5,fontWeight:800,letterSpacing:".3px",whiteSpace:"nowrap"}}>TIME SAVED</span>
+                </div>
+                <p style={{fontSize:15.5,fontWeight:600,color:T.ink,lineHeight:1.55,margin:"0 0 16px"}}>“I check one dashboard and everything is simply handled.”</p>
+                <div style={{display:"flex",alignItems:"center",gap:11}}>
+                  <div style={{width:38,height:38,borderRadius:"50%",background:`linear-gradient(135deg,${T.brand},${T.violet})`,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT_D,fontWeight:800,fontSize:15}}>S</div>
+                  <div>
+                    <div style={{fontSize:14,fontWeight:800}}>Sarah M.</div>
+                    <div style={{fontSize:12,color:T.faint}}>Dental clinic · Houston, Texas</div>
+                  </div>
+                </div>
+              </div>
+            </Reveal>
+            <Reveal delay={240}>
+              <div className="lift" style={{background:"#fff",border:`1px solid ${T.line}`,borderLeft:`4px solid ${T.brand}`,borderRadius:20,padding:isMobile?20:24,boxShadow:SHADOW,flex:1}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,marginBottom:12}}>
+                  <div style={{display:"flex",gap:3}}>{[0,1,2,3,4].map(s=><Ico key={s} d={<path d="M12 2l3 6.5 7 .6-5.3 4.6 1.6 6.8L12 17l-6.1 3.6 1.6-6.8L2 9.1l7-.6z"/>} c={T.amber} s={14}/>)}</div>
+                  <span style={{padding:"4px 10px",borderRadius:20,background:T.violetSoft,color:T.violet,fontSize:10.5,fontWeight:800,letterSpacing:".3px",whiteSpace:"nowrap"}}>EDIT PROTECTED</span>
+                </div>
+                <p style={{fontSize:15.5,fontWeight:600,color:T.ink,lineHeight:1.55,margin:"0 0 16px"}}>“They caught a harmful hours change before it cost us again.”</p>
+                <div style={{display:"flex",alignItems:"center",gap:11}}>
+                  <div style={{width:38,height:38,borderRadius:"50%",background:`linear-gradient(135deg,${T.brand},${T.violet})`,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT_D,fontWeight:800,fontSize:15}}>J</div>
+                  <div>
+                    <div style={{fontSize:14,fontWeight:800}}>John D.</div>
+                    <div style={{fontSize:12,color:T.faint}}>Auto repair · Dallas, Texas</div>
+                  </div>
+                </div>
+              </div>
+            </Reveal>
+          </div>
         </div>
-        <Reveal delay={200}><div style={{textAlign:"center",marginTop:22,fontSize:12.5,color:T.faint,fontStyle:"italic"}}>Illustrative examples shown for demonstration.</div></Reveal>
+
       </div>
     </div>
 
@@ -474,16 +976,117 @@ export default function LandingPage({user=null,focusPricing=false,billingFlag=nu
     </div>
 
     {/* ── Final CTA ── */}
-    <div style={{maxWidth:maxW,margin:"0 auto",padding:isMobile?"20px 20px 56px":"20px 40px 80px"}}>
+    <div style={{maxWidth:1400,margin:"0 auto",padding:isMobile?"20px 12px 56px":"20px 16px 80px",width:"100%",boxSizing:"border-box"}}>
       <Reveal>
-        <div style={{background:`linear-gradient(135deg,${T.brand},${T.violet})`,borderRadius:isMobile?24:32,padding:isMobile?"40px 26px":"64px 54px",textAlign:"center",position:"relative",overflow:"hidden"}}>
-          <div style={{position:"absolute",top:-80,right:-60,width:280,height:280,borderRadius:"50%",background:"rgba(255,255,255,.14)",filter:"blur(50px)"}}/>
-          <div style={{position:"absolute",bottom:-100,left:-40,width:260,height:260,borderRadius:"50%",background:"rgba(255,255,255,.1)",filter:"blur(50px)"}}/>
-          <div style={{position:"relative"}}>
-            <h2 style={{fontFamily:FONT_D,fontSize:isMobile?28:44,fontWeight:800,color:"#fff",letterSpacing:"-1.5px",margin:"0 0 14px",lineHeight:1.1}}>Ready to get found everywhere?</h2>
-            <p style={{fontSize:isMobile?16:18.5,color:"rgba(255,255,255,.9)",margin:"0 auto 28px",maxWidth:500,lineHeight:1.6}}>Set up in minutes. Watch your listings go live and the calls start coming. All tracked in one dashboard.</p>
-            <button onClick={user?goDash:goSignup} style={{background:"#fff",color:T.brand,border:"none",borderRadius:14,padding:isMobile?"15px 32px":"17px 42px",fontSize:isMobile?16:18,fontWeight:800,cursor:"pointer",fontFamily:FONT_B,boxShadow:"0 12px 30px rgba(0,0,0,.2)"}}>Get started now</button>
-            <div style={{marginTop:16,fontSize:13.5,color:"rgba(255,255,255,.8)",fontWeight:600}}>No setup fees. Cancel anytime.</div>
+        <div style={{
+          background:`linear-gradient(135deg,#2A2460 0%,${T.brand} 42%,#3D2F8C 100%)`,
+          borderRadius:isMobile?24:36,
+          padding:isMobile?"36px 22px 0":"48px 48px 0",
+          position:"relative",
+          overflow:"hidden",
+          display:"grid",
+          gridTemplateColumns:isMobile?"1fr":"1.1fr 0.9fr",
+          gap:isMobile?8:24,
+          alignItems:"end",
+          minHeight:isMobile?0:420,
+        }}>
+          {/* Diagonal stripes + dots atmosphere */}
+          <div aria-hidden="true" style={{position:"absolute",inset:0,backgroundImage:"repeating-linear-gradient(-35deg,rgba(255,255,255,.04) 0,rgba(255,255,255,.04) 1px,transparent 1px,transparent 18px)",pointerEvents:"none"}}/>
+          <div aria-hidden="true" style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(rgba(255,255,255,.12) 1px,transparent 1px)",backgroundSize:"22px 22px",opacity:.35,pointerEvents:"none"}}/>
+
+          {/* Left copy */}
+          <div style={{position:"relative",zIndex:2,paddingBottom:isMobile?28:48}}>
+            <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"6px 14px",background:"rgba(15,164,122,.15)",border:`1px solid rgba(15,164,122,.35)`,borderRadius:30,fontSize:11.5,fontWeight:800,color:T.green,letterSpacing:".5px",marginBottom:18}}>
+              <span style={{width:7,height:7,borderRadius:"50%",background:T.green,boxShadow:`0 0 8px ${T.green}`}}/>
+              START GROWING TODAY
+            </div>
+            <h2 style={{fontFamily:FONT_D,fontSize:isMobile?32:46,fontWeight:800,color:"#fff",letterSpacing:"-1.5px",margin:"0 0 14px",lineHeight:1.1}}>
+              Ready to be found<br/>
+              <span style={{color:T.green}}>everywhere?</span>
+            </h2>
+            <p style={{fontSize:isMobile?15:17,color:"rgba(255,255,255,.85)",margin:"0 0 26px",maxWidth:440,lineHeight:1.6}}>
+              Set up your business in minutes. We publish, protect and monitor your listings while you focus on your customers.
+            </p>
+            <CssIoButton variant="light" onClick={user?goDash:goSignup}>
+              Get started now
+            </CssIoButton>
+            <div style={{display:"flex",flexWrap:"wrap",gap:isMobile?"10px 16px":"12px 20px",marginTop:20}}>
+              {["No setup fees","Cancel anytime","Live dashboard"].map(t=>(
+                <div key={t} style={{display:"flex",alignItems:"center",gap:7,fontSize:13.5,fontWeight:700,color:"rgba(255,255,255,.9)"}}>
+                  <span style={{width:18,height:18,borderRadius:"50%",background:"rgba(15,164,122,.2)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={T.green} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                  </span>
+                  {t}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Right: man + orbits */}
+          <div style={{position:"relative",zIndex:2,display:"flex",justifyContent:"center",alignItems:"flex-end",minHeight:isMobile?300:400}}>
+            {(()=>{
+              const stage=isMobile?280:380;
+              return(
+                <div style={{position:"relative",width:stage,height:stage*1.05}}>
+                  {[1,0.74,0.5].map((scale,i)=>(
+                    <div key={i} aria-hidden="true" style={{
+                      position:"absolute",
+                      left:"50%",top:"42%",
+                      width:stage*scale,height:stage*scale,
+                      marginLeft:-(stage*scale)/2,marginTop:-(stage*scale)/2,
+                      borderRadius:"50%",
+                      border:`1px solid rgba(255,255,255,${0.18-i*0.03})`,
+                      pointerEvents:"none",
+                    }}>
+                      <div style={{position:"absolute",inset:0,borderRadius:"50%",animation:`${i%2?"orbitSpinR":"orbitSpin"} ${16+i*5}s linear infinite`}}>
+                        {[T.green,"#B8B8FF",T.blue].slice(0,2).map((c,di)=>(
+                          <span key={di} style={{
+                            position:"absolute",
+                            top:di===0?-4:"auto",
+                            bottom:di===1?-4:"auto",
+                            left:"50%",
+                            transform:"translateX(-50%)",
+                            width:8,height:8,borderRadius:"50%",
+                            background:c,boxShadow:`0 0 10px ${c}`,
+                          }}/>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  <img
+                    src="/men-cta-cutout.png"
+                    alt="Get started with NAP Orbit"
+                    style={{
+                      position:"relative",zIndex:2,
+                      height:isMobile?300:420,
+                      width:"auto",maxWidth:"100%",
+                      objectFit:"contain",
+                      objectPosition:"bottom center",
+                      display:"block",
+                      margin:"0 auto",
+                      filter:"drop-shadow(0 20px 36px rgba(0,0,0,.35))",
+                    }}
+                  />
+                  <div style={{
+                    position:"absolute",
+                    left:isMobile?8:16,
+                    bottom:isMobile?24:40,
+                    zIndex:3,
+                    background:"#fff",
+                    borderRadius:14,
+                    padding:"10px 14px",
+                    boxShadow:SHADOW_LG,
+                    minWidth:140,
+                  }}>
+                    <div style={{display:"flex",alignItems:"center",gap:6,fontSize:10.5,fontWeight:800,color:T.green,letterSpacing:".4px",marginBottom:3}}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={T.green} strokeWidth="3" strokeLinecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+                      VISIBILITY READY
+                    </div>
+                    <div style={{fontSize:14.5,fontWeight:800,color:T.ink,fontFamily:FONT_D}}>60+ destinations</div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </Reveal>
@@ -492,7 +1095,7 @@ export default function LandingPage({user=null,focusPricing=false,billingFlag=nu
     {/* ── Footer ── */}
     <div style={{borderTop:`1px solid ${T.line}`,padding:isMobile?"26px 20px":"30px 40px"}}>
       <div style={{maxWidth:maxW,margin:"0 auto",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:14}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}><img src="/nap-orbit-logo.png" alt="NAP Orbit" style={{height:26,width:"auto",display:"block"}}/></div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}><img src="/nap-orbit-logo-removebg-preview.png" alt="NAP Orbit" style={{height:26,width:"auto",display:"block"}}/></div>
         <div style={{fontSize:13,color:T.faint}}>© {new Date().getFullYear()} NAP Orbit. All rights reserved.</div>
         <div style={{display:"flex",gap:18,fontSize:13.5}}>
           <button onClick={user?goDash:goLogin} style={{background:"none",border:"none",color:T.sub,cursor:"pointer",fontFamily:FONT_B,fontWeight:700}}>{user?.plan?"Dashboard":user?"Choose a plan":"Client login"}</button>
