@@ -7,7 +7,7 @@ export default async function handler(req, res) {
   const configured = stripeConfigured();
   return res.status(200).json({
     configured,
-    demo: !configured,
+    demo: false,
     hasWebhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET,
   });
 }

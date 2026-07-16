@@ -4,11 +4,11 @@ import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { T, FONT_D, FONT_B, SHADOW } from "../lib/theme";
 import { api } from "../lib/api";
 import { PLANS, CATEGORIES, US_CA_STATES, livePlanEntries } from "../lib/constants";
-import { today, todayFull, uid, actIcon, toDateInputValue, fromDateInputValue, isPastMeetingNotif, isBookingPast } from "../lib/helpers";
+import { today, todayFull, uid, actIcon, toDateInputValue, fromDateInputValue, isPastMeetingNotif, isBookingPast, buildListingsActivitySeries } from "../lib/helpers";
 import { Badge, Card, Btn, Input, Select, Modal, Confirm, StatCard, ChartTip, SectionTitle, Empty, ListToolbar, PageHead } from "../components/atoms";
 import Shell from "../components/Shell";
 import ChatThread from "../components/ChatThread";
-import AccountSettings from "../components/AccountSettings";
+import AccountSettings, { UserAvatar } from "../components/AccountSettings";
 import ClientDashboard from "./ClientDashboard";
 import { useWindowSize, useToast } from "../hooks";
 
@@ -200,6 +200,12 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
   };
   const R=async(fn,msg)=>{try{await fn();if(msg)toast(msg);await reload();}catch(e){console.error(e);toast(e.message||"Save failed","info");}};
 
+  // Super admin: no client/agent ops alerts — only peer team-chat pings.
+  const visibleStaffNotifs=(rows)=>{
+    const live=(rows||[]).filter(x=>!isPastMeetingNotif(x));
+    if(user.role!=="super_admin")return live;
+    return live.filter(x=>x.type==="staff_message");
+  };
   const[notifBadge,setNotifBadge]=useState(0);
   const[chatUnreadTotal,setChatUnreadTotal]=useState(0);
   useEffect(()=>{
@@ -207,13 +213,13 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
     const pull=async()=>{
       const rows=await api.listMyNotifications();
       if(cancelled)return;
-      const n=(rows||[]).filter(x=>!x.read&&!isPastMeetingNotif(x)).length;
+      const n=visibleStaffNotifs(rows).filter(x=>!x.read).length;
       setNotifBadge(prev=>prev===n?prev:n);
     };
     pull();
     const t=setInterval(pull,45000);
     return()=>{cancelled=true;clearInterval(t);};
-  },[user.id]);
+  },[user.id,user.role]);
 
   const pageRef=useRef(page);
   pageRef.current=page;
@@ -248,7 +254,7 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
     {id:"finance",icon:"💰",label:"Finance",roles:["super_admin"]},
     {id:"audit",icon:"🛡️",label:"Audit Trail",roles:["super_admin"]},
     {id:"trash",icon:"🗑️",label:"Trash",roles:["super_admin"]},
-    {id:"settings",icon:"🛠️",label:"Platform",roles:["super_admin"]},
+    {id:"settings",icon:"🛠️",label:"Control Panel",roles:["super_admin"]},
   ].filter(n=>n.roles.includes(user.role));
   const roleBadge=(<div style={{marginTop:14,padding:"9px 13px",background:T.surface2,borderRadius:12}}>
     <div style={{fontSize:10,color:T.faint,fontWeight:800,letterSpacing:".5px"}}>SIGNED IN AS</div>
@@ -669,12 +675,12 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
     const load=async()=>{
       setLoading(true);
       const rows=await api.listMyNotifications();
-      const live=(rows||[]).filter(n=>!isPastMeetingNotif(n));
+      const live=visibleStaffNotifs(rows);
       setNotifs(live);
       setNotifBadge(live.filter(n=>!n.read).length);
       setLoading(false);
     };
-    useEffect(()=>{load();},[user.id]);
+    useEffect(()=>{load();},[user.id,user.role]);
     const unread=notifs.filter(n=>!n.read);
     const markAll=async()=>{
       const ids=unread.map(n=>n.id);
@@ -695,7 +701,11 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
       const bookingId=n.meta?.bookingId;
       if(!bookingId){toast("This notification has no booking linked","info");return;}
       const meetingUrl=(zoomByNotif[n.id]||"").trim();
-      if(action==="confirm"&&meetingUrl){
+      if(action==="confirm"||action==="share_link"){
+        if(!meetingUrl){
+          setZoomErr(prev=>({...prev,[n.id]:"Zoom / meeting link is required"}));
+          return;
+        }
         try{new URL(meetingUrl);}catch{
           setZoomErr(prev=>({...prev,[n.id]:"Enter a valid Zoom link (https://…)"}));
           return;
@@ -703,15 +713,17 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
       }
       setZoomErr(prev=>({...prev,[n.id]:""}));
       setBusyId(n.id+action);
-      const r=await api.respondCall({bookingId,action,notificationId:n.id,meetingUrl:action==="confirm"?meetingUrl:undefined});
+      const r=await api.respondCall({bookingId,action,notificationId:n.id,meetingUrl:(action==="confirm"||action==="share_link")?meetingUrl:undefined});
       setBusyId(null);
       if(r.error){toast(r.error,"info");return;}
       toast(action==="confirm"
-        ?(meetingUrl?"Meeting confirmed — Zoom link shared with client":"Meeting confirmed — client notified")
+        ?"Meeting confirmed — Zoom link shared with client"
+        :action==="share_link"
+        ?"Zoom link shared with client"
         :"Meeting cancelled — client notified");
       setNotifs(prev=>prev.map(x=>{
         if(x.id!==n.id&&x.meta?.bookingId!==bookingId)return x;
-        return{...x,read:true,meta:{...(x.meta||{}),status:r.status,meetingUrl:r.meetingUrl||meetingUrl||null,respondedAt:new Date().toISOString()}};
+        return{...x,read:true,meta:{...(x.meta||{}),status:r.status||x.meta?.status,meetingUrl:r.meetingUrl||meetingUrl||null,respondedAt:new Date().toISOString()}};
       }));
     };
     const typeIcon=(t)=>({
@@ -736,14 +748,14 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
       meeting_confirmed:"Meeting",
       meeting_cancelled:"Meeting",
     }[t]||"Update");
-    // Super admins get report copies — agents act on call_booked.
+    // Agents/managers act on call_booked — super admin does not receive those alerts.
     const canRespond=(n)=>!isAdmin&&n.type==="call_booked"&&n.meta?.bookingId&&(!n.meta?.status||n.meta.status==="pending")&&!n.meta?.reportOnly&&!isBookingPast(n.meta?.slotDate,n.meta?.slotTime);
     const emptySub=isAdmin
-      ?"When staff are added, clients are assigned, or meetings are booked, it shows here."
+      ?"Team chat pings show here. Client and agent activity stays with managers and agents."
       :"When a client is assigned to you or schedules a meeting, it appears here.";
     return(<div>
       <PageHead isMobile={isMobile} title="Notifications"
-        sub={isAdmin?"Staff adds, client assignments, and meeting activity across the platform":"Client assignments, meeting requests, and messages"}
+        sub={isAdmin?"Team messages only — no client or agent ops alerts":"Client assignments, meeting requests, and messages"}
         right={unread.length>0?<Btn variant="soft" size="sm" onClick={markAll}>Mark all read</Btn>:null}/>
       <Card>
         {loading?(<div style={{padding:28,textAlign:"center",color:T.faint,fontSize:13}}>Loading…</div>):
@@ -772,7 +784,7 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
                 {openId===n.id&&canRespond(n)&&(
                   <div style={{padding:"0 6px 14px 54px"}}>
                     <div style={{marginBottom:10}}>
-                      <div style={{fontSize:11.5,fontWeight:700,color:T.sub,marginBottom:6}}>Zoom / meeting link (optional, shared with client)</div>
+                      <div style={{fontSize:11.5,fontWeight:700,color:T.sub,marginBottom:6}}>Zoom / meeting link (required)</div>
                       <input
                         value={zoomByNotif[n.id]||""}
                         onChange={e=>{setZoomByNotif(prev=>({...prev,[n.id]:e.target.value}));setZoomErr(prev=>({...prev,[n.id]:""}));}}
@@ -791,7 +803,24 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
                     </div>
                   </div>
                 )}
-                {openId===n.id&&n.type==="call_booked"&&n.meta?.status&&n.meta.status!=="pending"&&(
+                {openId===n.id&&n.type==="call_booked"&&n.meta?.status==="confirmed"&&!n.meta?.meetingUrl&&!isAdmin&&(
+                  <div style={{padding:"0 6px 14px 54px"}}>
+                    <div style={{fontSize:12.5,color:T.amber,fontWeight:700,marginBottom:10}}>Confirmed without a join link — share one so the client can join.</div>
+                    <div style={{marginBottom:10}}>
+                      <input
+                        value={zoomByNotif[n.id]||""}
+                        onChange={e=>{setZoomByNotif(prev=>({...prev,[n.id]:e.target.value}));setZoomErr(prev=>({...prev,[n.id]:""}));}}
+                        placeholder="https://zoom.us/j/…"
+                        style={{width:"100%",maxWidth:420,padding:"10px 12px",borderRadius:10,border:`1.5px solid ${zoomErr[n.id]?T.red:T.line}`,background:T.surface,color:T.ink,fontSize:13,fontFamily:FONT_B,boxSizing:"border-box"}}
+                      />
+                      {zoomErr[n.id]&&<div style={{fontSize:11,color:T.red,marginTop:5,fontWeight:600}}>{zoomErr[n.id]}</div>}
+                    </div>
+                    <Btn variant="green" size="sm" disabled={!!busyId} onClick={()=>respond(n,"share_link")}>
+                      {busyId===n.id+"share_link"?"Sharing…":"Share Zoom link"}
+                    </Btn>
+                  </div>
+                )}
+                {openId===n.id&&n.type==="call_booked"&&n.meta?.status&&n.meta.status!=="pending"&&!(n.meta.status==="confirmed"&&!n.meta?.meetingUrl&&!isAdmin)&&(
                   <div style={{padding:"0 6px 14px 54px",fontSize:12.5,color:n.meta.status==="confirmed"?T.green:T.amber,fontWeight:700}}>
                     Meeting {n.meta.status}.{isAdmin?"":" Client has been notified."}
                     {n.meta.meetingUrl&&(
@@ -829,7 +858,7 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
 
   const Overview=()=>{
     const revData=[{m:"Mar",r:138},{m:"Apr",r:187},{m:"May",r:236},{m:"Jun",r:revenue},{m:"Jul",r:revenue}];
-    const listData=[{m:"Mar",n:12,l:12},{m:"Apr",n:10,l:18},{m:"May",n:8,l:26},{m:"Jun",n:10,l:totalLive}];
+    const listData=buildListingsActivitySeries(flat,5);
     return(<div>
       <PageHead isMobile={isMobile} title="Platform Overview" sub={`Welcome back, ${user.name.split(" ")[0]}`}
         right={notifBadge>0?<Btn variant="soft" size="sm" onClick={()=>setPage("notifications")}>🔔 {notifBadge} new</Btn>:null}/>
@@ -851,7 +880,7 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
               <Area type="monotone" dataKey="r" name="MRR $" stroke={T.green} strokeWidth={2.5} fill="url(#rev)" dot={{fill:T.green,r:4,strokeWidth:2,stroke:"#fff"}} animationDuration={1100}/>
             </AreaChart>
           </ResponsiveContainer>
-        </Card>):(<Card><SectionTitle sub="New live vs cumulative total">Listings Activity</SectionTitle>
+        </Card>):(<Card><SectionTitle sub="New go-lives vs cumulative live (from live dates)">Listings Activity</SectionTitle>
           <ResponsiveContainer width="100%" height={190}>
             <BarChart data={listData} barGap={4}>
               <CartesianGrid strokeDasharray="3 3" stroke={T.line} vertical={false}/>
@@ -882,7 +911,7 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
         clients.map((c,i)=>{const cl=listings[c.id]||[];const lv=cl.filter(l=>l.status==="live").length;const an=cl.filter(l=>l.actionNeeded).length;
           return(<div key={c.id} className="hoverRow" onClick={()=>{setSelClient(c.id);setPage("clientDetail");}} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 10px",borderRadius:12,cursor:"pointer",borderBottom:i<clients.length-1?`1px solid ${T.line}`:"none",flexWrap:"wrap",gap:8}}>
             <div style={{display:"flex",gap:12,alignItems:"center"}}>
-              <div style={{width:36,height:36,borderRadius:"50%",background:`linear-gradient(135deg,${PLANS[c.plan]?.color||T.faint},${T.violet})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:"#fff"}}>{c.avatar}</div>
+              <UserAvatar user={c} size={36}/>
               <div><div style={{fontSize:13.5,fontWeight:800}}>{c.businessName||c.name}</div><div style={{fontSize:11,color:T.faint}}>{c.plan?`${PLANS[c.plan].name} · $${PLANS[c.plan].price}/mo`:"No plan"}</div></div>
             </div>
             <div style={{display:"flex",gap:14,alignItems:"center"}}>
@@ -930,7 +959,7 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
           return(<Card key={c.id} hover style={{cursor:"pointer"}}>
             <div onClick={()=>{setSelClient(c.id);setPage("clientDetail");}} style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
               <div style={{display:"flex",gap:14,alignItems:"center"}}>
-                <div style={{width:46,height:46,borderRadius:14,background:`linear-gradient(135deg,${PLANS[c.plan]?.color||T.faint},${T.violet})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,fontWeight:800,color:"#fff",flexShrink:0}}>{c.avatar}</div>
+                <UserAvatar user={c} size={46} style={{borderRadius:14}}/>
                 <div>
                   <div style={{fontSize:14.5,fontWeight:800,fontFamily:FONT_D,display:"flex",alignItems:"center",gap:8}}>{c.businessName||c.name}{c.status==="suspended"&&<Badge type="suspended"/>}</div>
                   <div style={{fontSize:12,color:T.sub}}>{c.name} · {c.city||"–"}{c.state?", "+c.state:""} · {c.category||"–"}</div>
@@ -1120,7 +1149,7 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
           return(<Card key={c.id} hover style={{marginBottom:12}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
               <div style={{display:"flex",gap:13,alignItems:"center"}}>
-                <div style={{width:42,height:42,borderRadius:13,background:`linear-gradient(135deg,${T.violet},${T.brand})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:800,color:"#fff"}}>{c.avatar}</div>
+                <UserAvatar user={c} size={42} style={{borderRadius:13}}/>
                 <div>
                   <div style={{fontSize:14,fontWeight:800,fontFamily:FONT_D}}>{c.businessName}</div>
                   <div style={{fontSize:12,color:T.sub,marginTop:2}}>{d?`${d.views?.toLocaleString()||0} views · ${d.calls||0} calls · ${d.directions||0} directions · ${d.posts?.length||0} posts`:"No GMB data yet"}</div>
@@ -1172,7 +1201,7 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
       return(<div>
         <button onClick={()=>setTeamView(null)} style={{background:"none",border:"none",color:T.brand,fontWeight:700,fontSize:13,cursor:"pointer",marginBottom:14,fontFamily:FONT_B}}>← Back to Team</button>
         <div style={{display:"flex",gap:14,alignItems:"center",marginBottom:20,flexWrap:"wrap"}}>
-          <div style={{width:52,height:52,borderRadius:"50%",background:m.role==="manager"?`linear-gradient(135deg,${T.amber},#E8A33D)`:`linear-gradient(135deg,${T.blue},#5B9FE8)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,fontWeight:800,color:"#fff"}}>{m.avatar}</div>
+          <UserAvatar user={m} size={52}/>
           <div><div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800}}>{m.name}</div><div style={{fontSize:13,color:T.sub}}>{m.email} · {m.role==="manager"?"Manager":m.role==="super_admin"?"Super Admin":"Agent"}</div></div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(3,1fr)",gap:14,marginBottom:20}}>
@@ -1201,7 +1230,7 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
       {visibleStaff.map((m)=>(<Card key={m.id} hover style={{marginBottom:12}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
           <div style={{display:"flex",gap:13,alignItems:"center"}}>
-            <div style={{width:42,height:42,borderRadius:"50%",background:m.role==="super_admin"?`linear-gradient(135deg,${T.brand},${T.violet})`:m.role==="manager"?`linear-gradient(135deg,${T.amber},#E8A33D)`:`linear-gradient(135deg,${T.blue},#5B9FE8)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:800,color:"#fff"}}>{m.avatar}</div>
+            <UserAvatar user={m} size={42}/>
             <div><div style={{fontSize:14,fontWeight:800}}>{m.name}</div><div style={{fontSize:12,color:T.sub}}>{m.email}</div></div>
           </div>
           <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
@@ -1437,7 +1466,7 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
       </label>
     );
     return(<div>
-      <PageHead isMobile={isMobile} title="Settings" sub="Control panel, payments, and platform configuration"/>
+      <PageHead isMobile={isMobile} title="Control Panel" sub="Payments and platform configuration"/>
 
       <Card style={{marginBottom:16}}>
         <SectionTitle sub="Change these anytime, no developer needed. Saved to your database and applied across the platform.">Control Panel</SectionTitle>

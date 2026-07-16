@@ -25,9 +25,12 @@ export default function Shell({
   children,
   brandTag,
   showLegalLinks = false,
+  headerLeft = null,
   headerRight = null,
   /** Page id for account settings (e.g. "settings" or "account"). When set, gear shows on profile card. */
   settingsPageId = null,
+  /** Override main content padding (e.g. tighter legal page). */
+  contentPadding = null,
 }) {
   const w = useWindowSize();
   const isMobile = w < 820;
@@ -257,10 +260,28 @@ export default function Shell({
             </div>
           </div>
         )}
-        {!isMobile && headerRight && (
-          <div style={{ padding: "12px 34px 0", display: "flex", justifyContent: "flex-end", flexShrink: 0 }}>{headerRight}</div>
+        {!isMobile && (headerLeft || headerRight) && (
+          <div
+            style={{
+              padding: headerLeft ? "18px 34px 0" : contentPadding ? "10px 34px 0" : "16px 34px 0",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 16,
+              flexShrink: 0,
+              minWidth: 0,
+            }}
+          >
+            <div style={{ flex: 1, minWidth: 0 }}>{headerLeft}</div>
+            {headerRight && (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>{headerRight}</div>
+            )}
+          </div>
         )}
-        <div style={{ flex: 1, overflow: "auto", padding: isMobile ? "18px 16px 40px" : "30px 34px 50px" }}>{children}</div>
+        {isMobile && headerLeft && (
+          <div style={{ padding: "12px 16px 0", flexShrink: 0 }}>{headerLeft}</div>
+        )}
+        <div style={{ flex: 1, overflow: "auto", padding: contentPadding || (isMobile ? "18px 16px 40px" : "30px 34px 50px") }}>{children}</div>
       </div>
     </div>
   );

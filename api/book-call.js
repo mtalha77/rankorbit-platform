@@ -1,5 +1,12 @@
 import { getAdmin, readJson, requireClient } from "../server/billing.js";
-import { resolveClientAgent, notifyBdm, notifyClient, notifySuperAdmins } from "../server/assign.js";
+import {
+  resolveClientChatPeer,
+  notifyBdm,
+  notifyClient,
+  notifyManagersInApp,
+  notifyStaffRoute,
+} from "../server/assign.js";
+import { CALL_SLOT_TIMES, isSlotStillOpen, isBookingPast, slotKey } from "../server/bookingTime.js";
 import { randomUUID } from "crypto";
 
 function uid(prefix = "bk") {
@@ -10,24 +17,102 @@ function uid(prefix = "bk") {
   }
 }
 
-/** Client books a 30-min call with their assigned BDM (auto-assigns if needed). */
+/** Client books a 30-min call with BDM, or a manager if no agent is available yet. */
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const admin = getAdmin();
   if (!admin) return res.status(500).json({ error: "Server not configured" });
 
-  const { token, slotDate, slotTime, note } = await readJson(req);
+  const { token, slotDate, slotTime, note, replaceBookingId } = await readJson(req);
   if (!slotDate || !slotTime) return res.status(400).json({ error: "Pick a date and time" });
+  if (!CALL_SLOT_TIMES.includes(String(slotTime).trim())) {
+    return res.status(400).json({ error: "That time slot is not available" });
+  }
+  if (!isSlotStillOpen(slotDate, slotTime)) {
+    return res.status(400).json({ error: "That time has already passed. Pick a later slot." });
+  }
 
   const auth = await requireClient(admin, token);
   if (auth.error) return res.status(auth.status).json({ error: auth.error });
 
   try {
-    const { client, agent } = await resolveClientAgent(admin, auth.profile.id);
+    const { client, peer, kind, needsBdm } = await resolveClientChatPeer(admin, auth.profile.id);
+    const agent = peer;
     if (!agent) {
       return res.status(503).json({
-        error: "No BDM is available yet. Please try again shortly or contact support.",
+        error: "Our team is briefly unavailable. Please try again in a few minutes or use Messages.",
+      });
+    }
+    const support = kind === "support";
+
+    // One active upcoming booking per client — unless replacing that booking (reschedule).
+    const { data: mine } = await admin
+      .from("call_bookings")
+      .select("id,slotDate,slotTime,status")
+      .eq("clientId", client.id)
+      .in("status", ["pending", "confirmed"]);
+    const activeMine = (mine || []).filter(
+      (b) => !isBookingPast(b.slotDate, b.slotTime)
+    );
+    if (replaceBookingId) {
+      const target = activeMine.find((b) => b.id === replaceBookingId);
+      if (!target) {
+        return res.status(409).json({
+          error: "Nothing to reschedule. Cancelled or past meetings cannot be replaced.",
+        });
+      }
+      await admin
+        .from("call_bookings")
+        .update({ status: "cancelled" })
+        .eq("id", replaceBookingId)
+        .eq("clientId", client.id);
+      try {
+        const { data: oldNotifs } = await admin
+          .from("notifications")
+          .select("id,meta")
+          .eq("type", "call_booked")
+          .contains("meta", { bookingId: replaceBookingId });
+        for (const n of oldNotifs || []) {
+          await admin
+            .from("notifications")
+            .update({
+              read: true,
+              meta: {
+                ...(n.meta || {}),
+                status: "cancelled",
+                cancelledBy: "client_reschedule",
+                respondedAt: new Date().toISOString(),
+              },
+            })
+            .eq("id", n.id);
+        }
+      } catch {
+        /* optional */
+      }
+    } else if (activeMine.length) {
+      return res.status(409).json({
+        error: "You already have an upcoming meeting. Cancel or reschedule it first.",
+      });
+    }
+
+    const { data: conflicts } = await admin
+      .from("call_bookings")
+      .select("id,slotDate,slotTime,status")
+      .eq("agentId", agent.id)
+      .eq("slotDate", String(slotDate).trim())
+      .eq("slotTime", String(slotTime).trim())
+      .in("status", ["pending", "confirmed"])
+      .limit(5);
+    const busy = (conflicts || []).some(
+      (b) =>
+        b.id !== replaceBookingId &&
+        slotKey(b.slotDate, b.slotTime) === slotKey(slotDate, slotTime) &&
+        isSlotStillOpen(b.slotDate, b.slotTime)
+    );
+    if (busy) {
+      return res.status(409).json({
+        error: "That time was just taken. Please pick another available slot.",
       });
     }
 
@@ -52,39 +137,54 @@ export default async function handler(req, res) {
     }
 
     const who = client.businessName || client.name || client.email;
+    const peerLabel = support ? agent.name || "a team member" : agent.name || "your BDM";
     const notified = await notifyBdm(admin, {
       agentId: agent.id,
       clientId: client.id,
       type: "call_booked",
-      title: "Meeting scheduled — confirm or cancel",
-      body: `${who} requested a 30-min call on ${slotDate} at ${slotTime}.${note ? ` Note: ${note}` : ""} Open Notifications to confirm or cancel.`,
-      meta: { bookingId, slotDate, slotTime, status: "pending" },
+      title: support
+        ? "Support meeting — confirm or cancel (no BDM yet)"
+        : "Meeting scheduled — confirm or cancel",
+      body: `${who} requested a 30-min call on ${slotDate} at ${slotTime}.${note ? ` Note: ${note}` : ""} Open Notifications to confirm or cancel.${support ? " Assign a BDM when ready." : ""}`,
+      meta: { bookingId, slotDate, slotTime, status: "pending", support },
     });
 
-    await notifySuperAdmins(admin, {
+    if (support) {
+      await notifyManagersInApp(admin, {
+        clientId: client.id,
+        type: "call_booked",
+        title: `Call request from ${who}`,
+        body: `${who} booked ${slotDate} at ${slotTime} with support — assign a BDM when ready.`,
+        meta: { bookingId, slotDate, slotTime, status: "pending", support: true, peerId: agent.id },
+      });
+      try {
+        await notifyStaffRoute(admin, {
+          kind: "system",
+          title: "Client booked a call — no BDM assigned",
+          body: `${who} booked ${slotDate} at ${slotTime}. A manager should confirm and assign a BDM.`,
+        });
+      } catch {
+        /* optional */
+      }
+    }
+
+    await notifyClient(admin, {
+      userId: client.id,
       clientId: client.id,
-      type: "call_booked",
-      title: "Client booked a meeting",
-      body: `${who} requested a 30-min call with ${agent.name || "their BDM"} on ${slotDate} at ${slotTime}.${note ? ` Note: ${note}` : ""}`,
+      type: "meeting_pending",
+      title: "Meeting request sent",
+      body: support
+        ? `You requested a 30-min call on ${slotDate} at ${slotTime}. A team member will confirm — your dedicated BDM is being assigned.`
+        : `You requested a 30-min call with ${peerLabel} on ${slotDate} at ${slotTime}. We'll notify you when they confirm or cancel.`,
       meta: {
         bookingId,
         slotDate,
         slotTime,
         status: "pending",
         agentId: agent.id,
-        agentName: agent.name || agent.email || null,
-        reportOnly: true,
+        support,
+        needsBdm: !!needsBdm,
       },
-    });
-
-    // Client: in-app + email — pending until BDM confirms/cancels.
-    await notifyClient(admin, {
-      userId: client.id,
-      clientId: client.id,
-      type: "meeting_pending",
-      title: "Meeting request sent",
-      body: `You requested a 30-min call with ${agent.name || "your BDM"} on ${slotDate} at ${slotTime}. We'll notify you when they confirm or cancel.`,
-      meta: { bookingId, slotDate, slotTime, status: "pending", agentId: agent.id },
     });
 
     try {
@@ -92,8 +192,14 @@ export default async function handler(req, res) {
         id: uid("a"),
         clientId: client.id,
         type: "submitted",
-        desc: `Call booked with ${agent.name || "BDM"} · ${slotDate} ${slotTime}`,
-        date: new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }),
+        desc: support
+          ? `Call booked with support (${agent.name || "manager"}) · ${slotDate} ${slotTime}`
+          : `Call booked with ${agent.name || "BDM"} · ${slotDate} ${slotTime}`,
+        date: new Date().toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        }),
         by: client.name || "Client",
       });
     } catch {
@@ -104,6 +210,8 @@ export default async function handler(req, res) {
       ok: true,
       bookingId,
       agent: { id: agent.id, name: agent.name, email: agent.email },
+      support,
+      needsBdm: !!needsBdm,
       notificationId: notified?.notificationId || null,
       slotDate,
       slotTime,

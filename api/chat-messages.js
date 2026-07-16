@@ -1,5 +1,5 @@
 import { getAdmin, readJson, requireClient, requireStaff } from "../server/billing.js";
-import { resolveClientAgent } from "../server/assign.js";
+import { resolveClientChatPeer } from "../server/assign.js";
 
 /**
  * List chat messages for a client↔BDM thread.
@@ -69,7 +69,7 @@ export default async function handler(req, res) {
       });
     }
 
-    const { client, agent } = await resolveClientAgent(admin, targetClientId);
+    const { client, peer, kind, needsBdm } = await resolveClientChatPeer(admin, targetClientId);
     const myId = profile.id;
     const unread = (data || []).filter((m) => !m.readAt && m.senderId !== myId).length;
 
@@ -77,9 +77,12 @@ export default async function handler(req, res) {
       ok: true,
       messages: data || [],
       unread,
-      agent: agent
-        ? { id: agent.id, name: agent.name, email: agent.email }
+      agent: peer
+        ? { id: peer.id, name: peer.name, email: peer.email }
         : null,
+      kind,
+      needsBdm: !!needsBdm,
+      support: kind === "support",
       client: client
         ? {
             id: client.id,

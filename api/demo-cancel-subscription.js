@@ -3,10 +3,12 @@ import {
   stripeConfigured,
   readJson,
   requireClient,
-  nextMonthFirstIso,
 } from "../server/billing.js";
 
-/** Cancel/resume without Stripe — only when Stripe env is not configured. */
+/**
+ * Cancel/resume when Stripe is not configured (legacy local profiles only).
+ * New subscriptions always go through Stripe Checkout — there is no free plan.
+ */
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
   if (stripeConfigured()) {
@@ -25,7 +27,10 @@ export default async function handler(req, res) {
     : {
         cancelAtPeriodEnd: true,
         canceledAt: new Date().toISOString(),
-        currentPeriodEnd: auth.profile.currentPeriodEnd || nextMonthFirstIso(),
+        // Keep existing period end only — never invent +1 month.
+        ...(auth.profile.currentPeriodEnd
+          ? { currentPeriodEnd: auth.profile.currentPeriodEnd }
+          : {}),
       };
 
   const { error } = await admin.from("profiles").update(fields).eq("id", auth.profile.id);

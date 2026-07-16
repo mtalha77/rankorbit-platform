@@ -1,7 +1,8 @@
 import { getAdmin, readJson, requireClient } from "../server/billing.js";
-import { isBookingPast } from "../server/bookingTime.js";
+import { resolveClientChatPeer } from "../server/assign.js";
+import { isBookingPast, isSlotStillOpen, slotKey } from "../server/bookingTime.js";
 
-/** Returns the client's assigned BDM + upcoming call bookings for Book a Call UI. */
+/** Returns BDM or support peer, upcoming bookings, and taken slots for that peer. */
 export default async function handler(req, res) {
   if (req.method !== "POST" && req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -19,19 +20,26 @@ export default async function handler(req, res) {
   const auth = await requireClient(admin, token);
   if (auth.error) return res.status(auth.status).json({ error: auth.error });
 
-  const agentId = auth.profile.assignedAgentId;
   let agent = null;
-  if (agentId) {
-    const { data, error } = await admin
-      .from("profiles")
-      .select("id,name,email")
-      .eq("id", agentId)
-      .maybeSingle();
-    if (error) return res.status(500).json({ error: error.message });
-    if (data) agent = { id: data.id, name: data.name, email: data.email };
+  let support = false;
+  let needsBdm = false;
+  try {
+    const peerInfo = await resolveClientChatPeer(admin, auth.profile.id);
+    if (peerInfo.peer) {
+      agent = {
+        id: peerInfo.peer.id,
+        name: peerInfo.peer.name,
+        email: peerInfo.peer.email,
+      };
+      support = peerInfo.kind === "support";
+      needsBdm = !!peerInfo.needsBdm;
+    }
+  } catch (e) {
+    console.warn("my-bdm peer:", e.message);
   }
 
   let bookings = [];
+  let takenSlots = [];
   try {
     const { data: rows, error: bErr } = await admin
       .from("call_bookings")
@@ -68,9 +76,28 @@ export default async function handler(req, res) {
           : agent,
       }));
     }
+
+    const busyAgentId = agent?.id;
+    if (busyAgentId) {
+      const { data: agentRows } = await admin
+        .from("call_bookings")
+        .select("slotDate,slotTime,status,clientId")
+        .eq("agentId", busyAgentId)
+        .in("status", ["pending", "confirmed"])
+        .order("createdAt", { ascending: false })
+        .limit(200);
+      const seen = new Set();
+      for (const b of agentRows || []) {
+        if (!isSlotStillOpen(b.slotDate, b.slotTime)) continue;
+        const k = slotKey(b.slotDate, b.slotTime);
+        if (seen.has(k)) continue;
+        seen.add(k);
+        takenSlots.push({ slotDate: b.slotDate, slotTime: b.slotTime });
+      }
+    }
   } catch (e) {
     console.warn("my-bdm bookings:", e.message);
   }
 
-  return res.status(200).json({ agent, bookings });
+  return res.status(200).json({ agent, bookings, takenSlots, support, needsBdm });
 }

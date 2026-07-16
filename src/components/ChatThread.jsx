@@ -49,15 +49,20 @@ function ChatThreadInner({
   peerLabel,
   toast,
   onUnreadChange,
+  onOpenCall,
   compact = false,
   fill = false,
 }) {
   const [messages, setMessages] = useState([]);
   const [agent, setAgent] = useState(null);
+  const [support, setSupport] = useState(false);
+  const [needsBdm, setNeedsBdm] = useState(false);
+  const [noPeer, setNoPeer] = useState(false);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
   const bottomRef = useRef(null);
   const listRef = useRef(null);
   const onUnreadRef = useRef(onUnreadChange);
@@ -125,7 +130,11 @@ function ChatThreadInner({
           return;
         }
         setMessages(Array.isArray(data.messages) ? data.messages : []);
-        setAgent(data.agent || data.peer || null);
+        const peer = data.agent || data.peer || null;
+        setAgent(peer);
+        setSupport(!!data.support || data.kind === "support");
+        setNeedsBdm(!!data.needsBdm);
+        setNoPeer(!peer && !isStaffVariant);
         if (typeof onUnreadRef.current === "function") onUnreadRef.current(data.unread || 0);
         setLoading(false);
         chatApi.markRead(listArgs).then(() => {
@@ -172,7 +181,13 @@ function ChatThreadInner({
         const data = await chatApi.list(listArgs);
         if (cancelled || data.error) return;
         setMessages(Array.isArray(data.messages) ? data.messages : []);
-        if (data.agent || data.peer) setAgent(data.agent || data.peer);
+        const peer = data.agent || data.peer || null;
+        if (peer) {
+          setAgent(peer);
+          setNoPeer(false);
+        }
+        setSupport(!!data.support || data.kind === "support");
+        setNeedsBdm(!!data.needsBdm);
       } catch {
         /* keep last good state */
       }
@@ -188,7 +203,7 @@ function ChatThreadInner({
       if (pollId) clearInterval(pollId);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId, staffId, myId, threadKey, variant]);
+  }, [clientId, staffId, myId, threadKey, variant, reloadKey]);
 
   useEffect(() => {
     const el = listRef.current;
@@ -215,7 +230,15 @@ function ChatThreadInner({
       }
       setDraft("");
       if (r.message) mergeMsg(r.message);
-      if (r.agent) setAgent(r.agent);
+      if (r.agent) {
+        setAgent(r.agent);
+        setNoPeer(false);
+      }
+      setSupport(!!r.support || r.kind === "support");
+      setNeedsBdm(!!r.needsBdm);
+      if (r.support || r.kind === "support") {
+        toast?.("Sent — a team member will reply shortly", "success");
+      }
     } catch (e) {
       toast?.(e?.message || "Could not send", "info");
     } finally {
@@ -232,8 +255,9 @@ function ChatThreadInner({
 
   const headerName =
     peerLabel ||
-    agent?.name ||
-    agent?.email ||
+    (support && !isStaffVariant
+      ? agent?.name || "Team support"
+      : agent?.name || agent?.email) ||
     (isStaffVariant ? "Admin / Support" : clientId ? "Client" : "Your BDM");
 
   const cardHeight = fill
@@ -241,6 +265,8 @@ function ChatThreadInner({
     : compact
     ? "min(420px, calc(100dvh - 180px))"
     : "calc(100dvh - 200px)";
+
+  const composerBlocked = !isStaffVariant && noPeer;
 
   return (
     <Card
@@ -264,11 +290,16 @@ function ChatThreadInner({
         }}
       >
         <div style={{ fontSize: 11, fontWeight: 800, color: T.faint, letterSpacing: ".6px" }}>
-          CHAT
+          {support && !isStaffVariant ? "SUPPORT CHAT" : "CHAT"}
         </div>
         <div style={{ fontFamily: FONT_D, fontSize: 16, fontWeight: 800, marginTop: 2 }}>
           {headerName}
         </div>
+        {needsBdm && !isStaffVariant && !noPeer && (
+          <div style={{ fontSize: 11.5, color: T.amber, fontWeight: 700, marginTop: 6 }}>
+            Your dedicated BDM is being assigned — a team member can reply in the meantime.
+          </div>
+        )}
       </div>
 
       <div
@@ -288,12 +319,38 @@ function ChatThreadInner({
             Loading messages…
           </div>
         ) : error ? (
-          <Empty icon="💬" title="Chat unavailable" sub={error} />
+          <div>
+            <Empty icon="💬" title="Chat unavailable" sub={error} />
+            <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginTop: 8 }}>
+              <Btn variant="soft" size="sm" onClick={() => setReloadKey((k) => k + 1)}>Try again</Btn>
+              {typeof onOpenCall === "function" && (
+                <Btn size="sm" onClick={onOpenCall}>Book a Call →</Btn>
+              )}
+            </div>
+          </div>
+        ) : noPeer ? (
+          <div>
+            <Empty
+              icon="💬"
+              title="Connecting you with our team"
+              sub="No BDM is free right now. Tap Try again in a moment, or book a call once someone is assigned."
+            />
+            <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginTop: 8 }}>
+              <Btn variant="soft" size="sm" onClick={() => setReloadKey((k) => k + 1)}>Try again</Btn>
+              {typeof onOpenCall === "function" && (
+                <Btn size="sm" onClick={onOpenCall}>Book a Call →</Btn>
+              )}
+            </div>
+          </div>
         ) : messages.length === 0 ? (
           <Empty
             icon="💬"
             title="No messages yet"
-            sub="Say hello — your message starts this thread."
+            sub={
+              support
+                ? "Say hello — a team member will pick this up and assign your BDM."
+                : "Say hello — your message starts this thread."
+            }
           />
         ) : (
           messages.map((m) => {
@@ -356,14 +413,16 @@ function ChatThreadInner({
           alignItems: "stretch",
           background: T.surface,
           flexShrink: 0,
+          opacity: composerBlocked ? 0.55 : 1,
         }}
       >
         <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value.slice(0, 4000))}
           onKeyDown={onKeyDown}
-          placeholder="Type a message… (Enter to send)"
+          placeholder={composerBlocked ? "Chat opens once a team member is available…" : "Type a message… (Enter to send)"}
           rows={2}
+          disabled={composerBlocked}
           style={{
             flex: 1,
             padding: "10px 12px",
@@ -379,7 +438,7 @@ function ChatThreadInner({
         />
         <Btn
           onClick={send}
-          disabled={sending || !draft.trim()}
+          disabled={composerBlocked || sending || !draft.trim()}
           style={{ flexShrink: 0, height: "auto", alignSelf: "stretch" }}
         >
           {sending ? "…" : "Send"}

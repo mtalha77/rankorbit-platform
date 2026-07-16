@@ -146,14 +146,11 @@ export const api={
   async billingStatus(){
     try{
       const r=await fetch("/api/billing-status");
-      if(!r.ok){
-        // API missing (old deploy / Vite without plugin) → treat as not configured.
-        return{configured:false,demo:true,unreachable:true};
-      }
+      if(!r.ok)return{configured:false,demo:false,unreachable:true};
       const j=await r.json().catch(()=>({}));
-      return{configured:!!j.configured,demo:!j.configured};
+      return{configured:!!j.configured,demo:false,hasWebhookSecret:!!j.hasWebhookSecret};
     }catch{
-      return{configured:false,demo:true,unreachable:true};
+      return{configured:false,demo:false,unreachable:true};
     }
   },
   async createCheckout(planId){
@@ -203,19 +200,6 @@ export const api={
       return{url:j.url};
     }catch(e){return{error:e.message||"Network error"};}
   },
-  async demoActivatePlan(planId){
-    const token=await this._accessToken();
-    if(!token){
-      // Local demo (no Supabase): activate on the profile directly.
-      return{local:true};
-    }
-    try{
-      const r=await fetch("/api/demo-activate-plan",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,planId})});
-      const j=await r.json().catch(()=>({}));
-      if(!r.ok)return{error:j.error||"Could not activate plan"};
-      return{ok:true};
-    }catch(e){return{error:e.message||"Network error"};}
-  },
   async listInvoices(clientId){
     if(supa){
       const{data,error}=await supa.from("invoices").select("*").eq("clientId",clientId).order("createdAt",{ascending:false}).limit(24);
@@ -234,13 +218,23 @@ export const api={
       return{invoices:j.invoices||[],synced:j.synced||0,profile:j.profile||null,currentPeriodEnd:j.currentPeriodEnd||null};
     }catch(e){return{error:e.message||"Network error",invoices:[]};}
   },
-  async bookCall({slotDate,slotTime,note}={}){
+  async bookCall({slotDate,slotTime,note,replaceBookingId}={}){
     const token=await this._accessToken();
     if(!token)return{error:"Not signed in"};
     try{
-      const r=await fetch("/api/book-call",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,slotDate,slotTime,note})});
+      const r=await fetch("/api/book-call",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,slotDate,slotTime,note,replaceBookingId})});
       const j=await r.json().catch(()=>({}));
       if(!r.ok)return{error:j.error||"Could not book call"};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
+  async cancelCall({bookingId}={}){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/cancel-call",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,bookingId})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not cancel meeting"};
       return{ok:true,...j};
     }catch(e){return{error:e.message||"Network error"};}
   },
@@ -407,13 +401,19 @@ export const api={
   },
   async getMyBdm(){
     const token=await this._accessToken();
-    if(!token)return{agent:null,bookings:[]};
+    if(!token)return{agent:null,bookings:[],takenSlots:[]};
     try{
       const r=await fetch("/api/my-bdm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token})});
       const j=await r.json().catch(()=>({}));
-      if(!r.ok)return{agent:null,bookings:[],error:j.error};
-      return{agent:j.agent||null,bookings:j.bookings||[]};
-    }catch(e){return{agent:null,bookings:[],error:e.message};}
+      if(!r.ok)return{agent:null,bookings:[],takenSlots:[],error:j.error};
+      return{
+        agent:j.agent||null,
+        bookings:j.bookings||[],
+        takenSlots:Array.isArray(j.takenSlots)?j.takenSlots:[],
+        support:!!j.support,
+        needsBdm:!!j.needsBdm,
+      };
+    }catch(e){return{agent:null,bookings:[],takenSlots:[],error:e.message};}
   },
   async listMyBookings(){
     const r=await this.getMyBdm();

@@ -1,9 +1,10 @@
 import { getAdmin, readJson, requireClient, requireStaff } from "../server/billing.js";
 import {
-  resolveClientAgent,
+  resolveClientChatPeer,
   notifyBdm,
   notifyClient,
-  notifySuperAdmins,
+  notifyManagersInApp,
+  notifyStaffRoute,
 } from "../server/assign.js";
 import { randomUUID } from "crypto";
 
@@ -16,8 +17,9 @@ function uid(prefix = "m") {
 }
 
 /**
- * Send a chat message in the client↔BDM thread.
+ * Send a chat message in the client↔BDM (or support) thread.
  * Body: { token, body, clientId? }
+ * If no agent is assigned, routes to a manager so the client is never stuck.
  */
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -65,16 +67,25 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { client, agent } = await resolveClientAgent(admin, targetClientId);
-    if (!agent) {
+    const { client, peer, kind, needsBdm } = await resolveClientChatPeer(admin, targetClientId);
+    if (!peer) {
+      try {
+        await notifyStaffRoute(admin, {
+          kind: "system",
+          title: "Client waiting — no BDM or manager",
+          body: `${client?.businessName || client?.name || client?.email || "A client"} tried to chat but no staff is available to receive it.`,
+        });
+      } catch {
+        /* optional */
+      }
       return res.status(503).json({
-        error: "No BDM is available yet. Please try again shortly or contact support.",
+        error: "Our team is briefly unavailable. Please try again in a few minutes.",
+        needsBdm: true,
+        kind: "none",
       });
     }
 
-    // Staff send: use assigned agent id on the thread (manager may reply as themselves but
-    // thread remains tied to the client's assigned agent).
-    const agentId = agent.id;
+    const agentId = peer.id;
     const msg = {
       id: uid("m"),
       clientId: targetClientId,
@@ -99,17 +110,15 @@ export default async function handler(req, res) {
     const preview = text.length > 120 ? `${text.slice(0, 120)}…` : text;
 
     if (isStaff) {
-      // Notify client
       await notifyClient(admin, {
         userId: targetClientId,
         clientId: targetClientId,
         type: "chat_message",
-        title: `Message from ${sender.name || "your BDM"}`,
+        title: `Message from ${sender.name || "your team"}`,
         body: preview,
         meta: { agentId, from: "staff" },
       });
-    } else {
-      // Notify BDM (+ optional routeBdm emails)
+    } else if (kind === "bdm") {
       await notifyBdm(admin, {
         agentId,
         clientId: targetClientId,
@@ -118,19 +127,33 @@ export default async function handler(req, res) {
         body: preview,
         meta: { from: "client" },
       });
-      await notifySuperAdmins(admin, {
+    } else {
+      // Support fallback — alert managers to reply and assign a BDM.
+      await notifyManagersInApp(admin, {
         clientId: targetClientId,
         type: "chat_message",
-        title: `Client chat → ${agent.name || "agent"}`,
-        body: `${who}: ${preview}`,
-        meta: { agentId, agentName: agent.name || agent.email || null, reportOnly: true },
+        title: `Support chat from ${who}`,
+        body: `${preview} — assign a BDM when ready.`,
+        meta: { from: "client", support: true, peerId: agentId },
       });
+      try {
+        await notifyStaffRoute(admin, {
+          kind: "system",
+          title: "Client chat needs a BDM",
+          body: `${who} messaged support (no BDM assigned yet): ${preview}`,
+        });
+      } catch {
+        /* optional */
+      }
     }
 
     return res.status(200).json({
       ok: true,
       message: msg,
-      agent: { id: agent.id, name: agent.name, email: agent.email },
+      agent: { id: peer.id, name: peer.name, email: peer.email },
+      kind,
+      needsBdm: !!needsBdm,
+      support: kind === "support",
     });
   } catch (e) {
     console.error("chat-send:", e.message);
