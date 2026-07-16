@@ -5,6 +5,30 @@ export const todayFull=()=>new Date().toLocaleDateString("en-US",{year:"numeric"
 export const nextMonthFirst=()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth()+1,1).toISOString();};
 export const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random());
 
+/** Map listing napMatch badge → numeric score (matches server/googleGbp.js). */
+function napMatchToScore(napMatch){
+  if(napMatch==="match")return 100;
+  if(napMatch==="fixed")return 80;
+  if(napMatch==="mismatch")return 40;
+  return null;
+}
+
+/** Average NAP score from live listings that have a napMatch value. */
+export function computeNapScoreFromListings(listings){
+  const live=(listings||[]).filter(l=>!l.deletedAt&&l.status==="live"&&l.napMatch&&l.napMatch!=="–");
+  if(!live.length)return null;
+  const scores=live.map(l=>napMatchToScore(l.napMatch)).filter(s=>s!=null);
+  if(!scores.length)return null;
+  return Math.round(scores.reduce((a,b)=>a+b,0)/scores.length);
+}
+
+/** Use listing-derived score when profile napScore is not synced yet. */
+export function resolveNapScore(profileScore,listings){
+  const computed=computeNapScoreFromListings(listings);
+  if(computed!=null)return computed;
+  return profileScore??0;
+}
+
 /** Convert stored liveDate display ("Jul 5" / "Jul 5, 2026") → YYYY-MM-DD for <input type="date"/>. */
 export function toDateInputValue(display){
   if(!display||display==="–"||display==="-")return"";

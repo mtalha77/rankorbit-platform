@@ -2,10 +2,26 @@
 // Supabase Auth + profiles, with a localStorage demo fallback when keys are absent.
 import { supa, LS, LSet } from "./supabase";
 import { SEED } from "./seed";
-import { uid, passwordIssues } from "./helpers";
+import { uid, passwordIssues, computeNapScoreFromListings } from "./helpers";
 
 export const api={
   mode: supa?"supabase":"local",
+  async _syncNapScoreForClient(clientId){
+    if(!clientId)return;
+    if(supa){
+      const{data:listings}=await supa.from("listings").select("status,napMatch,deletedAt").eq("clientId",clientId);
+      const score=computeNapScoreFromListings(listings||[]);
+      if(score==null)return;
+      await supa.from("profiles").update({napScore:score}).eq("id",clientId);
+      return;
+    }
+    const ls=(LS("ro3_listings")||[]).filter(x=>x.clientId===clientId&&!x.deletedAt);
+    const score=computeNapScoreFromListings(ls);
+    if(score==null)return;
+    const us=LS("ro3_users")||[];
+    const i=us.findIndex(x=>x.id===clientId);
+    if(i>=0){us[i].napScore=score;LSet("ro3_users",us);}
+  },
   async init(){
     if(supa)return;
     if(!LS("ro3_users")){
@@ -663,10 +679,12 @@ export const api={
         ({error}=await supa.from("listings").upsert(base));
       }
       if(error)throw new Error(error.message||"Could not save listing");
+      await this._syncNapScoreForClient(row.clientId);
       return;
     }
     const ls=LS("ro3_listings")||[];const i=ls.findIndex(x=>x.id===row.id);
     if(i>=0)ls[i]={...row,deletedAt:l.deletedAt};else ls.push({...row,deletedAt:l.deletedAt});LSet("ro3_listings",ls);
+    await this._syncNapScoreForClient(row.clientId);
   },
   async deleteListing(id){
     const when=new Date().toISOString();

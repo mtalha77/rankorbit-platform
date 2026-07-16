@@ -5,7 +5,7 @@ import { T, FONT_D, FONT_B, SHADOW, SHADOW_LG } from "../lib/theme";
 import { api } from "../lib/api";
 import { downloadBlob, openExternalFile } from "../lib/export";
 import { PLANS, CATEGORIES, US_CA_STATES, planLive } from "../lib/constants";
-import { actIcon, clientBy, isBookingPast, isPastMeetingNotif, CALL_SLOT_TIMES, isSlotStillOpen, slotKey, buildLiveGrowthSeries, growthMomTrend } from "../lib/helpers";
+import { actIcon, clientBy, isBookingPast, isPastMeetingNotif, CALL_SLOT_TIMES, isSlotStillOpen, slotKey, buildLiveGrowthSeries, growthMomTrend, resolveNapScore } from "../lib/helpers";
 import { Badge, Card, Btn, Input, Select, Confirm, StatCard, ChartTip, SectionTitle, Empty, PageHead } from "../components/atoms";
 import { Orbit } from "../components/Orbit";
 import Shell from "../components/Shell";
@@ -631,6 +631,7 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
   const PLANSV=Object.fromEntries(Object.entries(PLANS).filter(([id])=>planLive(id,cfg)).map(([id,p])=>[id,{...p,price:priceOf(id)}]));
   const live=my.filter(l=>l.status==="live").length;
   const pending=my.filter(l=>l.status==="pending").length;
+  const napScore=resolveNapScore(user.napScore,my);
   const plan=PLANSALL[user.plan]||PLANSALL.essentials;
   const hour=new Date().getHours();
   const greet=hour<12?"Good morning":hour<17?"Good afternoon":"Good evening";
@@ -658,7 +659,7 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
   // Single headline metric: blends coverage, NAP consistency, and live ratio into one 0-100 score.
   const visScore=(()=>{
     const coverage=Math.min(100,(live/60)*100);
-    const nap=user.napScore||0;
+    const nap=napScore;
     const liveRatio=my.length?(live/my.length)*100:0;
     return Math.round(coverage*0.4+nap*0.4+liveRatio*0.2);
   })();
@@ -838,7 +839,7 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
     </div>
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:14,marginBottom:22}}>
       <StatCard label="Listings Live" value={live} sub={`${pending} pending approval`} icon={<ListingsLiveIcon/>} color={T.green} soft={T.greenSoft} trend={liveMomTrend} delay={0}/>
-      <StatCard label="NAP Score" value={`${user.napScore||0}%`} sub="Info matches everywhere" icon={<NapScoreIcon/>} delay={80}/>
+      <StatCard label="NAP Score" value={`${napScore}%`} sub="Info matches everywhere" icon={<NapScoreIcon/>} delay={80}/>
       <StatCard label="Edits Blocked" value={myAct.filter(a=>a.type==="edit_blocked").length} sub="Unauthorized changes reverted" icon={<EditsBlockedIcon/>} color={T.amber} soft={T.amberSoft} delay={160}/>
       <StatCard label="Directories" value={my.length} sub="Managed for you" icon={<DirectoriesIcon/>} color={T.blue} soft={T.blueSoft} delay={240}/>
     </div>
@@ -895,7 +896,7 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:14,marginBottom:20}}>
       <StatCard label="Live" value={live} icon={<ListingsLiveIcon/>} color={T.green} soft={T.greenSoft} delay={0}/>
       <StatCard label="Pending" value={pending} icon={<PendingIcon/>} color={T.amber} soft={T.amberSoft} delay={70}/>
-      <StatCard label="NAP Score" value={`${user.napScore||0}%`} icon={<NapScoreIcon/>} delay={140}/>
+      <StatCard label="NAP Score" value={`${napScore}%`} icon={<NapScoreIcon/>} delay={140}/>
       <StatCard label="Protected" value={my.length} sub="Monitored 24/7" icon={<EditsBlockedIcon/>} color={T.blue} soft={T.blueSoft} delay={210}/>
     </div>
     <Card style={{overflowX:"auto",padding:isMobile?14:22}}>
