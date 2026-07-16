@@ -10,6 +10,7 @@ import { Orbit } from "./components/Orbit";
 import AuthScreen from "./pages/AuthScreen";
 import ResetPassword, { markPasswordRecovery, clearPasswordRecovery, isPasswordRecovery } from "./pages/ResetPassword";
 import LandingPage from "./pages/LandingPage";
+import LegalPage from "./pages/LegalPage";
 import ClientDashboard from "./pages/ClientDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 
@@ -293,6 +294,8 @@ export default function App(){
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LandingRoute user={currentUser} passwordRecovery={passwordRecovery}/>}/>
+        <Route path="/terms" element={<LegalPage mode="terms"/>}/>
+        <Route path="/privacy" element={<LegalPage mode="privacy"/>}/>
         <Route path="/login" element={<ClientAuth mode="login" user={currentUser} onLogin={onLogin} passwordRecovery={passwordRecovery}/>}/>
         <Route path="/signup" element={<ClientAuth mode="signup" user={currentUser} onLogin={onLogin} passwordRecovery={passwordRecovery}/>}/>
         <Route path="/reset-password" element={<ResetPasswordRoute user={currentUser} passwordRecovery={passwordRecovery} onClearRecovery={clearRecovery} onLogout={onLogout}/>}/>
