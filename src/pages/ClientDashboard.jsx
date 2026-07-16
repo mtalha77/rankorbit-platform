@@ -640,6 +640,7 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
     {id:"messages",icon:"💬",label:"Messages"},
     {id:"listings",icon:"📋",label:"Listings"},
     {id:"analytics",icon:"📈",label:"Analytics"},
+    ...(user.plan==="gmb"?[{id:"gmb",icon:"📍",label:"GMB"}]:[]),
     {id:"billing",icon:"💳",label:"Plan & Billing"},
     {id:"call",icon:"📞",label:"Book a Call"},
   ];
@@ -961,8 +962,15 @@ export default function ClientDashboard({user:userProp,data,reload,onLogout,impe
       </Card>
     </div>);
     const d=myGmb||{views:0,calls:0,directions:0,trend:[],posts:[],qa:[],completeness:{}};
+    const fromGoogle=d.source==="google"||d.source==="connected";
+    const lastSync=d.syncedAt?(()=>{try{return new Date(d.syncedAt).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});}catch{return d.syncedAt;}})():null;
     return(<div>
-      <PageHead isMobile={isMobile} title="GMB Management" sub="Your Google Business Profile, actively managed" right={<Badge type={d.source==="connected"?"connected":"manual"}/>}/>
+      <PageHead isMobile={isMobile} title="GMB Management" sub={fromGoogle&&lastSync?`Last synced ${lastSync}`:"Your Google Business Profile, actively managed"} right={<Badge type={fromGoogle?"connected":"manual"} label={fromGoogle?"Synced from Google":undefined}/>}/>
+      {fromGoogle&&(
+        <div style={{padding:"10px 14px",background:T.greenSoft,borderRadius:12,marginBottom:14,fontSize:12.5,color:T.green,lineHeight:1.5}}>
+          Metrics pull automatically from your Google Business Profile{lastSync?` · Last sync ${lastSync}`:""}.
+        </div>
+      )}
       <Card style={{marginBottom:16,background:`linear-gradient(135deg,${T.violetSoft},#fff)`,display:"flex",gap:14,alignItems:"center"}}>
         <div style={{width:44,height:44,borderRadius:13,background:"#fff",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:SHADOW}}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={T.violet} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>

@@ -153,6 +153,27 @@ export const api={
       return{configured:false,demo:false,unreachable:true};
     }
   },
+  async _gbpPost(path,body={}){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch(path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,...body})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Request failed"};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
+  googleGbpStatus(clientId){return this._gbpPost("/api/google-gbp-status",{clientId});},
+  googleGbpStart(clientId){
+    const returnOrigin=typeof window!=="undefined"?window.location.origin:undefined;
+    return this._gbpPost("/api/google-gbp-start",{clientId,returnOrigin});
+  },
+  googleGbpLocations(clientId){return this._gbpPost("/api/google-gbp-locations",{clientId});},
+  googleGbpSelectLocation(clientId,{locationName,accountName,locationTitle}={}){
+    return this._gbpPost("/api/google-gbp-select-location",{clientId,locationName,accountName,locationTitle});
+  },
+  googleGbpSync(clientId){return this._gbpPost("/api/google-gbp-sync",{clientId});},
+  googleGbpDisconnect(clientId){return this._gbpPost("/api/google-gbp-disconnect",{clientId});},
   async createCheckout(planId){
     const token=await this._accessToken();
     if(!token)return{error:"Not signed in"};

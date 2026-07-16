@@ -221,6 +221,27 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
     return()=>{cancelled=true;clearInterval(t);};
   },[user.id,user.role]);
 
+  // OAuth return: ?gbp=pick|error&gbpClient=…
+  useEffect(()=>{
+    if(typeof window==="undefined")return;
+    const params=new URLSearchParams(window.location.search);
+    const gbp=params.get("gbp");
+    const clientId=params.get("gbpClient");
+    if(!gbp||!clientId)return;
+    const msg=params.get("gbpMsg")||"";
+    window.history.replaceState({},"",window.location.pathname+(window.location.hash||""));
+    const c=clients.find(x=>x.id===clientId)||{id:clientId,businessName:"Client"};
+    setSelClient(clientId);
+    setPage("clientDetail");
+    if(gbp==="error"){
+      toast(msg||"Google connect failed","info");
+      setModal({type:"integrations",client:c,pickLocation:false});
+    }else if(gbp==="pick"){
+      toast("Google connected — pick a location");
+      setModal({type:"integrations",client:c,pickLocation:true});
+    }
+  },[clients.length]);
+
   const pageRef=useRef(page);
   pageRef.current=page;
   useEffect(()=>{
@@ -648,18 +669,150 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
       </div>
     </Modal>);
   };
-  const IntegrationsModal=({client,onClose})=>{
+  const IntegrationsModal=({client,onClose,pickLocation})=>{
     const[gaId,setGaId]=useState(client.gaId||"");
     const[gbpId,setGbpId]=useState(client.gbpId||"");
-    return(<Modal open onClose={onClose} title={`Integrations · ${client.businessName}`} width={520}>
+    const[conn,setConn]=useState(null);
+    const[configured,setConfigured]=useState(false);
+    const[loading,setLoading]=useState(true);
+    const[busy,setBusy]=useState("");
+    const[locations,setLocations]=useState([]);
+    const[picking,setPicking]=useState(!!pickLocation);
+    const[err,setErr]=useState("");
+
+    const refreshStatus=async()=>{
+      const st=await api.googleGbpStatus(client.id);
+      if(st.error){setErr(st.error);setConn(null);setConfigured(false);}
+      else{setConfigured(!!st.configured);setConn(st.connection||null);setErr("");}
+    };
+
+    useEffect(()=>{
+      let cancelled=false;
+      (async()=>{
+        setLoading(true);
+        await refreshStatus();
+        if(cancelled)return;
+        if(pickLocation){
+          setPicking(true);
+          setBusy("locations");
+          const loc=await api.googleGbpLocations(client.id);
+          if(!cancelled){
+            if(loc.error)setErr(loc.error);
+            else setLocations(loc.locations||[]);
+            setBusy("");
+          }
+        }
+        if(!cancelled)setLoading(false);
+      })();
+      return()=>{cancelled=true;};
+    },[client.id,pickLocation]);
+
+    const fmtSync=(iso)=>{
+      if(!iso)return"Never";
+      try{return new Date(iso).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});}
+      catch{return iso;}
+    };
+
+    return(<Modal open onClose={onClose} title={`Integrations · ${client.businessName||client.name}`} width={560}>
       <div style={{padding:"12px 14px",background:T.blueSoft,borderRadius:11,marginBottom:16,fontSize:12,color:T.blue,lineHeight:1.5}}>
-        Store the client's IDs here. Live auto-pull (OAuth) is coming next; for now, use the manual GMB/Analytics entry to feed their dashboards.
+        Connect Google Business Profile to auto-sync views, calls, directions, and NAP. GA4 OAuth is a later phase — Measurement ID stays manual for now.
       </div>
+      {err&&<div style={{padding:"10px 12px",background:T.redSoft,borderRadius:10,marginBottom:12,fontSize:12,color:T.red,lineHeight:1.45}}>{err}</div>}
+
+      <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".5px",marginBottom:8}}>GOOGLE BUSINESS PROFILE</div>
+      {loading?<div style={{fontSize:12.5,color:T.sub,marginBottom:14}}>Loading connection…</div>:(
+        <div style={{padding:"14px 15px",background:T.surface2,borderRadius:12,marginBottom:16,border:`1px solid ${T.line}`}}>
+          {!configured&&<div style={{fontSize:12,color:T.amber,marginBottom:10,lineHeight:1.5}}>OAuth env not set on the server yet. Add <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code>, <code>GOOGLE_REDIRECT_URI</code>, and <code>CRON_SECRET</code> in Vercel (see Control Panel).</div>}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:8}}>
+            <div>
+              <div style={{fontSize:13.5,fontWeight:800}}>{conn?.locationTitle||conn?.locationName||"Not connected"}</div>
+              <div style={{fontSize:11.5,color:T.sub,marginTop:3}}>
+                Status: {conn?.status||"none"} · Last sync: {fmtSync(conn?.syncedAt)}
+              </div>
+              {conn?.lastError&&<div style={{fontSize:11,color:T.red,marginTop:4}}>{conn.lastError}</div>}
+            </div>
+            <Badge type={conn?.hasLocation?"connected":conn?"pending":"manual"} label={conn?.hasLocation?"Connected":conn?"Pick location":"Disconnected"}/>
+          </div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            {!conn&&configured&&(
+              <Btn size="sm" disabled={!!busy} onClick={async()=>{
+                setBusy("connect");setErr("");
+                const r=await api.googleGbpStart(client.id);
+                setBusy("");
+                if(r.error){setErr(r.error);return;}
+                if(r.url)window.location.href=r.url;
+              }}>Connect Google</Btn>
+            )}
+            {conn&&(
+              <Btn size="sm" variant="soft" disabled={!!busy} onClick={async()=>{
+                setBusy("locations");setErr("");setPicking(true);
+                const loc=await api.googleGbpLocations(client.id);
+                setBusy("");
+                if(loc.error){setErr(loc.error);return;}
+                setLocations(loc.locations||[]);
+              }}>{conn.hasLocation?"Change location":"Pick location"}</Btn>
+            )}
+            {conn?.hasLocation&&(
+              <Btn size="sm" variant="green" disabled={!!busy} onClick={async()=>{
+                setBusy("sync");setErr("");
+                const r=await api.googleGbpSync(client.id);
+                setBusy("");
+                if(r.error){setErr(r.error);return;}
+                toast("GMB synced from Google");
+                await refreshStatus();
+                await reload();
+              }}>{busy==="sync"?"Syncing…":"Sync now"}</Btn>
+            )}
+            {conn&&(
+              <Btn size="sm" variant="ghost" disabled={!!busy} onClick={()=>setConfirm({
+                title:"Disconnect Google?",
+                msg:"Tokens will be removed. Manual Update GMB will work again until you reconnect.",
+                yes:"Disconnect",
+                onYes:()=>R(async()=>{
+                  const r=await api.googleGbpDisconnect(client.id);
+                  if(r.error)throw new Error(r.error);
+                  setConn(null);setPicking(false);setLocations([]);
+                },"Google disconnected"),
+              })}>Disconnect</Btn>
+            )}
+          </div>
+          {picking&&(
+            <div style={{marginTop:14,paddingTop:12,borderTop:`1px solid ${T.line}`}}>
+              <div style={{fontSize:12.5,fontWeight:800,marginBottom:8}}>Select a location</div>
+              {busy==="locations"&&<div style={{fontSize:12,color:T.sub}}>Loading locations…</div>}
+              {!busy&&locations.length===0&&<div style={{fontSize:12,color:T.sub}}>No locations found for this Google account.</div>}
+              <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:220,overflowY:"auto"}}>
+                {locations.map(loc=>(
+                  <button key={loc.locationName} type="button" disabled={busy==="select"} onClick={async()=>{
+                    setBusy("select");setErr("");
+                    const r=await api.googleGbpSelectLocation(client.id,{
+                      locationName:loc.locationName,
+                      accountName:loc.accountName,
+                      locationTitle:loc.title,
+                    });
+                    setBusy("");
+                    if(r.error){setErr(r.error);return;}
+                    if(r.warning)toast(r.warning,"info");
+                    else toast("Location saved & synced");
+                    setPicking(false);
+                    await refreshStatus();
+                    await reload();
+                  }} style={{textAlign:"left",padding:"10px 12px",borderRadius:10,border:`1.5px solid ${T.line}`,background:"#fff",cursor:"pointer",fontFamily:FONT_B}}>
+                    <div style={{fontSize:13,fontWeight:800}}>{loc.title||loc.locationName}</div>
+                    <div style={{fontSize:11.5,color:T.sub,marginTop:2}}>{loc.address||"–"}{loc.phone?` · ${loc.phone}`:""}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <Input label="Google Analytics 4 Measurement ID" value={gaId} onChange={setGaId} placeholder="G-XXXXXXXXXX"/>
-      <Input label="Google Business Profile ID / Name" value={gbpId} onChange={setGbpId} placeholder="accounts/123/locations/456"/>
+      <Input label="GBP ID (auto-filled when connected)" value={gbpId} onChange={setGbpId} placeholder="locations/…"/>
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:4}}>
-        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-        <Btn onClick={()=>R(async()=>api.upsertProfile({...client,gaId,gbpId}),"Integration IDs saved").then(onClose)}>Save</Btn>
+        <Btn variant="ghost" onClick={onClose}>Close</Btn>
+        <Btn onClick={()=>R(async()=>api.upsertProfile({...client,gaId,gbpId}),"Integration IDs saved").then(onClose)}>Save IDs</Btn>
       </div>
     </Modal>);
   };
@@ -1023,9 +1176,10 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
         <Btn variant={chatOpen?"soft":"ghost"} size="sm" onClick={()=>setChatOpen(o=>!o)}>{chatOpen?"Hide chat":"💬 Open chat"}</Btn>
         {isStaffMgr&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"clientForm",client:c})}>✏️ Edit Info</Btn>}
         {canImpersonate&&<Btn variant="soft" size="sm" onClick={()=>{audit("client.impersonate",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name});setViewAs(c.id);}}>👁️ Open Account (read-only)</Btn>}
-        {isStaffMgr&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"integrations",client:c})}>🔗 Integrations</Btn>}
+        {(isStaffMgr||can("gmb"))&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"integrations",client:c})}>🔗 Integrations</Btn>}
         {isStaffMgr&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"analytics",client:c})}>📈 Update Analytics</Btn>}
-        {c.plan==="gmb"&&can("gmb")&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"gmb",client:c})}>📍 Update GMB</Btn>}
+        {c.plan==="gmb"&&can("gmb")&&(gmb[c.id]?.source!=="google")&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"gmb",client:c})}>📍 Update GMB</Btn>}
+        {c.plan==="gmb"&&can("gmb")&&gmb[c.id]?.source==="google"&&<Btn variant="soft" size="sm" onClick={()=>setModal({type:"integrations",client:c})}>📍 Google synced</Btn>}
         {c.plan==="gmb"&&isStaffMgr&&<Btn variant="soft" size="sm" onClick={()=>{const month=new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"});setConfirm({title:"Mark report as sent?",msg:`Confirm you've emailed the ${month} GMB report to ${c.reportEmail||c.email}. The client will see "Report sent for ${month}".`,yes:"Mark sent",onYes:()=>R(async()=>{await api.patchProfile(c.id,{reportSentMonth:month});await audit("report.sent",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name,detail:month});await addActivity(c.id,"gmb_update",`Monthly report sent for ${month}`);},"Report marked as sent")});}}>📤 Mark Report Sent</Btn>}
         {isStaffMgr&&(c.status==="active"?
           <Btn variant="ghost" size="sm" onClick={()=>setModal({type:"suspend",client:c})}>⏸ Suspend</Btn>:
@@ -1157,7 +1311,11 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
               </div>
               <div style={{display:"flex",gap:8}}>
                 <Btn variant="ghost" size="sm" onClick={()=>{setSelClient(c.id);setPage("clientDetail");}}>View</Btn>
-                <Btn variant="green" size="sm" onClick={()=>setModal({type:"gmb",client:c})}>Update GMB</Btn>
+                {d?.source==="google"?(
+                  <Btn variant="soft" size="sm" onClick={()=>setModal({type:"integrations",client:c})}>Google sync</Btn>
+                ):(
+                  <Btn variant="green" size="sm" onClick={()=>setModal({type:"gmb",client:c})}>Update GMB</Btn>
+                )}
               </div>
             </div>
           </Card>);})}
@@ -1530,6 +1688,21 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
       </Card>
 
       <Card style={{marginBottom:16}}>
+        <SectionTitle sub="Staff Connect Google on a client → OAuth → pick location → daily cron syncs Performance metrics + NAP into the GMB dashboard. Secrets live only in Vercel.">Google Business Profile</SectionTitle>
+        <div style={{padding:"14px 16px",background:T.greenSoft,borderRadius:12,marginBottom:12,fontSize:12.5,color:T.green,lineHeight:1.7}}>
+          <div style={{fontWeight:800,marginBottom:6}}>Setup (Google Cloud + Vercel):</div>
+          <div><b>1.</b> Google Cloud → enable <b>Business Profile Performance API</b> and <b>My Business Business Information API</b> (+ Account Management).</div>
+          <div><b>2.</b> OAuth consent screen (External / Testing) → scope <code>business.manage</code>.</div>
+          <div><b>3.</b> Create OAuth Web client. Redirect URI:</div>
+          <div style={{margin:"6px 0",padding:"8px 11px",background:"#fff",borderRadius:8,fontFamily:"monospace",fontSize:11.5,color:T.ink,wordBreak:"break-all",userSelect:"all"}}>{(typeof window!=="undefined"?window.location.origin:"https://your-app.vercel.app")+"/api/google-gbp-callback"}</div>
+          <div><b>4.</b> Vercel env: <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code>, <code>GOOGLE_REDIRECT_URI</code> (same URL as above), <code>CRON_SECRET</code>.</div>
+          <div><b>5.</b> Run <code>supabase/google-gbp.sql</code> in the Supabase SQL Editor (one time).</div>
+          <div><b>6.</b> Cron hits <code>/api/cron/google-gbp-sync</code> daily at 06:00 UTC (see vercel.json).</div>
+        </div>
+        <div style={{fontSize:12,color:T.sub,lineHeight:1.55}}>After setup, open a client → Integrations → <b>Connect Google</b>. Manual Update GMB stays available when not connected.</div>
+      </Card>
+
+      <Card style={{marginBottom:16}}>
         <SectionTitle sub="Checkout, cancel, upgrades, and invoices run through Stripe Checkout + webhooks. Secrets live only in Vercel env — never in the database.">Stripe Billing</SectionTitle>
         <div style={{padding:"14px 16px",background:T.blueSoft,borderRadius:12,marginBottom:18,fontSize:12.5,color:T.blue,lineHeight:1.7}}>
           <div style={{fontWeight:800,marginBottom:6}}>Setup (Vercel env + Stripe Dashboard):</div>
@@ -1557,9 +1730,13 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
           <span style={{fontSize:13,color:T.sub}}>Stripe Checkout</span>
           <Badge type={stripeLive?"connected":"manual"} label={stripeLive?"Configured":"Env not set (demo mode)"}/>
         </div>
+        <div style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${T.line}`}}>
+          <span style={{fontSize:13,color:T.sub}}>GBP OAuth + nightly sync</span>
+          <Badge type="connected" label="Step 1 live (env required)"/>
+        </div>
         <div style={{display:"flex",justifyContent:"space-between",padding:"10px 0"}}>
-          <span style={{fontSize:13,color:T.sub}}>Live GA4 / GBP auto-sync</span>
-          <Badge type="pending" label="Next phase (OAuth)"/>
+          <span style={{fontSize:13,color:T.sub}}>GA4 auto-sync</span>
+          <Badge type="pending" label="Later phase"/>
         </div>
       </Card>
     </div>);
@@ -1627,7 +1804,7 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
   {modal?.type==="updateListing"&&<UpdateListingModal listing={modal.listing} clientId={modal.clientId} onClose={()=>setModal(null)}/>}
   {modal?.type==="gmb"&&<GmbModal client={modal.client} onClose={()=>setModal(null)}/>}
   {modal?.type==="analytics"&&<AnalyticsModal client={modal.client} onClose={()=>setModal(null)}/>}
-  {modal?.type==="integrations"&&<IntegrationsModal client={modal.client} onClose={()=>setModal(null)}/>}
+  {modal?.type==="integrations"&&<IntegrationsModal client={modal.client} pickLocation={!!modal.pickLocation} onClose={()=>setModal(null)}/>}
   <Confirm data={confirm} onClose={()=>setConfirm(null)}/>
   <Toasts/></>);
 }
