@@ -5,7 +5,7 @@ import { Modal, Btn } from "../../atoms";
 import { useAdmin } from "../AdminContext";
 
 export function NapConfirmModal({ client,newScore,onClose }) {
-  const { user, R, audit } = useAdmin();
+  const { user, R, audit, addActivity } = useAdmin();
 
     const hist=client.napHistory||[];
     const last3=hist.slice(-3).reverse();

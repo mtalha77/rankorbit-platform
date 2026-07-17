@@ -7,7 +7,7 @@ import { Modal, Input, Select, Btn } from "../../atoms";
 import { useAdmin } from "../AdminContext";
 
 export function ClientFormModal({ client,onClose }) {
-  const { R, audit, toast, livePlans } = useAdmin();
+  const { R, audit, toast, livePlans, addActivity, reload } = useAdmin();
 
     const[f,setF]=useState(client||{role:"client",plan:"",status:"active",category:"Home Services"});
     const[errs,setErrs]=useState({name:"",email:"",businessName:""});

@@ -8,7 +8,7 @@ import ChatThread from "../../ChatThread";
 import { useAdmin } from "../AdminContext";
 
 export function ClientDetail() {
-  const { selClient, clients, listings, gmb, analytics, activity, isMobile, isStaffMgr, isAdmin, isAgent, user, canImpersonate, setViewAs, setPage, setSelClient, setModal, setConfirm, R, audit, toast } = useAdmin();
+  const { selClient, clients, listings, gmb, analytics, activity, isMobile, isStaffMgr, isAdmin, isAgent, user, canImpersonate, setViewAs, setPage, setSelClient, setModal, setConfirm, R, audit, toast, addActivity } = useAdmin();
 
     const c=clients.find(x=>x.id===selClient);
     const[nap,setNap]=useState(0);

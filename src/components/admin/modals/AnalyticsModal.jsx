@@ -5,7 +5,7 @@ import { Modal, Input, Btn, Badge } from "../../atoms";
 import { useAdmin } from "../AdminContext";
 
 export function AnalyticsModal({ client,onClose }) {
-  const { analytics, R, audit } = useAdmin();
+  const { analytics, R, audit, addActivity } = useAdmin();
 
     const ex=analytics[client.id]||{sessions:0,users:0,pageviews:0,avgTime:"0:00",source:"manual",trend:[]};
     const[f,setF]=useState({sessions:ex.sessions,users:ex.users,pageviews:ex.pageviews,avgTime:ex.avgTime});
