@@ -410,7 +410,7 @@ function ChatThreadInner({
           borderTop: `1px solid ${T.line}`,
           display: "flex",
           gap: 10,
-          alignItems: "stretch",
+          alignItems: "center",
           background: T.surface,
           flexShrink: 0,
           opacity: composerBlocked ? 0.55 : 1,
@@ -421,25 +421,29 @@ function ChatThreadInner({
           onChange={(e) => setDraft(e.target.value.slice(0, 4000))}
           onKeyDown={onKeyDown}
           placeholder={composerBlocked ? "Chat opens once a team member is available…" : "Type a message… (Enter to send)"}
-          rows={2}
+          rows={1}
           disabled={composerBlocked}
           style={{
             flex: 1,
-            padding: "10px 12px",
+            height: 44,
+            padding: "0 14px",
             borderRadius: 12,
             border: `1.5px solid ${T.line}`,
             background: T.surface2,
             color: T.ink,
             fontSize: 13.5,
             fontFamily: FONT_B,
+            lineHeight: "44px",
             resize: "none",
             boxSizing: "border-box",
+            textAlign: "left",
+            overflow: "hidden",
           }}
         />
         <Btn
           onClick={send}
           disabled={composerBlocked || sending || !draft.trim()}
-          style={{ flexShrink: 0, height: "auto", alignSelf: "stretch" }}
+          style={{ flexShrink: 0, height: 44 }}
         >
           {sending ? "…" : "Send"}
         </Btn>
