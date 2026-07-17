@@ -84,14 +84,16 @@ export const api={
       if(data.user){
         await supa.from("profiles").update({name,businessName,phone,avatar:(name||email)[0].toUpperCase()}).eq("id",data.user.id);
       }
-      // Fire-and-forget welcome (does not change signup success/error flow).
-      // Dedup key set so first-login ensureWelcomeNotify doesn't send it again.
+      // Fire-and-forget welcome. Mark localStorage only after success so a failed
+      // request can still be retried on first login via ensureWelcomeNotify.
       if(data.session?.access_token&&data.user){
-        try{if(typeof localStorage!=="undefined")localStorage.setItem(`ro_welcome_${data.user.id}`,"1");}catch{}
+        const uid=data.user.id;
         fetch("/api/notify-client",{
           method:"POST",
           headers:{"Content-Type":"application/json"},
           body:JSON.stringify({token:data.session.access_token,type:"welcome"}),
+        }).then(r=>{
+          if(r.ok&&typeof localStorage!=="undefined")localStorage.setItem(`ro_welcome_${uid}`,"1");
         }).catch(()=>{});
       }
       // Email verification is required, Supabase returns no session until confirmed.
@@ -122,8 +124,7 @@ export const api={
   },
   /**
    * Send the welcome (in-app + email) once per client, on first login.
-   * Covers the email-confirm case where signup returns no session.
-   * Deduped via localStorage + existing DB welcome row (server also dedupes).
+   * Covers email-confirm signups (no session at signup). Server dedupes duplicates.
    */
   async ensureWelcomeNotify(){
     if(!supa)return;
@@ -131,24 +132,15 @@ export const api={
       const{data:{user}}=await supa.auth.getUser();
       if(!user)return;
       const key=`ro_welcome_${user.id}`;
-      if(typeof localStorage!=="undefined"&&localStorage.getItem(key))return;
-      // Already welcomed in DB (e.g. other device / cleared localStorage).
-      try{
-        const{data:existing}=await supa.from("notifications").select("id").eq("userId",user.id).eq("type","welcome").limit(1).maybeSingle();
-        if(existing){
-          if(typeof localStorage!=="undefined")localStorage.setItem(key,"1");
-          return;
-        }
-      }catch{/* RLS / table — continue and let server decide */}
-      // Mark first so parallel login attempts don't double-fire.
-      if(typeof localStorage!=="undefined")localStorage.setItem(key,"1");
       const token=await this._accessToken();
       if(!token)return;
-      await fetch("/api/notify-client",{
+      const r=await fetch("/api/notify-client",{
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({token,type:"welcome"}),
-      }).catch(()=>{});
+      });
+      // Mark only after success so failed attempts can retry.
+      if(r.ok&&typeof localStorage!=="undefined")localStorage.setItem(key,"1");
     }catch{/* welcome is best-effort */}
   },
   async googleLogin(){
