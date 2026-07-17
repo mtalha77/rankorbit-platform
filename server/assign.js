@@ -296,6 +296,20 @@ export function planLabel(planId) {
 export async function notifyClient(admin, { userId, clientId, type, title, body, meta }) {
   if (!userId) return { notified: false };
 
+  // Welcome + first subscription: once per client (webhook + client ensure must not double-send).
+  if (type === "welcome" || type === "plan_subscribed") {
+    const { data: existing } = await admin
+      .from("notifications")
+      .select("id")
+      .eq("userId", userId)
+      .eq("type", type)
+      .limit(1)
+      .maybeSingle();
+    if (existing) {
+      return { notified: true, skipped: `already_${type}`, notificationId: existing.id };
+    }
+  }
+
   const row = await createNotification(admin, {
     userId,
     clientId: clientId || userId,

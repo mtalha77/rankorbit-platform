@@ -123,15 +123,14 @@ export const api={
     }catch(e){return{ok:false,error:e.message};}
   },
   /**
-   * Send the welcome (in-app + email) once per client, on first login.
-   * Covers email-confirm signups (no session at signup). Server dedupes duplicates.
+   * Welcome once per client after register / first session.
+   * Covers email-confirm signups (no session at signup). Server dedupes.
    */
   async ensureWelcomeNotify(){
     if(!supa)return;
     try{
       const{data:{user}}=await supa.auth.getUser();
       if(!user)return;
-      const key=`ro_welcome_${user.id}`;
       const token=await this._accessToken();
       if(!token)return;
       const r=await fetch("/api/notify-client",{
@@ -139,9 +138,34 @@ export const api={
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({token,type:"welcome"}),
       });
-      // Mark only after success so failed attempts can retry.
-      if(r.ok&&typeof localStorage!=="undefined")localStorage.setItem(key,"1");
+      if(r.ok&&typeof localStorage!=="undefined")localStorage.setItem(`ro_welcome_${user.id}`,"1");
     }catch{/* welcome is best-effort */}
+  },
+  /**
+   * First plan subscribe notification once. Webhook may fire first; this covers
+   * missed webhooks (local) after plan lands on the profile. Server dedupes.
+   */
+  async ensurePlanSubscribedNotify(){
+    if(!supa)return;
+    try{
+      const{data:{user}}=await supa.auth.getUser();
+      if(!user)return;
+      const{data:prof}=await supa.from("profiles").select("plan,role").eq("id",user.id).maybeSingle();
+      if(!prof||prof.role!=="client"||!prof.plan)return;
+      const token=await this._accessToken();
+      if(!token)return;
+      await fetch("/api/notify-client",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({token,type:"plan_subscribed"}),
+      });
+    }catch{/* plan notify is best-effort */}
+  },
+  /** Register → welcome; first plan → plan_subscribed. Safe to call often. */
+  ensureClientLifecycleNotifs(profile){
+    if(!profile||profile.role!=="client")return;
+    this.ensureWelcomeNotify();
+    if(profile.plan)this.ensurePlanSubscribedNotify();
   },
   async googleLogin(){
     if(!supa)return{error:"Google sign-in needs the live database. It's disabled in demo mode."};

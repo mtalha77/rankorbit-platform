@@ -186,7 +186,10 @@ export default function App(){
     try{
       await api.init();
       const existing=await api.currentUser();
-      if(existing){await applyUser(existing,{forceReload:true});}
+      if(existing){
+        await applyUser(existing,{forceReload:true});
+        api.ensureClientLifecycleNotifs(existing);
+      }
       else{await reload();}
     }catch(e){
       console.error("boot failed:",e);
@@ -197,7 +200,10 @@ export default function App(){
           const{data:{session}}=await supa.auth.getSession();
           if(session?.user){
             let{data:prof}=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
-            if(prof)await applyUser(prof,{forceReload:true});
+            if(prof){
+              await applyUser(prof,{forceReload:true});
+              api.ensureClientLifecycleNotifs(prof);
+            }
           }
         }catch(e){console.warn("boot session catch-up:",e.message);}
       }
@@ -256,7 +262,11 @@ export default function App(){
             const r=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
             prof=r.data;
           }
-          if(prof)await applyUser(prof,{forceReload:false});
+          if(prof){
+            await applyUser(prof,{forceReload:false});
+            // Email-confirm / OAuth land here — not only explicit onLogin.
+            api.ensureClientLifecycleNotifs(prof);
+          }
         }catch(e){
           console.error("auth hydrate failed:",e);
         }
@@ -284,8 +294,8 @@ export default function App(){
     ignoreSignOutUntilRef.current=Date.now()+8000;
     // Explicit login / plan activation: always refresh data so flows stay correct.
     await applyUser(u,{forceReload:true});
-    // First-login welcome (covers email-confirm signups). Fire-and-forget, deduped.
-    if(u&&!STAFF_ROLES.includes(u.role))api.ensureWelcomeNotify();
+    // Register → welcome; first plan → plan_subscribed (server once-only).
+    api.ensureClientLifecycleNotifs(u);
   },[applyUser]);
 
   const onLogout=useCallback(async()=>{
