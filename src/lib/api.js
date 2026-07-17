@@ -657,11 +657,30 @@ export const api={
     const us=LS("ro3_users")||[];const i=us.findIndex(x=>x.id===u.id);
     if(i>=0)us[i]=u;else us.push(u);LSet("ro3_users",us);
   },
-  // Soft-delete: sets deletedAt. Recoverable for 30 days, then purge.
+  // Soft-delete: sets deletedAt. Recoverable for 30 days, then purge. (clients)
   async deleteUser(id){
     const when=new Date().toISOString();
     if(supa){await supa.from("profiles").update({deletedAt:when}).eq("id",id);return;}
     const us=LS("ro3_users")||[];const i=us.findIndex(x=>x.id===id);if(i>=0){us[i].deletedAt=when;LSet("ro3_users",us);}
+  },
+  // Permanent staff remove — login + profile + team DMs gone. Super admin only (server-enforced).
+  async deleteStaff(id){
+    if(!supa){
+      LSet("ro3_users",(LS("ro3_users")||[]).filter(x=>x.id!==id));
+      return{ok:true};
+    }
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/delete-staff",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({token,staffId:id}),
+      });
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not remove team member"};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error"};}
   },
   async restoreUser(id){
     if(supa){await supa.from("profiles").update({deletedAt:null}).eq("id",id);return;}

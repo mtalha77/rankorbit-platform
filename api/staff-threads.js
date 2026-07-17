@@ -21,9 +21,10 @@ export default async function handler(req, res) {
   try {
     const { data: peers } = await admin
       .from("profiles")
-      .select("id,name,email,role")
+      .select("id,name,email,role,deletedAt")
       .in("role", STAFF_ROLES)
       .neq("id", me.id)
+      .is("deletedAt", null)
       .order("name", { ascending: true });
 
     const list = peers || [];

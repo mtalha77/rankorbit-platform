@@ -1501,7 +1501,7 @@ export default function AdminDashboard({user,data,reload,onLogout,onUserUpdate})
           <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
             {m.role==="agent"&&<span style={{fontSize:11,color:T.sub,fontWeight:700,background:T.blueSoft,padding:"3px 9px",borderRadius:20}}>{allClients.filter(c=>c.assignedAgentId===m.id).length} clients</span>}
             <Btn variant="soft" size="sm" onClick={()=>setModal({type:"permissions",member:m})}>Permissions</Btn>
-            {isAdmin&&m.id!==user.id&&<Btn variant="danger" size="sm" onClick={()=>setConfirm({title:"Remove team member?",msg:`Remove ${m.name} from the team?`,danger:true,yes:"Remove",onYes:()=>R(async()=>api.deleteUser(m.id),`${m.name} removed`)})}>Remove</Btn>}
+            {isAdmin&&m.id!==user.id&&<Btn variant="danger" size="sm" onClick={()=>setConfirm({title:"Remove team member?",msg:`Permanently remove ${m.name}? Their login and team messages will be deleted.`,danger:true,yes:"Remove",onYes:()=>R(async()=>{const r=await api.deleteStaff(m.id);if(r?.error)throw new Error(r.error);},`${m.name} removed`)})}>Remove</Btn>}
           </div>
         </div>
         {m.staffPassword&&!m.protected&&<CredsRow m={m}/>}
