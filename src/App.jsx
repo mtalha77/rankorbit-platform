@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { Toaster } from "sonner";
 import { T, FONT_B } from "./lib/theme";
@@ -7,12 +7,14 @@ import { supa } from "./lib/supabase";
 import { api } from "./lib/api";
 import { GlobalStyle } from "./components/GlobalStyle";
 import { Orbit } from "./components/Orbit";
-import AuthScreen from "./pages/AuthScreen";
+// Recovery helpers run at boot — keep this module eager. Heavy pages lazy-load below.
 import ResetPassword, { markPasswordRecovery, clearPasswordRecovery, isPasswordRecovery } from "./pages/ResetPassword";
-import LandingPage from "./pages/LandingPage";
-import LegalPage from "./pages/LegalPage";
-import ClientDashboard from "./pages/ClientDashboard";
-import AdminDashboard from "./pages/AdminDashboard";
+
+const AuthScreen = lazy(() => import("./pages/AuthScreen"));
+const LandingPage = lazy(() => import("./pages/LandingPage"));
+const LegalPage = lazy(() => import("./pages/LegalPage"));
+const ClientDashboard = lazy(() => import("./pages/ClientDashboard"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 
 const Loading=({label="Loading platform…"})=>(
   <div style={{height:"100vh",background:T.bg,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,fontFamily:FONT_B}}>
@@ -304,17 +306,19 @@ export default function App(){
   const shared={user:currentUser,data,reload,onLogin,onLogout,passwordRecovery,onUserUpdate};
   return(<><GlobalStyle/>
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<LandingRoute user={currentUser} passwordRecovery={passwordRecovery}/>}/>
-        <Route path="/terms" element={<LegalPage mode="terms"/>}/>
-        <Route path="/privacy" element={<LegalPage mode="privacy"/>}/>
-        <Route path="/login" element={<ClientAuth mode="login" user={currentUser} onLogin={onLogin} passwordRecovery={passwordRecovery}/>}/>
-        <Route path="/signup" element={<ClientAuth mode="signup" user={currentUser} onLogin={onLogin} passwordRecovery={passwordRecovery}/>}/>
-        <Route path="/reset-password" element={<ResetPasswordRoute user={currentUser} passwordRecovery={passwordRecovery} onClearRecovery={clearRecovery} onLogout={onLogout}/>}/>
-        <Route path="/dashboard" element={<ClientDashboardRoute {...shared}/>}/>
-        <Route path="/admin" element={<StaffPortal {...shared}/>}/>
-        <Route path="*" element={<Navigate to="/" replace/>}/>
-      </Routes>
+      <Suspense fallback={<Loading/>}>
+        <Routes>
+          <Route path="/" element={<LandingRoute user={currentUser} passwordRecovery={passwordRecovery}/>}/>
+          <Route path="/terms" element={<LegalPage mode="terms"/>}/>
+          <Route path="/privacy" element={<LegalPage mode="privacy"/>}/>
+          <Route path="/login" element={<ClientAuth mode="login" user={currentUser} onLogin={onLogin} passwordRecovery={passwordRecovery}/>}/>
+          <Route path="/signup" element={<ClientAuth mode="signup" user={currentUser} onLogin={onLogin} passwordRecovery={passwordRecovery}/>}/>
+          <Route path="/reset-password" element={<ResetPasswordRoute user={currentUser} passwordRecovery={passwordRecovery} onClearRecovery={clearRecovery} onLogout={onLogout}/>}/>
+          <Route path="/dashboard" element={<ClientDashboardRoute {...shared}/>}/>
+          <Route path="/admin" element={<StaffPortal {...shared}/>}/>
+          <Route path="*" element={<Navigate to="/" replace/>}/>
+        </Routes>
+      </Suspense>
     </BrowserRouter>
     <Toaster position="top-right" richColors closeButton duration={3200}/>
   </>);
