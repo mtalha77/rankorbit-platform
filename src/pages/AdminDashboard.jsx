@@ -1,5 +1,5 @@
 // ─── ADMIN DASHBOARD ─────────────────────────────────────────────────────────
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { T, FONT_B, SHADOW } from "../lib/theme";
 import { api } from "../lib/api";
 import { PLANS, livePlanEntries } from "../lib/constants";
@@ -7,8 +7,10 @@ import { todayFull, uid } from "../lib/helpers";
 import { Confirm } from "../components/atoms";
 import Shell from "../components/Shell";
 import AccountSettings from "../components/AccountSettings";
-import ClientDashboard from "./ClientDashboard";
 import { useWindowSize, useToast } from "../hooks";
+
+// Load only when staff uses View-as — keeps /admin chunk smaller.
+const ClientDashboard = lazy(() => import("./ClientDashboard"));
 import {
   AdminContext,
   filterVisibleStaffNotifs,
@@ -214,7 +216,9 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
           <button onClick={() => setViewAs(null)} style={{ background: "rgba(255,255,255,.25)", border: "none", color: "#fff", padding: "6px 16px", borderRadius: 8, fontWeight: 800, cursor: "pointer", fontFamily: FONT_B, fontSize: 12.5 }}>Exit view</button>
         </div>
         <div>
-          <ClientDashboard user={c} data={data} reload={reload} onLogout={() => setViewAs(null)} impersonating />
+          <Suspense fallback={<div style={{ padding: 40, textAlign: "center", color: T.sub, fontFamily: FONT_B }}>Loading client view…</div>}>
+            <ClientDashboard user={c} data={data} reload={reload} onLogout={() => setViewAs(null)} impersonating />
+          </Suspense>
         </div>
       </>
     );
