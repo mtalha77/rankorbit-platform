@@ -80,4 +80,18 @@ function localApiPlugin() {
 
 export default defineConfig({
   plugins: [react(), localApiPlugin()],
+  build: {
+    rollupOptions: {
+      output: {
+        // Charts shared by Admin + Client — one cacheable vendor chunk.
+        manualChunks(id) {
+          const p = id.replace(/\\/g, "/");
+          if (p.includes("node_modules/recharts") || p.includes("node_modules/victory-vendor")) {
+            return "recharts";
+          }
+        },
+      },
+    },
+  },
 });
+
