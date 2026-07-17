@@ -118,6 +118,8 @@ export default function App(){
   // True while the cold-start boot effect is loading session/data.
   // Auth listener must not start a second loadAll during this window (prevents refresh double-render).
   const bootingRef=useRef(true);
+  // After login, ignore brief spurious SIGNED_OUT from concurrent token refresh.
+  const ignoreSignOutUntilRef=useRef(0);
 
   const reload=useCallback(async()=>{
     const gen=++loadGenRef.current;
@@ -259,6 +261,13 @@ export default function App(){
         scrubHash();
       }
       if(event==="SIGNED_OUT"){
+        // Concurrent refreshSession races can emit SIGNED_OUT while the session
+        // is still valid — that flashed the dashboard then bounced to login.
+        if(Date.now()<ignoreSignOutUntilRef.current)return;
+        try{
+          const{data:{session:still}}=await supa.auth.getSession();
+          if(still?.user)return;
+        }catch{/* treat as signed out */}
         loadedForRef.current.id=null;
         loadGenRef.current+=1;
         setCurrentUser(null);
@@ -269,6 +278,8 @@ export default function App(){
   /* eslint-disable-next-line */},[]);
 
   const onLogin=useCallback(async(u)=>{
+    // Guard against refresh races during the post-login data load.
+    ignoreSignOutUntilRef.current=Date.now()+8000;
     // Explicit login / plan activation: always refresh data so flows stay correct.
     await applyUser(u,{forceReload:true});
     // First-login welcome (covers email-confirm signups). Fire-and-forget, deduped.
@@ -276,6 +287,7 @@ export default function App(){
   },[applyUser]);
 
   const onLogout=useCallback(async()=>{
+    ignoreSignOutUntilRef.current=0;
     loadedForRef.current.id=null;
     loadGenRef.current+=1;
     await api.logout();

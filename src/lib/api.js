@@ -52,8 +52,20 @@ export const api={
           return{error:"Too many attempts. Please wait a minute and try again."};
         return{error:error.message.includes("Invalid")?"Invalid email or password.":error.message};
       }
-      const{data:prof}=await supa.from("profiles").select("*").eq("id",data.user.id).maybeSingle();
-      if(prof?.status==="suspended"){await supa.auth.signOut();return{error:"This account is suspended. Contact your account manager."};}
+      let{data:prof}=await supa.from("profiles").select("*").eq("id",data.user.id).maybeSingle();
+      if(!prof){
+        // Profile trigger sometimes lags right after signup/confirm — create once.
+        const meta=data.user.user_metadata||{};
+        const name=meta.name||meta.full_name||data.user.email?.split("@")[0]||"there";
+        await supa.from("profiles").upsert({
+          id:data.user.id,email:data.user.email,role:"client",name,
+          avatar:(name[0]||"U").toUpperCase(),status:"active",
+        },{onConflict:"id"});
+        const r=await supa.from("profiles").select("*").eq("id",data.user.id).maybeSingle();
+        prof=r.data;
+      }
+      if(!prof){await supa.auth.signOut();return{error:"Account profile missing. Try again in a moment."};}
+      if(prof.status==="suspended"){await supa.auth.signOut();return{error:"This account is suspended. Contact your account manager."};}
       return{user:prof};
     }
     const u=(LS("ro3_users")||[]).find(x=>x.email===email&&x.password===password);
@@ -111,7 +123,7 @@ export const api={
   /**
    * Send the welcome (in-app + email) once per client, on first login.
    * Covers the email-confirm case where signup returns no session.
-   * Fire-and-forget + localStorage dedup so it never blocks or repeats.
+   * Deduped via localStorage + existing DB welcome row (server also dedupes).
    */
   async ensureWelcomeNotify(){
     if(!supa)return;
@@ -120,7 +132,15 @@ export const api={
       if(!user)return;
       const key=`ro_welcome_${user.id}`;
       if(typeof localStorage!=="undefined"&&localStorage.getItem(key))return;
-      // Mark first so a slow/failed call doesn't retry on every login.
+      // Already welcomed in DB (e.g. other device / cleared localStorage).
+      try{
+        const{data:existing}=await supa.from("notifications").select("id").eq("userId",user.id).eq("type","welcome").limit(1).maybeSingle();
+        if(existing){
+          if(typeof localStorage!=="undefined")localStorage.setItem(key,"1");
+          return;
+        }
+      }catch{/* RLS / table — continue and let server decide */}
+      // Mark first so parallel login attempts don't double-fire.
       if(typeof localStorage!=="undefined")localStorage.setItem(key,"1");
       const token=await this._accessToken();
       if(!token)return;
@@ -139,13 +159,12 @@ export const api={
     if(error)return{error:error.message};
     return{redirecting:true};
   },
+  // Single-flight refresh — concurrent refreshSession() rotates tokens and can
+  // fire a spurious SIGNED_OUT (dashboard flash → back to login).
+  _refreshPromise:null,
   // Return the current access token for API calls.
-  // IMPORTANT: do NOT call refreshSession() on every request. Supabase rotates
-  // refresh tokens, so concurrent forced refreshes (e.g. several dashboard polls
-  // firing at mount) invalidate each other and can trigger a spurious SIGNED_OUT
-  // — which flashed the dashboard then bounced staff back to the sign-in page.
   // getSession() already returns an auto-refreshed token; only refresh manually
-  // when it is expired / about to expire.
+  // when it is expired / about to expire — and never in parallel.
   async _accessToken(){
     if(!supa)return null;
     const{data:{session}}=await supa.auth.getSession();
@@ -153,8 +172,11 @@ export const api={
     const expMs=(session.expires_at||0)*1000;
     if(expMs&&expMs-Date.now()<60000){
       try{
-        const rr=await supa.auth.refreshSession();
-        if(rr.data?.session?.access_token)return rr.data.session.access_token;
+        if(!this._refreshPromise){
+          this._refreshPromise=supa.auth.refreshSession().finally(()=>{this._refreshPromise=null;});
+        }
+        const rr=await this._refreshPromise;
+        if(rr?.data?.session?.access_token)return rr.data.session.access_token;
       }catch{/* fall back to current token */}
     }
     return session.access_token||null;

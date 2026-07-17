@@ -49,10 +49,12 @@ export default function AuthScreen({onLogin,portal="client",initialMode="login"}
     api.setRemember(remember);
     setBusy(true);const r=await api.login(email,password);setBusy(false);
     if(r.error){setError(r.error);return;}
-    const role=r.user?.role;
+    if(!r.user){setError("Sign-in failed. Please try again.");return;}
+    const role=r.user.role;
     if(isStaff && !STAFF_ROLES.includes(role)){await api.logout();setError("This is the staff portal. Clients sign in at /login.");return;}
     if(!isStaff && STAFF_ROLES.includes(role)){await api.logout();setError("Staff accounts sign in at /admin.");return;}
-    setError("");setFieldErrors({});onLogin(r.user);
+    setError("");setFieldErrors({});
+    try{await onLogin(r.user);}catch(e){setError(e.message||"Sign-in failed. Please try again.");}
   };
   const signup=async()=>{
     const fe={};

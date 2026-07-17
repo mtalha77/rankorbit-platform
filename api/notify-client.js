@@ -86,6 +86,24 @@ export default async function handler(req, res) {
   const finalTitle = (title && String(title).trim()) || defaults.title;
   const finalBody = (body && String(body).trim()) || defaults.body;
 
+  // Welcome is once-per-client — never insert a second copy.
+  if (type === "welcome") {
+    const { data: existingWelcome } = await admin
+      .from("notifications")
+      .select("id")
+      .eq("userId", targetClientId)
+      .eq("type", "welcome")
+      .limit(1)
+      .maybeSingle();
+    if (existingWelcome) {
+      return res.status(200).json({
+        ok: true,
+        skipped: "already_welcomed",
+        notificationId: existingWelcome.id,
+      });
+    }
+  }
+
   // Agent edits: email managers only (no client notification).
   if (type === "agent_edit" && isStaff) {
     try {

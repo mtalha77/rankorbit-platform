@@ -35,14 +35,14 @@ async function findProfileId(admin, { userId, customerId, email }) {
   return null;
 }
 
-async function syncSubscription(admin, stripe, sub, hintPlan) {
+async function syncSubscription(admin, stripe, sub, hintPlan, { logActivity = false } = {}) {
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
   const metaUser = sub.metadata?.supabase_user_id;
   const planId = hintPlan || sub.metadata?.plan_id || planFromPriceId(sub.items?.data?.[0]?.price?.id);
   const profileId = await findProfileId(admin, { userId: metaUser, customerId });
   if (!profileId) {
     console.warn("No profile for subscription", sub.id);
-    return;
+    return null;
   }
 
   const fields = subscriptionFieldsFromStripe(sub, planId);
@@ -82,14 +82,18 @@ async function syncSubscription(admin, stripe, sub, hintPlan) {
   const { error } = await admin.from("profiles").update(clean).eq("id", profileId);
   if (error) throw new Error(error.message);
 
-  await admin.from("activity").insert({
-    id: `a${Date.now()}${Math.floor(Math.random() * 1000)}`,
-    clientId: profileId,
-    type: "submitted",
-    desc: `Stripe: subscription ${sub.status}${planId ? ` · ${planId}` : ""}`,
-    date: new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }),
-    by: "Stripe",
-  });
+  if (logActivity) {
+    await admin.from("activity").insert({
+      id: `a${Date.now()}${Math.floor(Math.random() * 1000)}`,
+      clientId: profileId,
+      type: "submitted",
+      desc: `Stripe: subscription ${sub.status}${planId ? ` · ${planId}` : ""}`,
+      date: new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }),
+      by: "Stripe",
+    });
+  }
+
+  return profileId;
 }
 
 export default async function handler(req, res) {
@@ -155,13 +159,9 @@ export default async function handler(req, res) {
               metadata: { ...(sub.metadata || {}), supabase_user_id: userId, plan_id: planId || "" },
             });
           }
-          await syncSubscription(admin, stripe, sub, planId);
+          const profileId = await syncSubscription(admin, stripe, sub, planId, { logActivity: true });
 
           // Persist the first invoice immediately (don't wait only on invoice.* webhooks).
-          const profileId = await findProfileId(admin, {
-            userId: userId || sub.metadata?.supabase_user_id,
-            customerId,
-          });
           if (profileId) {
             let inv = sub.latest_invoice;
             if (typeof inv === "string") {
@@ -201,23 +201,9 @@ export default async function handler(req, res) {
       }
       case "customer.subscription.created":
       case "customer.subscription.updated": {
+        // Profile sync only — assign/notify/activity stay on checkout to avoid duplicates.
         const sub = event.data.object;
         await syncSubscription(admin, stripe, sub, sub.metadata?.plan_id);
-        // Safety net: assign BDM whenever a paid subscription becomes active.
-        if (sub.status === "active" || sub.status === "trialing") {
-          const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
-          const profileId = await findProfileId(admin, {
-            userId: sub.metadata?.supabase_user_id,
-            customerId,
-          });
-          if (profileId) {
-            try {
-              await autoAssignLeastLoadedAgent(admin, profileId);
-            } catch (e) {
-              console.warn("auto-assign after subscription event:", e.message);
-            }
-          }
-        }
         break;
       }
       case "customer.subscription.deleted": {
