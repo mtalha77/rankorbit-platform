@@ -1,6 +1,7 @@
-import { T, FONT_D, SHADOW_LG } from "../../lib/theme";
+import { T, FONT_D } from "../../lib/theme";
 import { Reveal } from "../Reveal";
 import CssIoButton from "../CssIoButton";
+import { GrowthOrbitGraphic } from "./GrowthOrbitGraphic";
 
 export function LandingFinalCta({ isMobile, user, goDash, goSignup }) {
   return (
@@ -21,14 +22,14 @@ export function LandingFinalCta({ isMobile, user, goDash, goSignup }) {
           <div style={{
             position:"relative",zIndex:1,
             maxWidth:1400,margin:"0 auto",width:"100%",boxSizing:"border-box",
-            padding:isMobile?"16px 20px 0":"20px 40px 0",
+            padding:isMobile?"16px 20px 28px":"20px 40px 36px",
             display:"grid",
             gridTemplateColumns:isMobile?"1fr":"1.1fr 0.9fr",
             gap:isMobile?8:24,
-            alignItems:"end",
+            alignItems:"center",
           }}>
             {/* Left copy */}
-            <div style={{position:"relative",zIndex:2,paddingBottom:isMobile?28:48}}>
+            <div style={{position:"relative",zIndex:2,paddingBottom:isMobile?8:12}}>
               <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"6px 14px",background:"rgba(15,164,122,.15)",border:`1px solid rgba(15,164,122,.35)`,borderRadius:30,fontSize:11.5,fontWeight:800,color:T.green,letterSpacing:".5px",marginBottom:18}}>
                 <span style={{width:7,height:7,borderRadius:"50%",background:T.green,boxShadow:`0 0 8px ${T.green}`}}/>
                 START GROWING TODAY
@@ -55,71 +56,9 @@ export function LandingFinalCta({ isMobile, user, goDash, goSignup }) {
               </div>
             </div>
 
-            {/* Right: man + orbits */}
-            <div style={{position:"relative",zIndex:2,display:"flex",justifyContent:"center",alignItems:"flex-end",minHeight:isMobile?300:400}}>
-              {(()=>{
-                const stage=isMobile?280:380;
-                return(
-                  <div style={{position:"relative",width:stage,height:stage*1.05}}>
-                    {[1,0.74,0.5].map((scale,i)=>(
-                      <div key={i} aria-hidden="true" style={{
-                        position:"absolute",
-                        left:"50%",top:"42%",
-                        width:stage*scale,height:stage*scale,
-                        marginLeft:-(stage*scale)/2,marginTop:-(stage*scale)/2,
-                        borderRadius:"50%",
-                        border:`1px solid rgba(255,255,255,${0.18-i*0.03})`,
-                        pointerEvents:"none",
-                      }}>
-                        <div style={{position:"absolute",inset:0,borderRadius:"50%",animation:`${i%2?"orbitSpinR":"orbitSpin"} ${16+i*5}s linear infinite`}}>
-                          {[T.green,"#B8B8FF",T.blue].slice(0,2).map((c,di)=>(
-                            <span key={di} style={{
-                              position:"absolute",
-                              top:di===0?-4:"auto",
-                              bottom:di===1?-4:"auto",
-                              left:"50%",
-                              transform:"translateX(-50%)",
-                              width:8,height:8,borderRadius:"50%",
-                              background:c,boxShadow:`0 0 10px ${c}`,
-                            }}/>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                    <img
-                      src="/men-cta-cutout.png"
-                      alt="Get started with NAP Orbit"
-                      style={{
-                        position:"relative",zIndex:2,
-                        height:isMobile?300:420,
-                        width:"auto",maxWidth:"100%",
-                        objectFit:"contain",
-                        objectPosition:"bottom center",
-                        display:"block",
-                        margin:"0 auto",
-                        filter:"drop-shadow(0 20px 36px rgba(0,0,0,.35))",
-                      }}
-                    />
-                    <div style={{
-                      position:"absolute",
-                      left:isMobile?8:16,
-                      bottom:isMobile?24:40,
-                      zIndex:3,
-                      background:"#fff",
-                      borderRadius:14,
-                      padding:"10px 14px",
-                      boxShadow:SHADOW_LG,
-                      minWidth:140,
-                    }}>
-                      <div style={{display:"flex",alignItems:"center",gap:6,fontSize:10.5,fontWeight:800,color:T.green,letterSpacing:".4px",marginBottom:3}}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={T.green} strokeWidth="3" strokeLinecap="round"><path d="M20 6 9 17l-5-5"/></svg>
-                        VISIBILITY READY
-                      </div>
-                      <div style={{fontSize:14.5,fontWeight:800,color:T.ink,fontFamily:FONT_D}}>60+ destinations</div>
-                    </div>
-                  </div>
-                );
-              })()}
+            {/* Right: coded growth orbit (no human/cutout image) */}
+            <div style={{position:"relative",zIndex:2,display:"flex",justifyContent:"center",alignItems:"center",minHeight:isMobile?300:400}}>
+              <GrowthOrbitGraphic isMobile={isMobile}/>
             </div>
           </div>
         </div>

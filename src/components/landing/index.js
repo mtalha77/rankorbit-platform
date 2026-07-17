@@ -1,5 +1,6 @@
 export { BrandMark } from "./BrandMark";
 export { NumbersOrbitGraphic } from "./NumbersOrbitGraphic";
+export { GrowthOrbitGraphic } from "./GrowthOrbitGraphic";
 export { PublisherNetworkSVG } from "./PublisherNetworkSVG";
 export { Eyebrow, Ico, StatNumberCard } from "./landingShared";
 export { LandingNav } from "./LandingNav";
