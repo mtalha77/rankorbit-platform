@@ -1,10 +1,10 @@
-import { T, FONT_D } from "../../../lib/theme";
+import { T } from "../../../lib/theme";
 import { api } from "../../../lib/api";
-import { Card, Btn, Empty, PageHead, Badge } from "../../atoms";
+import { Card, Btn, Empty, PageHead, SectionTitle } from "../../atoms";
 import { useAdmin } from "../AdminContext";
 
 export function Trash() {
-  const { isMobile, data, R, audit, toast, setConfirm } = useAdmin();
+  const { isMobile, data, clients, R, audit, setConfirm } = useAdmin();
 
     const tUsers=data.trashedUsers||[];const tListings=data.trashedListings||[];
     const daysLeft=(d)=>{const gone=Math.floor((Date.now()-new Date(d).getTime())/86400000);return Math.max(0,30-gone);};
