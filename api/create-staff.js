@@ -68,7 +68,12 @@ export default async function handler(req, res) {
 
   // Validate the requested new account.
   if (!name || !email || !password || !role) return res.status(400).json({ error: "Missing name, email, password, or role" });
-  if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters" });
+  if (typeof password !== "string" || password.length !== 8) {
+    return res.status(400).json({ error: "Password must be exactly 8 characters" });
+  }
+  if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+    return res.status(400).json({ error: "Password needs upper, lower, number, and symbol" });
+  }
   if (!["super_admin", "manager", "agent"].includes(role)) return res.status(400).json({ error: "Invalid role" });
   // Managers may only create agents. Only super_admins may create super_admins or managers.
   if (callerRole === "manager" && role !== "agent") return res.status(403).json({ error: "Managers can only create agents" });

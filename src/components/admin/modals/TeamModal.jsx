@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { T, FONT_B } from "../../../lib/theme";
 import { api } from "../../../lib/api";
+import { generatePassword, passwordIssues } from "../../../lib/helpers";
 import { Modal, Input, Select, Btn } from "../../atoms";
 import { useAdmin } from "../AdminContext";
 
 export function TeamModal({ onClose }) {
-  const { isAdmin, R, audit, toast, reload } = useAdmin();
+  const { isAdmin, audit, toast, reload } = useAdmin();
 
-    const genPw=()=>{const cs="ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";let p="";for(let i=0;i<12;i++)p+=cs[Math.floor(Math.random()*cs.length)];return p;};
-    const[f,setF]=useState({role:isAdmin?"manager":"agent",password:genPw()});
+    const[f,setF]=useState({role:isAdmin?"manager":"agent",password:generatePassword()});
     const[errs,setErrs]=useState({name:"",email:"",password:""});
     const[saving,setSaving]=useState(false);
     const set=(k,v)=>{setF(x=>({...x,[k]:v}));if(errs[k])setErrs(e=>({...e,[k]:""}));};
@@ -17,7 +17,8 @@ export function TeamModal({ onClose }) {
       if(!String(f.name||"").trim())next.name="This field is required";
       if(!String(f.email||"").trim())next.email="This field is required";
       else if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email))next.email="Enter a valid email address";
-      if(!f.password||f.password.length<8)next.password="Password must be at least 8 characters";
+      const pwIssues=passwordIssues(f.password);
+      if(pwIssues.length)next.password="Password needs "+pwIssues.join(", ");
       setErrs(next);
       if(next.name||next.email||next.password)return;
       setSaving(true);
@@ -43,9 +44,10 @@ export function TeamModal({ onClose }) {
       <Input label="Email" value={f.email} onChange={v=>set("email",v)} placeholder="name@naporbit.com" validate="email" required error={errs.email}/>
       <label style={{fontSize:11.5,color:T.sub,fontWeight:700,display:"block",marginBottom:6,letterSpacing:".4px"}}>PASSWORD <span style={{color:T.red}}>*</span></label>
       <div style={{display:"flex",gap:8,marginBottom:errs.password?6:14}}>
-        <input value={f.password} onChange={e=>set("password",e.target.value)} style={{flex:1,padding:"11px 15px",background:T.surface,border:`1.5px solid ${errs.password?T.red:T.line}`,borderRadius:11,fontSize:13.5,fontFamily:"monospace",boxSizing:"border-box"}}/>
-        <Btn variant="ghost" size="sm" onClick={()=>set("password",genPw())}>🎲 Generate</Btn>
+        <input value={f.password} maxLength={8} onChange={e=>set("password",e.target.value.slice(0,8))} style={{flex:1,padding:"11px 15px",background:T.surface,border:`1.5px solid ${errs.password?T.red:T.line}`,borderRadius:11,fontSize:13.5,fontFamily:"monospace",boxSizing:"border-box"}}/>
+        <Btn variant="ghost" size="sm" onClick={()=>set("password",generatePassword())}>🎲 Generate</Btn>
       </div>
+      <div style={{fontSize:11,color:T.faint,marginBottom:errs.password?6:14,marginTop:-4}}>Exactly 8 characters · upper, lower, number, symbol (same as login)</div>
       {errs.password&&<div style={{fontSize:11,color:T.red,marginTop:0,marginBottom:14,fontWeight:600}}>{errs.password}</div>}
       <Select label="Role" value={f.role} onChange={v=>set("role",v)} options={roleOpts}/>
       <div style={{padding:"11px 14px",background:T.amberSoft,borderRadius:11,fontSize:11.5,color:T.amber,fontWeight:600,lineHeight:1.5,marginBottom:16}}>Save these credentials, they'll also stay visible on the Team page for you to copy later.</div>

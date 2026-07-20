@@ -148,7 +148,8 @@ create policy s_read on settings for select using (true);
 create policy s_write on settings for update using (is_staff());
 create policy inv_read on invoices for select using ("clientId"=auth.uid() or is_staff());
 
--- Clients cannot self-write plan / Stripe billing columns (webhook + staff + service role only).
+-- Clients cannot self-write billing OR privilege columns (webhook + staff + service role only).
+-- See also profile-security.sql / stripe-billing.sql for re-runnable copies.
 create or replace function protect_profile_billing() returns trigger as $$
 begin
   if auth.uid() is null then return new; end if;
@@ -156,6 +157,7 @@ begin
   if exists (select 1 from profiles p where p.id=auth.uid() and p.role in ('super_admin','manager','agent')) then
     return new;
   end if;
+  -- billing + plan
   new.plan := old.plan;
   new."stripeCustomerId" := old."stripeCustomerId";
   new."stripeSubscriptionId" := old."stripeSubscriptionId";
@@ -166,6 +168,23 @@ begin
   new."currentPeriodEnd" := old."currentPeriodEnd";
   new."cardBrand" := old."cardBrand";
   new."cardLast4" := old."cardLast4";
+  -- privilege / ops (block client self-escalation)
+  new.role := old.role;
+  new.status := old.status;
+  new.perms := old.perms;
+  new."canImpersonate" := old."canImpersonate";
+  new."assignedAgentId" := old."assignedAgentId";
+  new."deletedAt" := old."deletedAt";
+  new."suspendedAt" := old."suspendedAt";
+  new."suspendReason" := old."suspendReason";
+  new."suspendedBy" := old."suspendedBy";
+  new."staffPassword" := old."staffPassword";
+  new."createdByRole" := old."createdByRole";
+  new.protected := old.protected;
+  new.email := old.email;
+  new."napScore" := old."napScore";
+  new."napHistory" := old."napHistory";
+  new."reportSentMonth" := old."reportSentMonth";
   return new;
 end;
 $$ language plpgsql security definer;

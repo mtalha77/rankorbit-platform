@@ -183,6 +183,24 @@ export function passwordIssues(pw){
   if(!/[^A-Za-z0-9]/.test(pw))issues.push("a symbol");
   return issues;
 }
+
+/** Random 8-char password that always passes passwordIssues (login maxLength=8). */
+export function generatePassword(){
+  const upper="ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const lower="abcdefghijkmnpqrstuvwxyz";
+  const digits="23456789";
+  const symbols="!@#$%&*";
+  const pick=(s)=>s[Math.floor(Math.random()*s.length)];
+  // Guarantee one of each required class, then fill + shuffle.
+  const chars=[pick(upper),pick(lower),pick(digits),pick(symbols)];
+  const all=upper+lower+digits+symbols;
+  while(chars.length<8)chars.push(pick(all));
+  for(let i=chars.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [chars[i],chars[j]]=[chars[j],chars[i]];
+  }
+  return chars.join("");
+}
 export function passwordScore(pw){
   if(!pw)return 0;
   let s=0;

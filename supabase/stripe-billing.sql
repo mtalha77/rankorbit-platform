@@ -44,8 +44,9 @@ drop policy if exists inv_read on invoices;
 create policy inv_read on invoices for select using ("clientId"=auth.uid() or is_staff());
 -- Writes only via service role (webhook).
 
--- ── Block clients from self-writing billing / plan fields ────────────────────
--- Staff and service-role may update everything. Clients cannot change billing cols.
+-- ── Block clients from self-writing billing / privilege fields ───────────────
+-- Staff and service-role may update everything. Clients cannot escalate role/status
+-- or change billing cols (see profile-security.sql for the same function).
 create or replace function protect_profile_billing() returns trigger as $$
 begin
   -- service role / no JWT / postgres: allow (webhooks + /api billing routes)
@@ -74,6 +75,23 @@ begin
   new."currentPeriodEnd" := old."currentPeriodEnd";
   new."cardBrand" := old."cardBrand";
   new."cardLast4" := old."cardLast4";
+  -- client: freeze privilege / ops columns
+  new.role := old.role;
+  new.status := old.status;
+  new.perms := old.perms;
+  new."canImpersonate" := old."canImpersonate";
+  new."assignedAgentId" := old."assignedAgentId";
+  new."deletedAt" := old."deletedAt";
+  new."suspendedAt" := old."suspendedAt";
+  new."suspendReason" := old."suspendReason";
+  new."suspendedBy" := old."suspendedBy";
+  new."staffPassword" := old."staffPassword";
+  new."createdByRole" := old."createdByRole";
+  new.protected := old.protected;
+  new.email := old.email;
+  new."napScore" := old."napScore";
+  new."napHistory" := old."napHistory";
+  new."reportSentMonth" := old."reportSentMonth";
   return new;
 end;
 $$ language plpgsql security definer;
