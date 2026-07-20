@@ -12,7 +12,7 @@ export default function UserManual({user,plan,onClose,goTo}){
     {icon:"📈",name:"Analytics",body:"Your growth over time in simple charts. See how your listings and visibility improve month over month, no jargon, just progress.",page:"analytics"},
     {icon:"💳",name:"Plan & Billing",body:"Your plan, next charge, invoices, and secure card management. Cancel anytime and keep access until your period ends. Download all your data whenever you like.",page:"billing"},
     {icon:"📞",name:"Book a Call",body:"Grab a 30-minute slot with your dedicated account manager whenever you want to talk strategy or ask questions.",page:"call"},
-    {icon:"✅",name:"You're all set",body:"That's the whole platform. Look for \"action needed\" flags, everything else we handle for you. Reopen this tour anytime with the Help button in the corner.",page:null},
+    {icon:"✅",name:"You're all set",body:"That's the whole platform. Look for \"action needed\" flags, everything else we handle for you. Questions later? Use the Help button for FAQs.",page:null},
   ];
   const[i,setI]=useState(0);
   const step=steps[i];

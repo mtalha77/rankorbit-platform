@@ -9,6 +9,7 @@ import Shell from "../components/Shell";
 import ChatThread from "../components/ChatThread";
 import AccountSettings from "../components/AccountSettings";
 import UserManual from "./UserManual";
+import HelpFaqs from "./HelpFaqs";
 import { useWindowSize, useToast } from "../hooks";
 import {
   ClientContext,
@@ -27,6 +28,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
   const [page, setPage] = useState("home");
   const [toast, Toasts] = useToast();
   const [showManual, setShowManual] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [confirm, setConfirm] = useState(null);
   const [stripeConfigured, setStripeConfigured] = useState(null); // null=loading, true/false
   const [invoices, setInvoices] = useState([]);
@@ -501,10 +503,10 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
         )}
         {page === "legal" && <ClientLegalPage isMobile={isMobile} />}
       </Shell>
-      {/* Floating Help button, reopens the user manual anytime */}
+      {/* Floating Help button — FAQs (tour stays first-login only) */}
       <button
-        onClick={() => setShowManual(true)}
-        title="How to use your dashboard"
+        onClick={() => setShowHelp(true)}
+        title="Help & FAQs"
         style={{
           position: "fixed",
           bottom: isMobile ? 18 : 24,
@@ -538,6 +540,15 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
           goTo={(p) => {
             setPage(p);
             setShowManual(false);
+          }}
+        />
+      )}
+      {showHelp && (
+        <HelpFaqs
+          onClose={() => setShowHelp(false)}
+          goTo={(p) => {
+            setPage(p);
+            setShowHelp(false);
           }}
         />
       )}
