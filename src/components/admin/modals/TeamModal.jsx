@@ -5,7 +5,7 @@ import { Modal, Input, Select, Btn } from "../../atoms";
 import { useAdmin } from "../AdminContext";
 
 export function TeamModal({ onClose }) {
-  const { isAdmin, R, audit, toast } = useAdmin();
+  const { isAdmin, R, audit, toast, reload } = useAdmin();
 
     const genPw=()=>{const cs="ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";let p="";for(let i=0;i<12;i++)p+=cs[Math.floor(Math.random()*cs.length)];return p;};
     const[f,setF]=useState({role:isAdmin?"manager":"agent",password:genPw()});
@@ -21,11 +21,19 @@ export function TeamModal({ onClose }) {
       setErrs(next);
       if(next.name||next.email||next.password)return;
       setSaving(true);
-      const r=await api.createStaff({name:f.name,email:f.email,password:f.password,role:f.role});
-      setSaving(false);
-      if(r.error){toast(r.error,"info");return;}
-      await audit("staff.create",{targetType:"staff",targetName:f.name,detail:f.role});
-      await reload();toast(`${f.name} created. Login ready.`);onClose();
+      try{
+        const r=await api.createStaff({name:f.name,email:f.email,password:f.password,role:f.role});
+        if(r.error){toast(r.error,"info");return;}
+        await audit("staff.create",{targetType:"staff",targetName:f.name,detail:f.role});
+        await reload();
+        toast(`${f.name} created. Login ready.`);
+        onClose();
+      }catch(e){
+        console.error(e);
+        toast(e.message||"Could not create team member","info");
+      }finally{
+        setSaving(false);
+      }
     };
     // Managers can only create agents; super-admin can create super-admins, managers, or agents.
     const roleOpts=isAdmin?[{value:"super_admin",label:"Super Admin"},{value:"manager",label:"Manager"},{value:"agent",label:"Agent"}]:[{value:"agent",label:"Agent"}];

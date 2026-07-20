@@ -394,12 +394,12 @@ function napMatchToScore(m) {
   return null;
 }
 
-/** Recompute profile napScore from live listings' napMatch. */
+/** Recompute profile napScore from live listings' napMatch (+ napHistory when it changes). */
 export async function recomputeNapScore(admin, clientId) {
-  const { data: listings } = await admin
-    .from("listings")
-    .select("status,napMatch,deletedAt")
-    .eq("clientId", clientId);
+  const [{ data: listings }, { data: prof }] = await Promise.all([
+    admin.from("listings").select("status,napMatch,deletedAt").eq("clientId", clientId),
+    admin.from("profiles").select("napScore,napHistory").eq("id", clientId).maybeSingle(),
+  ]);
   const live = (listings || []).filter(
     (l) => !l.deletedAt && l.status === "live" && l.napMatch && l.napMatch !== "–"
   );
@@ -409,7 +409,13 @@ export async function recomputeNapScore(admin, clientId) {
     .filter((s) => s != null);
   if (!scores.length) return null;
   const napScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
-  await admin.from("profiles").update({ napScore }).eq("id", clientId);
+  if (Number(prof?.napScore) === napScore) return napScore;
+  const hist = Array.isArray(prof?.napHistory) ? prof.napHistory : [];
+  const napHistory = [
+    ...hist,
+    { score: napScore, date: new Date().toISOString(), by: "Listings (auto)", source: "auto" },
+  ].slice(-20);
+  await admin.from("profiles").update({ napScore, napHistory }).eq("id", clientId);
   return napScore;
 }
 

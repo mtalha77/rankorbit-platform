@@ -22,11 +22,17 @@ export function computeNapScoreFromListings(listings){
   return Math.round(scores.reduce((a,b)=>a+b,0)/scores.length);
 }
 
-/** Use listing-derived score when profile napScore is not synced yet. */
+/**
+ * Display NAP: profile.napScore is written by both paths
+ * (listing auto-sync + admin manual save). Prefer profile when set;
+ * fall back to a live listing average only before the first sync.
+ */
 export function resolveNapScore(profileScore,listings){
+  const n=Number(profileScore);
+  if(Number.isFinite(n)&&n>0)return n;
   const computed=computeNapScoreFromListings(listings);
   if(computed!=null)return computed;
-  return profileScore??0;
+  return Number.isFinite(n)?n:0;
 }
 
 /** Convert stored liveDate display ("Jul 5" / "Jul 5, 2026") → YYYY-MM-DD for <input type="date"/>. */

@@ -6,7 +6,7 @@ import { Modal, Input, Btn, Badge } from "../../atoms";
 import { useAdmin } from "../AdminContext";
 
 export function AssignModal({ agent,onClose }) {
-  const { allClients, R, audit } = useAdmin();
+  const { allClients, R, audit, reload, toast } = useAdmin();
 
     const[sel,setSel]=useState(new Set(allClients.filter(c=>c.assignedAgentId===agent.id).map(c=>c.id)));
     const[saving,setSaving]=useState(false);
@@ -27,9 +27,15 @@ export function AssignModal({ agent,onClose }) {
         }
         await api.patchProfile(agent.id,{perms});
         await audit("agent.assign",{targetType:"staff",targetId:agent.id,targetName:agent.name,detail:`${sel.size} clients`});
-        await reload();toast(`Saved: ${sel.size} clients`);onClose();
-      }catch(e){toast("Could not save assignments","info");}
-      setSaving(false);
+        await reload();
+        toast(`Saved: ${sel.size} clients`);
+        onClose();
+      }catch(e){
+        console.error(e);
+        toast(e.message||"Could not save assignments","info");
+      }finally{
+        setSaving(false);
+      }
     };
     const permList=[["listings","Update listings"],["nap","Update NAP score"],["logEdit","Log unauthorized edits"],["gmb","GMB changes"]];
     return(<Modal open onClose={onClose} title={`Assign clients to ${agent.name}`}>

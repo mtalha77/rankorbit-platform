@@ -15,6 +15,8 @@ export function ClientDetail() {
     const[chatOpen,setChatOpen]=useState(false);
     useEffect(()=>{
       if(c)setNap(c.napScore||0);
+    },[c?.id,c?.napScore]);
+    useEffect(()=>{
       setChatOpen(false);
     },[c?.id]);
     if(!c)return(

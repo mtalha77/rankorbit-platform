@@ -6,21 +6,65 @@ import { uid, passwordIssues, computeNapScoreFromListings } from "./helpers";
 
 export const api={
   mode: supa?"supabase":"local",
-  async _syncNapScoreForClient(clientId){
-    if(!clientId)return;
+  /**
+   * Auto NAP from live listing napMatch → profiles.napScore.
+   * When the score changes, append napHistory and (optionally) notify the client.
+   * Manual admin saves also write napScore; whichever runs last wins.
+   */
+  async _syncNapScoreForClient(clientId,{notify=true}={}){
+    if(!clientId)return null;
+    let listings=[];
+    let prev=null;
+    let hist=[];
     if(supa){
-      const{data:listings}=await supa.from("listings").select("status,napMatch,deletedAt").eq("clientId",clientId);
-      const score=computeNapScoreFromListings(listings||[]);
-      if(score==null)return;
-      await supa.from("profiles").update({napScore:score}).eq("id",clientId);
-      return;
+      const[{data:rows},{data:prof}]=await Promise.all([
+        supa.from("listings").select("status,napMatch,deletedAt").eq("clientId",clientId),
+        supa.from("profiles").select("napScore,napHistory").eq("id",clientId).maybeSingle(),
+      ]);
+      listings=rows||[];
+      prev=prof?.napScore;
+      hist=Array.isArray(prof?.napHistory)?prof.napHistory:[];
+    }else{
+      listings=(LS("ro3_listings")||[]).filter(x=>x.clientId===clientId&&!x.deletedAt);
+      const us=LS("ro3_users")||[];
+      const i=us.findIndex(x=>x.id===clientId);
+      if(i>=0){prev=us[i].napScore;hist=Array.isArray(us[i].napHistory)?us[i].napHistory:[];}
     }
-    const ls=(LS("ro3_listings")||[]).filter(x=>x.clientId===clientId&&!x.deletedAt);
-    const score=computeNapScoreFromListings(ls);
-    if(score==null)return;
-    const us=LS("ro3_users")||[];
-    const i=us.findIndex(x=>x.id===clientId);
-    if(i>=0){us[i].napScore=score;LSet("ro3_users",us);}
+    const score=computeNapScoreFromListings(listings);
+    if(score==null)return null;
+    if(Number(prev)===score)return score;
+
+    const entry={score,date:new Date().toISOString(),by:"Listings (auto)",source:"auto"};
+    const napHistory=[...hist,entry].slice(-20);
+
+    if(supa){
+      const{error}=await supa.from("profiles").update({napScore:score,napHistory}).eq("id",clientId);
+      if(error){console.error("_syncNapScoreForClient:",error.message);return null;}
+    }else{
+      const us=LS("ro3_users")||[];
+      const i=us.findIndex(x=>x.id===clientId);
+      if(i>=0){us[i]={...us[i],napScore:score,napHistory};LSet("ro3_users",us);}
+    }
+
+    if(notify){
+      try{
+        await this.addActivity({
+          id:uid(),
+          clientId,
+          type:"nap_fix",
+          desc:`NAP consistency updated to ${score}% (from listings)`,
+          date:new Date().toLocaleDateString("en-US",{year:"numeric",month:"short",day:"numeric"}),
+          by:"System",
+        });
+      }catch(e){console.error("nap auto activity:",e);}
+      this.notifyClient({
+        clientId,
+        type:"nap_fix",
+        title:"NAP score updated",
+        body:`Your NAP consistency score is now ${score}%${prev!=null&&prev!==""?` (was ${prev}%).`:"."} Updated from your directory listings.`,
+      });
+    }
+    return score;
   },
   async init(){
     if(supa)return;
@@ -745,12 +789,30 @@ export const api={
   },
   async deleteListing(id){
     const when=new Date().toISOString();
-    if(supa){const{error}=await supa.from("listings").update({deletedAt:when}).eq("id",id);if(error)throw new Error(error.message);return;}
-    const ls=LS("ro3_listings")||[];const i=ls.findIndex(x=>x.id===id);if(i>=0){ls[i].deletedAt=when;LSet("ro3_listings",ls);}
+    if(supa){
+      const{data:row}=await supa.from("listings").select("clientId").eq("id",id).maybeSingle();
+      const{error}=await supa.from("listings").update({deletedAt:when}).eq("id",id);
+      if(error)throw new Error(error.message);
+      if(row?.clientId)await this._syncNapScoreForClient(row.clientId);
+      return;
+    }
+    const ls=LS("ro3_listings")||[];const i=ls.findIndex(x=>x.id===id);
+    const clientId=i>=0?ls[i].clientId:null;
+    if(i>=0){ls[i].deletedAt=when;LSet("ro3_listings",ls);}
+    if(clientId)await this._syncNapScoreForClient(clientId);
   },
   async restoreListing(id){
-    if(supa){const{error}=await supa.from("listings").update({deletedAt:null}).eq("id",id);if(error)throw new Error(error.message);return;}
-    const ls=LS("ro3_listings")||[];const i=ls.findIndex(x=>x.id===id);if(i>=0){delete ls[i].deletedAt;LSet("ro3_listings",ls);}
+    if(supa){
+      const{data:row}=await supa.from("listings").select("clientId").eq("id",id).maybeSingle();
+      const{error}=await supa.from("listings").update({deletedAt:null}).eq("id",id);
+      if(error)throw new Error(error.message);
+      if(row?.clientId)await this._syncNapScoreForClient(row.clientId);
+      return;
+    }
+    const ls=LS("ro3_listings")||[];const i=ls.findIndex(x=>x.id===id);
+    const clientId=i>=0?ls[i].clientId:null;
+    if(i>=0){delete ls[i].deletedAt;LSet("ro3_listings",ls);}
+    if(clientId)await this._syncNapScoreForClient(clientId);
   },
   async purgeListing(id){
     if(supa){const{error}=await supa.from("listings").delete().eq("id",id);if(error)throw new Error(error.message);return;}

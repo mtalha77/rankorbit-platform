@@ -5,7 +5,7 @@ import { Modal, Btn } from "../../atoms";
 import { useAdmin } from "../AdminContext";
 
 export function NapConfirmModal({ client,newScore,onClose }) {
-  const { user, R, audit, addActivity } = useAdmin();
+  const { user, audit, addActivity, reload, toast } = useAdmin();
 
     const hist=client.napHistory||[];
     const last3=hist.slice(-3).reverse();
@@ -14,14 +14,20 @@ export function NapConfirmModal({ client,newScore,onClose }) {
     const save=async()=>{
       setSaving(true);
       try{
-        const entry={score:newScore,date:new Date().toISOString(),by:roleLabel};
+        const entry={score:newScore,date:new Date().toISOString(),by:roleLabel,source:"manual"};
         await api.patchProfile(client.id,{napScore:newScore,napHistory:[...hist,entry].slice(-20)});
-        await audit("nap.update",{targetType:"client",targetId:client.id,targetName:client.businessName||client.name,detail:`${client.napScore||0}% → ${newScore}%`});
-        await addActivity(client.id,"nap_fix",`NAP consistency updated to ${newScore}%`);
+        await audit("nap.update",{targetType:"client",targetId:client.id,targetName:client.businessName||client.name,detail:`${client.napScore||0}% → ${newScore}% (manual)`});
+        await addActivity(client.id,"nap_fix",`NAP consistency updated to ${newScore}% (manual)`);
         api.notifyClient({clientId:client.id,type:"nap_fix",title:"NAP score updated",body:`Your NAP consistency score is now ${newScore}% (was ${client.napScore||0}%).`});
-        await reload();toast(`NAP score saved: ${newScore}%`);onClose();
-      }catch(e){toast("Could not save NAP","info");}
-      setSaving(false);
+        await reload();
+        toast(`NAP score saved: ${newScore}%`);
+        onClose();
+      }catch(e){
+        console.error(e);
+        toast(e.message||"Could not save NAP","info");
+      }finally{
+        setSaving(false);
+      }
     };
     const fmt=(d)=>new Date(d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
     return(<Modal open onClose={onClose} title="Confirm NAP score update">

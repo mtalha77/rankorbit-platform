@@ -5,7 +5,7 @@ import { Modal, Btn } from "../../atoms";
 import { useAdmin } from "../AdminContext";
 
 export function LogEditModal({ client,onClose }) {
-  const { user, R, audit, addActivity } = useAdmin();
+  const { audit, addActivity, reload, toast } = useAdmin();
 
     const[note,setNote]=useState("");
     const[shareWithClient,setShare]=useState(false);
@@ -18,9 +18,15 @@ export function LogEditModal({ client,onClose }) {
         // If shared with client it goes to their feed; otherwise internal only.
         await addActivity(shareWithClient?client.id:"__internal","edit_blocked",desc);
         await audit("edit.revert",{targetType:"client",targetId:client.id,targetName:client.businessName||client.name,detail:note.trim()||"no note"});
-        await reload();toast("Unauthorized edit logged & reverted");onClose();
-      }catch(e){toast("Could not log","info");}
-      setSaving(false);
+        await reload();
+        toast("Unauthorized edit logged & reverted");
+        onClose();
+      }catch(e){
+        console.error(e);
+        toast(e.message||"Could not log","info");
+      }finally{
+        setSaving(false);
+      }
     };
     return(<Modal open onClose={onClose} title="Log unauthorized edit">
       <div style={{fontSize:12.5,color:T.sub,marginBottom:14,lineHeight:1.5}}>Record an unauthorized change you caught and reverted. Add a note describing what was found.</div>

@@ -6,7 +6,7 @@ import { UserAvatar } from "../../AccountSettings";
 import { useAdmin } from "../AdminContext";
 
 export function PermissionsModal({ member:memberProp,onClose }) {
-  const { staff, user, allClients, R, audit, toast, setModal, isStaffMgr, isAdmin } = useAdmin();
+  const { staff, user, allClients, R, audit, toast, reload, setModal, isStaffMgr, isAdmin } = useAdmin();
 
     const member=staff.find(x=>x.id===memberProp.id)||memberProp;
     const isSelf=member.id===user.id;
@@ -41,8 +41,12 @@ export function PermissionsModal({ member:memberProp,onClose }) {
         }
         await reload();
         toast("Permissions saved");
-      }catch(e){toast(e.message||"Could not save permissions","info");}
-      setSaving(false);
+      }catch(e){
+        console.error(e);
+        toast(e.message||"Could not save permissions","info");
+      }finally{
+        setSaving(false);
+      }
     };
     const PermRow=({ok,label})=>(
       <div style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",background:ok?T.greenSoft:T.surface2,borderRadius:10,border:`1px solid ${ok?T.green+"33":T.line}`}}>

@@ -5,7 +5,7 @@ import { Modal, Input, Btn, Badge } from "../../atoms";
 import { useAdmin } from "../AdminContext";
 
 export function IntegrationsModal({ client,onClose,pickLocation }) {
-  const { R, toast } = useAdmin();
+  const { R, toast, reload } = useAdmin();
 
     const[gaId,setGaId]=useState(client.gaId||"");
     const[gbpId,setGbpId]=useState(client.gbpId||"");
