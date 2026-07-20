@@ -9,7 +9,7 @@ export function GmbAdmin() {
     const gmbClients=clients.filter(c=>c.plan==="gmb");
     return(<div>
       <PageHead isMobile={isMobile} title="GMB Management" sub={`${gmbClients.length} GMB Pro clients`}/>
-      {gmbClients.length===0?<Card><Empty icon="📍" title="No GMB Pro clients yet" sub="Clients on the $249 plan appear here."/></Card>:
+      {gmbClients.length===0?<Card><Empty icon="📍" title="No GMB Pro clients yet" sub="Clients on the GMB Pro plan appear here."/></Card>:
         gmbClients.map(c=>{const d=gmb[c.id];
           return(<Card key={c.id} hover style={{marginBottom:12}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
