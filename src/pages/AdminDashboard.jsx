@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { T, FONT_B, SHADOW } from "../lib/theme";
 import { api } from "../lib/api";
-import { PLANS, livePlanEntries } from "../lib/constants";
+import { livePlanEntries, planPrice, plansWithPrices } from "../lib/constants";
 import { todayFull, uid } from "../lib/helpers";
 import { Confirm } from "../components/atoms";
 import Shell from "../components/Shell";
@@ -67,7 +67,8 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
   const [viewAs, setViewAs] = useState(null);
   const acfg = settings?.config || {};
   const livePlans = livePlanEntries(acfg);
-  const revenue = clients.reduce((s, c) => s + (PLANS[c.plan]?.price || 0), 0);
+  const PLANSV = plansWithPrices(acfg);
+  const revenue = clients.reduce((s, c) => s + (c.plan ? planPrice(c.plan, acfg) : 0), 0);
   const flat = Object.values(listings).flat();
   const totalLive = flat.filter((l) => l.status === "live").length;
   const totalPending = flat.filter((l) => l.status === "pending").length;
@@ -197,7 +198,7 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
     page, setPage, selClient, setSelClient, modal, setModal, confirm, setConfirm,
     toast, isMobile, users, listings, gmb, analytics, activity, settings,
     allClients, staff, isAdmin, isStaffMgr, isAgent, clients, labelForClientId,
-    canImpersonate, viewAs, setViewAs, acfg, livePlans, revenue, flat,
+    canImpersonate, viewAs, setViewAs, acfg, livePlans, PLANSV, revenue, flat,
     totalLive, totalPending, totalFlagged, actionNeeded,
     addActivity, audit, notifyManagersIfAgent, R,
     notifBadge, setNotifBadge, chatUnreadTotal, setChatUnreadTotal,

@@ -5,10 +5,25 @@ export const PLANS={essentials:{name:"Essentials",price:49,quota:"10 listings/mo
   growth:{name:"Growth",price:89,quota:"20 listings/mo",color:T.brand,soft:T.brandSoft,features:["20 directory submissions every month","Everything in Essentials","Helps you get found in AI searches","Expanded directory coverage","Priority support","Monthly coverage report"]},
   gmb:{name:"GMB Pro",price:249,quota:"15 listings/mo + GMB",color:T.violet,soft:T.violetSoft,features:["15 directory submissions every month","Google Business Profile management","Get found in AI searches (ChatGPT, Gemini, AI Overviews)","Monthly GMB posts & Q&A","Engagement analytics (views, calls)","Dedicated BDM support"]}};
 
+const PRICE_CFG_KEYS={essentials:"priceEssentials",growth:"priceGrowth",gmb:"priceGmb"};
+
+/** Display price: control-panel override when set, else PLANS default. */
+export const planPrice=(id,cfg={})=>{
+  const key=PRICE_CFG_KEYS[id];
+  const v=key?cfg[key]:null;
+  if(v!=null&&v!==""){const n=Number(v);if(Number.isFinite(n))return n;}
+  return PLANS[id]?.price??0;
+};
+
+/** PLANS entries with prices resolved from settings config. */
+export const plansWithPrices=(cfg={})=>Object.fromEntries(
+  Object.entries(PLANS).map(([id,p])=>[id,{...p,price:planPrice(id,cfg)}])
+);
+
 // Which plans are publicly live. Super-admin toggles these in the control panel.
 // Missing/undefined flag = live by default. A plan set to false is hidden everywhere client-facing.
 export const planLive=(id,cfg={})=>{const m={essentials:"livePlanEssentials",growth:"livePlanGrowth",gmb:"livePlanGmb"};const v=cfg[m[id]];return v===undefined||v===null||v===true||v==="true";};
-export const livePlanEntries=(cfg={})=>Object.entries(PLANS).filter(([id])=>planLive(id,cfg));
+export const livePlanEntries=(cfg={})=>Object.entries(plansWithPrices(cfg)).filter(([id])=>planLive(id,cfg));
 
 export const BIZ_FIELDS=[["name","Full Name"],["businessName","Business Name"],["email","Email"],["phone","Phone"],["address","Address"],["city","City"],["state","State"],["zip","ZIP"],["website","Website"]];
 
