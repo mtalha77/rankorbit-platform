@@ -7,12 +7,18 @@ import { ProfileGate } from "../ProfileGate";
 import { useClient } from "../ClientContext";
 
 export function Billing() {
-  const { user, isMobile, stripeConfigured, toast, R, reload, setConfirm, PLANSV, plan, invoices, my, myAct } = useClient();
+  const { user, isMobile, stripeConfigured, toast, R, reload, setConfirm, PLANSV, plan, invoices, my, myAct, impersonating } = useClient();
 
     // Paid plans only — Stripe Checkout / change-subscription. No free activate path.
     const stripeReady=stripeConfigured===true;
     const billingBlocked=stripeConfigured===false;
+    const blockWrite=()=>{
+      if(!impersonating)return false;
+      toast("Read-only view — changes are disabled","info");
+      return true;
+    };
     const goStripe=async(planId)=>{
+      if(blockWrite())return;
       try{sessionStorage.setItem("ro_pending_plan",planId);}catch{}
       if(billingBlocked){
         toast("Billing is not connected yet. Checkout opens once Stripe is configured.","info");
@@ -35,6 +41,7 @@ export function Billing() {
       if(r.url)window.location.href=r.url;
     };
     const doCancel=async()=>{
+      if(blockWrite())return;
       if(api.mode!=="supabase"){
         const ok=await R(async()=>{
           await api.patchProfile(user.id,{cancelAtPeriodEnd:true,canceledAt:new Date().toISOString()});
@@ -48,6 +55,7 @@ export function Billing() {
       await reload();
     };
     const doResume=async()=>{
+      if(blockWrite())return;
       if(api.mode!=="supabase"){
         const ok=await R(async()=>{
           await api.patchProfile(user.id,{cancelAtPeriodEnd:false,canceledAt:null});
@@ -61,6 +69,7 @@ export function Billing() {
       await reload();
     };
     const openPortal=async()=>{
+      if(blockWrite())return;
       if(!stripeReady){toast("Card management opens in Stripe once billing is connected","info");return;}
       const r=await api.createPortalSession();
       if(r.error){toast(r.error,"info");return;}
@@ -87,7 +96,8 @@ export function Billing() {
     const invoiceRows=invoices.length?invoices:null;
     return(<div>
       <PageHead isMobile={isMobile} title="Plan & Billing" sub="Everything about what you pay and what you get"/>
-      {!profileComplete&&!user.plan&&<ProfileGate user={user} onSaved={reload} toast={toast} isMobile={isMobile}/>}
+      {impersonating&&<div style={{padding:"10px 14px",background:T.amberSoft,borderRadius:11,marginBottom:14,fontSize:12.5,color:T.amber,fontWeight:700}}>Read-only view — billing changes are disabled.</div>}
+      {!profileComplete&&!user.plan&&!impersonating&&<ProfileGate user={user} onSaved={reload} toast={toast} isMobile={isMobile}/>}
       {(profileComplete||user.plan)&&(<>
       {user.plan&&(<div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1.4fr 1fr",gap:16,marginBottom:20}}>
         <Card className="fadeUp" style={{position:"relative",overflow:"hidden"}}>
@@ -116,7 +126,7 @@ export function Billing() {
                 <span style={{fontSize:11.5,color:T.sub}}>in this billing period · ends {periodLabel}</span>
               </div>
             )}
-            <Btn variant="green" size="sm" style={{width:"100%",marginTop:12}} onClick={doResume}>Resume subscription</Btn>
+            <Btn variant="green" size="sm" style={{width:"100%",marginTop:12}} disabled={impersonating} onClick={doResume}>Resume subscription</Btn>
           </>):(<>
             <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".8px",marginBottom:8}}>NEXT CHARGE</div>
             <div style={{fontFamily:FONT_D,fontSize:24,fontWeight:800,color:T.brand}}>${plan.price}.00</div>
@@ -128,7 +138,7 @@ export function Billing() {
               </div>
             )}
             <div style={{fontSize:11.5,color:T.faint,marginTop:8,lineHeight:1.5}}>Renews automatically. Cancel before your renewal date to avoid the next charge, you keep access until the period ends.</div>
-            <button onClick={()=>setConfirm({title:"Cancel subscription?",msg:`Your ${plan.name} plan will stay active until the end of your current billing period, then cancel. You won't be charged again. No refunds for the current period (see Terms).`,danger:true,yes:"Cancel at period end",onYes:doCancel})} style={{marginTop:12,background:"none",border:"none",color:T.faint,fontSize:11.5,fontWeight:700,cursor:"pointer",textDecoration:"underline",fontFamily:FONT_B,padding:0}}>Cancel subscription</button>
+            <button disabled={impersonating} onClick={()=>setConfirm({title:"Cancel subscription?",msg:`Your ${plan.name} plan will stay active until the end of your current billing period, then cancel. You won't be charged again. No refunds for the current period (see Terms).`,danger:true,yes:"Cancel at period end",onYes:doCancel})} style={{marginTop:12,background:"none",border:"none",color:T.faint,fontSize:11.5,fontWeight:700,cursor:impersonating?"not-allowed":"pointer",textDecoration:"underline",fontFamily:FONT_B,padding:0,opacity:impersonating?.5:1}}>Cancel subscription</button>
           </>)}
         </Card>
       </div>)}
@@ -146,14 +156,14 @@ export function Billing() {
             <div style={{height:1,background:T.line,marginBottom:14}}/>
             {p.features.map((f,j)=><div key={j} style={{fontSize:12,color:T.sub,marginBottom:8,display:"flex",gap:7}}><span style={{color:T.green,fontWeight:800}}>✓</span>{f}</div>)}
             {current?<Btn variant="ghost" size="sm" style={{width:"100%",marginTop:10}} onClick={()=>toast("This is your active plan")}>Your current plan</Btn>:
-              <Btn size="sm" style={{width:"100%",marginTop:10}} disabled={billingBlocked||stripeConfigured===null} onClick={()=>goStripe(id)}>
-                {billingBlocked?"Checkout unavailable":`${user.plan?"Switch to ":"Subscribe to "}${p.name} →`}
+              <Btn size="sm" style={{width:"100%",marginTop:10}} disabled={impersonating||billingBlocked||stripeConfigured===null} onClick={()=>goStripe(id)}>
+                {impersonating?"Read-only":billingBlocked?"Checkout unavailable":`${user.plan?"Switch to ":"Subscribe to "}${p.name} →`}
               </Btn>}
           </div>);
         })}
       </div>
       {user.plan&&(<Card style={{marginTop:20}}>
-        <SectionTitle right={<Btn variant="ghost" size="sm" onClick={openPortal}>💳 Manage billing</Btn>}>Invoice History</SectionTitle>
+        <SectionTitle right={<Btn variant="ghost" size="sm" disabled={impersonating} onClick={openPortal}>💳 Manage billing</Btn>}>Invoice History</SectionTitle>
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",minWidth:520}}>
             <thead><tr>{["Date","Description","Card","Amount","Status",""].map(h=><th key={h} style={{textAlign:"left",padding:"9px 12px",fontSize:10.5,fontWeight:800,color:T.faint,textTransform:"uppercase",letterSpacing:".7px",borderBottom:`1.5px solid ${T.line}`}}>{h}</th>)}</tr></thead>

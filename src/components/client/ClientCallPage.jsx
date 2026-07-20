@@ -4,7 +4,7 @@ import { api } from "../../lib/api";
 import { isBookingPast, CALL_SLOT_TIMES, isSlotStillOpen, slotKey } from "../../lib/helpers";
 import { Badge, Card, Btn, Input, Confirm, Empty, PageHead, SectionTitle } from "../atoms";
 
-export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages}){
+export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOnly=false}){
   const now=new Date();
   const nowY=now.getFullYear();
   const nowM=now.getMonth();
@@ -94,6 +94,7 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages}){
     });
   };
   const confirmBooking=async()=>{
+    if(readOnly){toast("Read-only view — changes are disabled","info");return;}
     if(!selDay||!selTime)return;
     setBusy(true);
     const r=await api.bookCall({
@@ -117,6 +118,7 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages}){
     await reload();
   };
   const cancelMeeting=async()=>{
+    if(readOnly){toast("Read-only view — changes are disabled","info");return;}
     if(!activeBooking?.id)return;
     setBusy(true);
     const r=await api.cancelCall({bookingId:activeBooking.id});
@@ -129,6 +131,7 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages}){
     await reload();
   };
   const startReschedule=()=>{
+    if(readOnly){toast("Read-only view — changes are disabled","info");return;}
     if(!activeBooking?.id)return;
     setRescheduleId(activeBooking.id);
     setShowScheduler(true);
@@ -139,6 +142,11 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages}){
   const statusColor=(s)=>s==="confirmed"?T.green:T.amber;
   return(<div>
     <PageHead isMobile={isMobile} title="Book a Call" sub={bdm?`30 minutes with ${supportPeer?(bdm.name||"our team"):(bdm.name||"your BDM")}`:"30 minutes with your dedicated Business Development Manager"}/>
+    {readOnly&&(
+      <div style={{padding:"10px 14px",background:T.amberSoft,borderRadius:11,marginBottom:14,fontSize:12.5,color:T.amber,fontWeight:700}}>
+        Read-only view — booking and cancel are disabled.
+      </div>
+    )}
     {loadingCall&&(
       <Card style={{marginBottom:16,padding:28,textAlign:"center",color:T.faint,fontSize:13}}>
         Loading your meeting…
@@ -218,8 +226,8 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages}){
           </div>
         ):null}
         <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:4}}>
-          <Btn variant="soft" size="sm" disabled={busy} onClick={startReschedule}>Reschedule</Btn>
-          <Btn variant="danger" size="sm" disabled={busy} onClick={()=>setConfirm({
+          <Btn variant="soft" size="sm" disabled={busy||readOnly} onClick={startReschedule}>Reschedule</Btn>
+          <Btn variant="danger" size="sm" disabled={busy||readOnly} onClick={()=>setConfirm({
             title:"Cancel this meeting?",
             msg:`Cancel ${activeBooking.slotDate} at ${activeBooking.slotTime}? Your BDM will be notified.`,
             danger:true,
@@ -230,7 +238,7 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages}){
       </Card>
     )}
 
-    {showCalendar&&bdm&&(
+    {showCalendar&&bdm&&!readOnly&&(
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr 0.8fr",gap:16}}>
       <Card>
         {rescheduleId&&(
@@ -302,6 +310,9 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages}){
         </div>
       </Card>
     </div>)}
+    {readOnly&&!loadingCall&&!activeBooking&&(
+      <Card><Empty icon="👁️" title="Read-only view" sub="Booking calendar is hidden while viewing as staff. Exit view to make changes as the client."/></Card>
+    )}
     {confirm&&<Confirm data={confirm} onClose={()=>setConfirm(null)}/>}
   </div>);
 }

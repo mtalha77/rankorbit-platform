@@ -6,7 +6,7 @@ import { Badge, Card, Btn, Input, PageHead, SectionTitle } from "../../atoms";
 import { useAdmin } from "../AdminContext";
 
 export function Settings() {
-  const { isMobile, settings, R, toast, reload } = useAdmin();
+  const { isMobile, settings, R, toast, reload, audit } = useAdmin();
 
     const s={pubKey:"",...(settings?.stripe||{})};
     const[f,setF]=useState({pubKey:s.pubKey||""});

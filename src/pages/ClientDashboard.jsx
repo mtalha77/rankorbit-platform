@@ -40,6 +40,10 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
   // Async action runner: run fn, optionally toast, then refresh data. Used by billing actions.
   // Returns true on success, false on failure (and toasts the error).
   const R = async (fn, msg) => {
+    if (impersonating) {
+      toast("Read-only view — changes are disabled", "info");
+      return false;
+    }
     try {
       await fn();
       if (msg) toast(msg);
@@ -146,7 +150,12 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
     } catch {}
   }, [userId, impersonating]);
   useEffect(() => {
-    if (!userId) return;
+    // Staff session notifications must not appear in impersonation view.
+    if (impersonating || !userId) {
+      setSysNotifs([]);
+      notifSig.current = "";
+      return;
+    }
     let cancelled = false;
     const pull = async () => {
       const rows = await api.listMyNotifications();
@@ -163,7 +172,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
       cancelled = true;
       clearInterval(t);
     };
-  }, [userId]);
+  }, [userId, impersonating]);
 
   // Chat unread badge — poll while not on Messages; don't rebind on every page change.
   const pageRef = useRef(page);
@@ -294,12 +303,14 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
   }));
   const unreadSys = liveNotifs.filter((n) => !n.read).length;
   const markAllRead = async () => {
+    if (impersonating) return;
     const ids = liveNotifs.filter((n) => !n.read).map((n) => n.id);
     if (!ids.length) return;
     await api.markNotificationsRead(ids);
     setSysNotifs((prev) => prev.map((n) => ({ ...n, read: true })));
   };
   const markOneRead = async (id) => {
+    if (impersonating) return;
     const row = sysNotifs.find((n) => n.id === id);
     if (!row || row.read) return;
     await api.markNotificationsRead([id]);
@@ -459,7 +470,15 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
               <PageHead isMobile={isMobile} title="Messages" sub="Chat with your Business Development Manager" />
             </div>
             <div style={{ flex: 1, minHeight: 0, marginTop: -8, overflow: "hidden" }}>
-              <ChatThread myId={userId} toast={toast} onUnreadChange={setChatUnread} onOpenCall={() => setPage("call")} fill />
+              <ChatThread
+                myId={userId}
+                clientId={impersonating ? userId : undefined}
+                readOnly={impersonating}
+                toast={toast}
+                onUnreadChange={impersonating ? undefined : setChatUnread}
+                onOpenCall={() => setPage("call")}
+                fill
+              />
             </div>
           </div>
         )}
@@ -474,6 +493,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
             toast={toast}
             reload={reload}
             onOpenMessages={() => setPage("messages")}
+            readOnly={impersonating}
           />
         )}
         {page === "settings" && !impersonating && (

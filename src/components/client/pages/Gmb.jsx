@@ -7,7 +7,7 @@ import { ReportCard } from "../ReportCard";
 import { useClient } from "../ClientContext";
 
 export function Gmb() {
-  const { user, isMobile, setPage, myGmb, reload, toast } = useClient();
+  const { user, isMobile, setPage, myGmb, reload, toast, impersonating } = useClient();
 
     if(user.plan!=="gmb")return(<div>
       <PageHead isMobile={isMobile} title="GMB Management"/>
@@ -39,7 +39,7 @@ export function Gmb() {
         </div>
         <div><div style={{fontSize:14,fontWeight:800,fontFamily:FONT_D}}>Now visible in AI searches</div><div style={{fontSize:12.5,color:T.sub,lineHeight:1.5,marginTop:2}}>Your managed profile and consistent data help you appear in ChatGPT, Gemini and Google AI Overviews, not just traditional search.</div></div>
       </Card>
-      <ReportCard user={user} reload={reload} toast={toast}/>
+      <ReportCard user={user} reload={reload} toast={toast} readOnly={impersonating}/>
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:14,marginBottom:20}}>
         <StatCard label="Profile Views" value={d.views} icon="👁️" color={T.green} soft={T.greenSoft} trend={viewsMom} delay={0}/>
         <StatCard label="Calls From Google" value={d.calls} icon="📞" trend={callsMom} delay={80}/>

@@ -6,7 +6,7 @@ import { UserAvatar } from "../../AccountSettings";
 import { useAdmin } from "../AdminContext";
 
 export function PermissionsModal({ member:memberProp,onClose }) {
-  const { staff, user, allClients, R, audit, toast, reload, setModal, isStaffMgr, isAdmin } = useAdmin();
+  const { staff, user, allClients, R, audit, toast, reload, setModal, setTeamView, setPage, isStaffMgr, isAdmin } = useAdmin();
 
     const member=staff.find(x=>x.id===memberProp.id)||memberProp;
     const isSelf=member.id===user.id;
@@ -90,7 +90,7 @@ export function PermissionsModal({ member:memberProp,onClose }) {
       </>)}
       <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:8}}>MORE</div>
       <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:4}}>
-        <Btn variant="ghost" onClick={()=>{onClose();setTeamView(member.id);}}>View logs</Btn>
+        <Btn variant="ghost" onClick={()=>{onClose();setPage("team");setTeamView(member.id);}}>View logs</Btn>
         {canEdit&&isStaffMgr&&member.role==="agent"&&<Btn variant="ghost" onClick={()=>setModal({type:"assign",agent:member})}>Assign clients</Btn>}
       </div>
       <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:14}}>

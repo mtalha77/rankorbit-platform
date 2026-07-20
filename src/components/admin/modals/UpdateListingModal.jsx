@@ -6,7 +6,7 @@ import { Modal, Input, Select, Btn } from "../../atoms";
 import { useAdmin } from "../AdminContext";
 
 export function UpdateListingModal({ listing,clientId,onClose }) {
-  const { R, audit, addActivity, notifyManagersIfAgent, user } = useAdmin();
+  const { R, audit, addActivity, notifyManagersIfAgent, user, setConfirm } = useAdmin();
 
     const[f,setF]=useState({status:listing.status,liveLink:listing.liveLink||"",liveDate:listing.liveDate||"–",napMatch:listing.napMatch||"–",notes:listing.notes||"",actionNeeded:!!listing.actionNeeded,actionNote:listing.actionNote||""});
     const[errs,setErrs]=useState({liveLink:"",liveDate:""});

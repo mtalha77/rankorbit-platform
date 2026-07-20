@@ -52,6 +52,7 @@ function ChatThreadInner({
   onOpenCall,
   compact = false,
   fill = false,
+  readOnly = false,
 }) {
   const [messages, setMessages] = useState([]);
   const [agent, setAgent] = useState(null);
@@ -137,9 +138,11 @@ function ChatThreadInner({
         setNoPeer(!peer && !isStaffVariant);
         if (typeof onUnreadRef.current === "function") onUnreadRef.current(data.unread || 0);
         setLoading(false);
-        chatApi.markRead(listArgs).then(() => {
-          if (!cancelled && typeof onUnreadRef.current === "function") onUnreadRef.current(0);
-        }).catch(() => {});
+        if (!readOnly) {
+          chatApi.markRead(listArgs).then(() => {
+            if (!cancelled && typeof onUnreadRef.current === "function") onUnreadRef.current(0);
+          }).catch(() => {});
+        }
 
         // SA↔SA uses a canonical DB staffId (min of pair) — subscribe on that, not the peer UI id.
         const subId = data.threadStaffId || threadKey;
@@ -150,7 +153,7 @@ function ChatThreadInner({
               if (expectPeerId && row.peerId !== expectPeerId) return;
               if (!expectPeerId && row.peerId) return;
               mergeMsg(row);
-              if (row.senderId !== myId) {
+              if (row.senderId !== myId && !readOnly) {
                 chatApi.markRead(listArgs).catch(() => {});
                 if (typeof onUnreadRef.current === "function") onUnreadRef.current(0);
               }
@@ -203,7 +206,7 @@ function ChatThreadInner({
       if (pollId) clearInterval(pollId);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId, staffId, myId, threadKey, variant, reloadKey]);
+  }, [clientId, staffId, myId, threadKey, variant, reloadKey, readOnly]);
 
   useEffect(() => {
     const el = listRef.current;
@@ -216,6 +219,10 @@ function ChatThreadInner({
   }, [messages.length]);
 
   const send = async () => {
+    if (readOnly) {
+      toast?.("Read-only view — changes are disabled", "info");
+      return;
+    }
     const text = draft.trim();
     if (!text) {
       toast?.("Write a message first", "info");
@@ -266,7 +273,7 @@ function ChatThreadInner({
     ? "min(420px, calc(100dvh - 180px))"
     : "calc(100dvh - 200px)";
 
-  const composerBlocked = !isStaffVariant && noPeer;
+  const composerBlocked = readOnly || (!isStaffVariant && noPeer);
 
   return (
     <Card
@@ -420,7 +427,7 @@ function ChatThreadInner({
           value={draft}
           onChange={(e) => setDraft(e.target.value.slice(0, 4000))}
           onKeyDown={onKeyDown}
-          placeholder={composerBlocked ? "Chat opens once a team member is available…" : "Type a message… (Enter to send)"}
+          placeholder={readOnly ? "Read-only view — messaging disabled" : composerBlocked ? "Chat opens once a team member is available…" : "Type a message… (Enter to send)"}
           rows={1}
           disabled={composerBlocked}
           style={{
