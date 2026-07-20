@@ -827,7 +827,11 @@ export const api={
     const a=LS("ro3_analytics")||{};a[clientId]=data;LSet("ro3_analytics",a);
   },
   async addActivity(a){
-    if(supa){await supa.from("activity").insert(a);return;}
+    if(supa){
+      const{error}=await supa.from("activity").insert(a);
+      if(error){console.error("addActivity:",error.message);throw new Error(error.message||"Could not save activity");}
+      return;
+    }
     LSet("ro3_activity",[a,...(LS("ro3_activity")||[])]);
   },
   async saveSettings(data){

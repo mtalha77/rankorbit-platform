@@ -102,7 +102,11 @@ export const StatCard=({label,value,sub,color=T.brand,soft=T.brandSoft,icon,tren
     <div style={{fontSize:11.5,fontWeight:800,color:T.faint,textTransform:"uppercase",letterSpacing:".9px",marginBottom:6}}>{label}</div>
     <div style={{fontSize:36,fontWeight:800,color:T.ink,lineHeight:1,fontFamily:FONT_D,letterSpacing:"-1px"}}>{isNum?count.toLocaleString()+suffix:value}</div>
     {sub&&<div style={{fontSize:12.5,color:T.sub,marginTop:7}}>{sub}</div>}
-    {trend!=null&&<div style={{fontSize:12,color:trend>0?T.green:T.red,marginTop:5,fontWeight:700}}>{trend>0?"▲":"▼"} {Math.abs(trend)}% vs last month</div>}
+    {trend!=null&&(
+      <div style={{fontSize:12,color:trend>0?T.green:trend<0?T.red:T.sub,marginTop:5,fontWeight:700}}>
+        {trend>0?"▲":trend<0?"▼":"●"} {Math.abs(trend)}% vs last month
+      </div>
+    )}
     <div style={{position:"absolute",top:-30,right:-30,width:90,height:90,borderRadius:"50%",background:soft,opacity:.5}}/>
   </Card>);
 };

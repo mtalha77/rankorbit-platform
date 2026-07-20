@@ -1,5 +1,6 @@
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { T, FONT_D, SHADOW, SHADOW_LG } from "../../../lib/theme";
+import { gmbMomTrend } from "../../../lib/helpers";
 import { Badge, Card, Btn, StatCard, ChartTip, SectionTitle, Empty, PageHead } from "../../atoms";
 import { Orbit } from "../../Orbit";
 import { ReportCard } from "../ReportCard";
@@ -19,6 +20,10 @@ export function Gmb() {
       </Card>
     </div>);
     const d=myGmb||{views:0,calls:0,directions:0,trend:[],posts:[],qa:[],completeness:{}};
+    const trendRows=Array.isArray(d.trend)?d.trend:[];
+    const viewsMom=gmbMomTrend(trendRows,"v");
+    const callsMom=gmbMomTrend(trendRows,"c");
+    const dirsMom=gmbMomTrend(trendRows,"d");
     const fromGoogle=d.source==="google"||d.source==="connected";
     const lastSync=d.syncedAt?(()=>{try{return new Date(d.syncedAt).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});}catch{return d.syncedAt;}})():null;
     return(<div>
@@ -36,9 +41,9 @@ export function Gmb() {
       </Card>
       <ReportCard user={user} reload={reload} toast={toast}/>
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:14,marginBottom:20}}>
-        <StatCard label="Profile Views" value={d.views} icon="👁️" color={T.green} soft={T.greenSoft} trend={18} delay={0}/>
-        <StatCard label="Calls From Google" value={d.calls} icon="📞" trend={12} delay={80}/>
-        <StatCard label="Direction Requests" value={d.directions} icon="🗺️" color={T.blue} soft={T.blueSoft} trend={9} delay={160}/>
+        <StatCard label="Profile Views" value={d.views} icon="👁️" color={T.green} soft={T.greenSoft} trend={viewsMom} delay={0}/>
+        <StatCard label="Calls From Google" value={d.calls} icon="📞" trend={callsMom} delay={80}/>
+        <StatCard label="Direction Requests" value={d.directions} icon="🗺️" color={T.blue} soft={T.blueSoft} trend={dirsMom} delay={160}/>
       </div>
       <Card style={{marginBottom:16}}>
         <SectionTitle sub="Real customer engagement from your Google profile">Engagement Trend</SectionTitle>

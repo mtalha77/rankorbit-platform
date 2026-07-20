@@ -163,6 +163,16 @@ export function growthMomTrend(series) {
   return Math.round(((cur - prev) / prev) * 100);
 }
 
+/** Month-over-month % from GMB trend rows (`v` views, `c` calls, `d` directions). */
+export function gmbMomTrend(series, key) {
+  if (!series || series.length < 2 || !key) return null;
+  const prev = Number(series[series.length - 2]?.[key]) || 0;
+  const cur = Number(series[series.length - 1]?.[key]) || 0;
+  if (prev === 0 && cur === 0) return null;
+  if (prev === 0) return cur > 0 ? 100 : null;
+  return Math.round(((cur - prev) / prev) * 100);
+}
+
 // Password policy: exactly 8 chars, upper+lower+number+symbol.
 export function passwordIssues(pw){
   const issues=[];
@@ -188,7 +198,7 @@ export const STAFF_ROLES=["super_admin","manager","agent"];
 export const SHOW_DEMOS=(import.meta.env.VITE_SHOW_DEMOS!=="false");
 
 // Activity-type → icon.
-export const actIcon=(t)=>({listing_live:"🟢",nap_fix:"🔧",edit_blocked:"🛡️",flagged:"🚩",rejected:"❌",gmb_update:"📍",submitted:"📤",analytics:"📈",client:"👤"}[t]||"⚡");
+export const actIcon=(t)=>({listing_live:"🟢",nap_fix:"🔧",edit_blocked:"🛡️",edit_blocked_internal:"🛡️",flagged:"🚩",rejected:"❌",gmb_update:"📍",submitted:"📤",analytics:"📈",client:"👤"}[t]||"⚡");
 // Client-facing anonymizer: clients never see staff names, only "Account Manager".
 // "System" stays as-is. Used everywhere the client can see a "by" attribution.
 export const clientBy=(by)=>(!by||by==="System"?(by||""):"Account Manager");

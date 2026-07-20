@@ -40,9 +40,17 @@ export function ClientFormModal({ client,onClose }) {
           if(next.name||next.email||next.businessName)return;
           (async()=>{
             try{
-              if(editing){await api.upsertProfile(f);toast("Client updated");}
-              else{await api.upsertProfile({...f,id:uid(),avatar:(f.name||"?")[0].toUpperCase(),napScore:0,createdAt:new Date().toISOString()});await addActivity("","client",`New client added: ${f.businessName||f.name}`);toast(`${f.businessName||f.name} added`);}
-              await reload();onClose();
+              if(editing){
+                await api.upsertProfile(f);
+                toast("Client updated");
+              }else{
+                const id=uid();
+                await api.upsertProfile({...f,id,avatar:(f.name||"?")[0].toUpperCase(),napScore:0,createdAt:new Date().toISOString()});
+                await addActivity(id,"client",`New client added: ${f.businessName||f.name}`);
+                toast(`${f.businessName||f.name} added`);
+              }
+              await reload();
+              onClose();
             }catch(e){toast("Could not save: "+(e.message||"unknown"),"info");}
           })();
         }}>{editing?"Save Changes":"Add Client"}</Btn>

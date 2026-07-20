@@ -202,7 +202,10 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
   const my = (data.listings && data.listings[userId]) || [];
   const myGmb = (data.gmb && data.gmb[userId]) || null;
   const myAnalytics = (data.analytics && data.analytics[userId]) || null;
-  const myAct = (Array.isArray(data.activity) ? data.activity : []).filter((a) => a.clientId === userId);
+  // Hide staff-only internal logs (unauthorized-edit notes not shared with client).
+  const myAct = (Array.isArray(data.activity) ? data.activity : []).filter(
+    (a) => a.clientId === userId && a.type !== "edit_blocked_internal"
+  );
   const settings = data.settings || {};
   const cfg = settings?.config || {};
   // Client-visible prices honor the super-admin control-panel overrides, falling back to defaults.

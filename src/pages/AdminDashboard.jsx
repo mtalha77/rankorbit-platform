@@ -83,7 +83,7 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
   const notifyManagersIfAgent = async (action, listing) => {
     if (user.role !== "agent") return;
     const clientName = clients.find((c) => c.id === listing.clientId)?.businessName || "a client";
-    await api.addActivity({ id: uid(), clientId: "__internal", type: "edit_blocked", desc: `Manager review: ${user.name} ${action} "${listing.directory}" for ${clientName}`, date: todayFull(), by: "System" });
+    await api.addActivity({ id: uid(), clientId: listing.clientId, type: "edit_blocked_internal", desc: `Manager review: ${user.name} ${action} "${listing.directory}" for ${clientName}`, date: todayFull(), by: "System" });
     api.notifyClient({
       clientId: listing.clientId,
       type: "agent_edit",
