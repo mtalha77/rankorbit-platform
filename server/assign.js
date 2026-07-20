@@ -1,5 +1,6 @@
 // Auto-assign clients to least-loaded agents + notify BDMs.
 import { randomUUID } from "crypto";
+import { appBaseUrl, buildNotifyEmail } from "./emailTemplate.js";
 
 function uid(prefix = "n") {
   try {
@@ -268,17 +269,6 @@ export async function notifyUser(admin, { userId, clientId, type, title, body, m
   return createNotification(admin, { userId, clientId, type, title, body, meta });
 }
 
-function appBaseUrl() {
-  const raw = (process.env.APP_URL || "").replace(/\/$/, "");
-  return raw || "https://nap.rankorbit.com";
-}
-
-function emailBodyWithCta(body) {
-  const link = `${appBaseUrl()}/dashboard`;
-  const text = String(body || "").trim();
-  return `${text}\n\nOpen your dashboard: ${link}\n\n— NAP Orbit`;
-}
-
 const PLAN_LABELS = {
   essentials: "Essentials",
   growth: "Growth",
@@ -330,7 +320,10 @@ export async function notifyClient(admin, { userId, clientId, type, title, body,
     return { notified: true, notificationId: row?.id, emailResult: { sent: false, reason: "no_email" } };
   }
 
-  const emailResult = await sendNotifyEmails([email], title, emailBodyWithCta(body));
+  const emailResult = await sendNotifyEmails([email], title, body, {
+    ctaUrl: `${appBaseUrl()}/dashboard`,
+    ctaLabel: "Open dashboard",
+  });
   return { notified: true, notificationId: row?.id, email, emailResult };
 }
 
@@ -389,7 +382,10 @@ export async function notifyStaffRoute(admin, { kind, title, body }) {
   }
 
   if (!emails.size) return { sent: false, reason: "no_recipients" };
-  return sendNotifyEmails([...emails], title, body);
+  return sendNotifyEmails([...emails], title, body, {
+    ctaUrl: `${appBaseUrl()}/admin`,
+    ctaLabel: "Open admin",
+  });
 }
 
 /**
@@ -442,19 +438,37 @@ export async function notifyBdm(admin, { agentId, clientId, type, title, body, m
     /* optional */
   }
 
-  const emailResult = await sendNotifyEmails([...emails], title, body);
+  const emailResult = await sendNotifyEmails([...emails], title, body, {
+    ctaUrl: `${appBaseUrl()}/admin`,
+    ctaLabel: "Open admin",
+  });
   return { notified: true, notificationId: row?.id, emails: [...emails], emailResult };
 }
 
-/** Send plain-text email via Resend. Safe no-op when RESEND_API_KEY is unset. */
-export async function sendNotifyEmails(toList, subject, text) {
+/**
+ * Send branded HTML + plain-text email via Resend.
+ * Safe no-op when RESEND_API_KEY is unset.
+ * @param {string[]} toList
+ * @param {string} subject
+ * @param {string} body plain body (no footer — template adds brand + CTA)
+ * @param {{ ctaUrl?: string|null, ctaLabel?: string }} [opts]
+ */
+export async function sendNotifyEmails(toList, subject, body, opts = {}) {
   if (!toList.length) return { sent: false, reason: "no_recipients" };
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.NOTIFY_FROM_EMAIL || "NAP Orbit <noreply@naporbit.com>";
+  const from = process.env.NOTIFY_FROM_EMAIL || "NAP Orbit <noreply@nap.rankorbit.com>";
   if (!apiKey) {
     console.info("[notify] RESEND_API_KEY missing — in-app notification only. Would email:", toList.join(", "));
     return { sent: false, reason: "no_resend_key", to: toList };
   }
+
+  const { html, text } = buildNotifyEmail({
+    subject: subject || "NAP Orbit notification",
+    body: body || "",
+    ctaUrl: opts.ctaUrl ?? null,
+    ctaLabel: opts.ctaLabel || "Open dashboard",
+  });
+
   try {
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -466,7 +480,8 @@ export async function sendNotifyEmails(toList, subject, text) {
         from,
         to: toList,
         subject: subject || "NAP Orbit notification",
-        text: text || "",
+        text,
+        html,
       }),
     });
     const j = await r.json().catch(() => ({}));
