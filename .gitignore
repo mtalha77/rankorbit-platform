@@ -6,20 +6,38 @@ node_modules/
 .env.local
 .env.*.local
 .env.production
+.env.development
+.env.test
 
 # Build output
 dist/
 dist-ssr/
+.vercel/
 
-# Logs
+# Logs / coverage / cache
 *.log
 npm-debug.log*
+coverage/
+.cache/
+*.tsbuildinfo
 
 # Editor / OS
 .DS_Store
+Thumbs.db
+Desktop.ini
 .vscode/
 .idea/
 *.local
 
+# Local previews / one-off test artifacts
+email-preview.html
+*-preview.html
+
+# Python / script scratch
+__pycache__/
+*.pyc
+
 # Backups
 *.backup
+*.bak
+*.tmp
