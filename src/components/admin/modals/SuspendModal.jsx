@@ -5,7 +5,7 @@ import { Modal, Input, Btn } from "../../atoms";
 import { useAdmin } from "../AdminContext";
 
 export function SuspendModal({ client,onClose }) {
-  const { user, R, audit } = useAdmin();
+  const { user, audit, reload, toast } = useAdmin();
 
     const[reason,setReason]=useState("");
     const[saving,setSaving]=useState(false);
@@ -15,9 +15,15 @@ export function SuspendModal({ client,onClose }) {
       try{
         await api.patchProfile(client.id,{status:"suspended",suspendedAt:new Date().toISOString(),suspendReason:reason.trim(),suspendedBy:roleLabel});
         await audit("client.suspend",{targetType:"client",targetId:client.id,targetName:client.businessName||client.name,detail:reason.trim()||"no reason given"});
-        await reload();toast("Client suspended");onClose();
-      }catch(e){toast("Could not suspend","info");}
-      setSaving(false);
+        await reload();
+        toast("Client suspended");
+        onClose();
+      }catch(e){
+        console.error(e);
+        toast(e.message||"Could not suspend","info");
+      }finally{
+        setSaving(false);
+      }
     };
     return(<Modal open onClose={onClose} title={`Suspend ${client.businessName||client.name}?`}>
       <div style={{fontSize:12.5,color:T.sub,marginBottom:14,lineHeight:1.5}}>The client won't be able to log in until reactivated. Add a short reason for the record (staff only).</div>

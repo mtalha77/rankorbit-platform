@@ -52,7 +52,7 @@ export function LandingPricing({ isMobile, isTab, w, user, cfg, lprice, goPlan, 
           const cards=[
             {id:"essentials",n:"Essentials",tag:"GETTING STARTED",q:"10 LISTINGS / MONTH",pop:false,f:["10 directory submissions monthly","NAP consistency management","Unauthorized edit protection","AI search visibility","Live dashboard access"]},
             {id:"growth",n:"Growth",tag:"GROWING BUSINESS",q:"20 LISTINGS / MONTH",pop:true,f:["20 directory submissions monthly","Everything in Essentials","Expanded directory coverage","AI search visibility","Priority support"]},
-            {id:"gmb",n:"GMB Pro",tag:"MANAGED PRESENCE",q:"20 LISTINGS + GOOGLE PROFILE",pop:false,f:["Everything in Growth","Google Business Profile management","AI search visibility","Monthly posts and Q&A","Dedicated manager"]},
+            {id:"gmb",n:"GMB Pro",tag:"MANAGED PRESENCE",q:"15 LISTINGS + GOOGLE PROFILE",pop:false,f:["15 directory submissions every month","Google Business Profile management","AI search visibility","Monthly posts and Q&A","Dedicated manager"]},
           ].filter(pl=>planLive(pl.id,cfg));
 
           // Stack on phone + iPad portrait; 3-up from ~900px (iPad landscape / desktop)
