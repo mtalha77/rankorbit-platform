@@ -828,8 +828,17 @@ export const api={
   },
   async addActivity(a){
     if(supa){
-      const{error}=await supa.from("activity").insert(a);
-      if(error){console.error("addActivity:",error.message);throw new Error(error.message||"Could not save activity");}
+      // Explicit column map — avoids silent drops / reserved-name quirks on "desc".
+      const row={
+        id:a.id,
+        clientId:a.clientId,
+        type:a.type,
+        desc:a.desc??a.description??"",
+        date:a.date??"",
+        by:a.by??"",
+      };
+      const{error}=await supa.from("activity").insert(row);
+      if(error){console.error("addActivity:",error.message,error);throw new Error(error.message||"Could not save activity");}
       return;
     }
     LSet("ro3_activity",[a,...(LS("ro3_activity")||[])]);

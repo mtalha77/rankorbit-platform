@@ -75,7 +75,8 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
   const actionNeeded = flat.filter((l) => l.actionNeeded).length;
 
   const addActivity = async (clientId, type, desc) => {
-    await api.addActivity({ id: uid(), clientId, type, desc, date: todayFull(), by: user.name });
+    if (!clientId) throw new Error("Missing client for activity log");
+    await api.addActivity({ id: uid(), clientId, type, desc, date: todayFull(), by: user.name || user.email || "Staff" });
   };
   const audit = async (action, { targetType, targetId, targetName, detail } = {}) => {
     await api.logAudit({ actor: user, action, targetType, targetId, targetName, detail });

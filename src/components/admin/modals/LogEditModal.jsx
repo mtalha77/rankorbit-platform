@@ -12,6 +12,10 @@ export function LogEditModal({ client, onClose }) {
 
   const save = async () => {
     if (saving) return;
+    if (!client?.id) {
+      toast?.("Missing client — refresh and try again", "info");
+      return;
+    }
     setSaving(true);
     try {
       const base = "Unauthorized edit blocked and reverted";
@@ -26,12 +30,13 @@ export function LogEditModal({ client, onClose }) {
         targetName: client.businessName || client.name,
         detail: note.trim() || "no note",
       });
-      if (typeof reload === "function") await reload();
-      if (typeof toast === "function") toast("Unauthorized edit logged & reverted");
+      toast?.("Unauthorized edit logged & reverted");
       onClose();
+      // Don't block the UI on a slow full reload.
+      if (typeof reload === "function") Promise.resolve(reload()).catch(console.error);
     } catch (e) {
       console.error(e);
-      if (typeof toast === "function") toast(e.message || "Could not log", "info");
+      toast?.(e.message || "Could not log", "info");
     } finally {
       setSaving(false);
     }
@@ -50,6 +55,7 @@ export function LogEditModal({ client, onClose }) {
         onChange={(e) => setNote(e.target.value)}
         placeholder="e.g. Business hours changed on Google without authorization, reverted to correct hours."
         rows={3}
+        disabled={saving}
         style={{
           width: "100%",
           padding: "11px 14px",
@@ -68,12 +74,13 @@ export function LogEditModal({ client, onClose }) {
           type="checkbox"
           checked={shareWithClient}
           onChange={(e) => setShare(e.target.checked)}
+          disabled={saving}
           style={{ width: 16, height: 16, accentColor: T.brand }}
         />
         <span style={{ fontSize: 12.5, color: T.sub }}>Show this note to the client in their activity feed</span>
       </label>
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-        <Btn variant="ghost" onClick={onClose} disabled={saving}>
+        <Btn variant="ghost" onClick={onClose}>
           Cancel
         </Btn>
         <Btn variant="danger" onClick={save} disabled={saving}>
