@@ -132,4 +132,75 @@ export function buildNotifyEmail({ subject, body, ctaUrl = null, ctaLabel = "Ope
   return { html, text };
 }
 
+const STAFF_ROLES = new Set(["super_admin", "manager", "agent"]);
+
+export function isStaffInviteRole(role) {
+  return STAFF_ROLES.has(String(role || "").toLowerCase());
+}
+
+/** Build Supabase Auth verify URL from send-email hook payload. */
+export function authVerifyUrl(emailData, projectUrl) {
+  const base = String(projectUrl || "").replace(/\/$/, "");
+  const params = new URLSearchParams({
+    token: emailData.token_hash || "",
+    type: emailData.email_action_type || "signup",
+    redirect_to: emailData.redirect_to || appBaseUrl(),
+  });
+  return `${base}/auth/v1/verify?${params.toString()}`;
+}
+
+/**
+ * Map Supabase auth email_action_type → subject/body/CTA for branded Resend mail.
+ * Returns null to intentionally skip sending (e.g. client invite blocked).
+ */
+export function authEmailCopy(emailActionType, { role, token } = {}) {
+  const type = String(emailActionType || "");
+  if (type === "invite") {
+    if (!isStaffInviteRole(role)) return null; // block client / unknown invites
+    return {
+      subject: "You're invited to NAP Orbit (staff)",
+      body: "You've been invited to join the NAP Orbit staff team. Click below to accept and set your password.",
+      ctaLabel: "Accept invitation",
+    };
+  }
+  const map = {
+    signup: {
+      subject: "Confirm your email address",
+      body: "Confirm this email address to finish creating your NAP Orbit account.",
+      ctaLabel: "Confirm email",
+    },
+    recovery: {
+      subject: "Reset your password",
+      body: "We received a request to reset your password. Click below to choose a new one. If you didn't request this, you can ignore this email.",
+      ctaLabel: "Reset password",
+    },
+    magiclink: {
+      subject: "Your sign-in link",
+      body: "Click below to sign in. This link expires shortly and can only be used once.",
+      ctaLabel: "Sign in",
+    },
+    email_change: {
+      subject: "Confirm your new email address",
+      body: "Confirm your new email address to finish updating your NAP Orbit account.",
+      ctaLabel: "Confirm email",
+    },
+    email: {
+      subject: "Confirm your email address",
+      body: "Confirm this email address to continue.",
+      ctaLabel: "Confirm email",
+    },
+    reauthentication: {
+      subject: "Your verification code",
+      body: `Use this code to verify your identity. It expires shortly.\n\n${token || ""}`,
+      ctaLabel: null,
+      ctaUrl: null,
+    },
+  };
+  return map[type] || {
+    subject: "NAP Orbit account update",
+    body: "You have an update related to your NAP Orbit account.",
+    ctaLabel: "Open NAP Orbit",
+  };
+}
+
 export { appBaseUrl };

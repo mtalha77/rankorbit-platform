@@ -66,7 +66,7 @@ export function Settings() {
           <Toggle label="Email on plan change" k="notifyPlanChange"/>
           <Toggle label="Alert managers when an agent edits/deletes a listing" k="notifyAgentEdit"/>
           <Toggle label="Send monthly finance report" k="monthlyReport" sub="Signups, revenue, cancellations to report recipients"/>
-          <Toggle label="Allow public client signups" k="allowSignups" sub="Turn off to make the platform invite-only"/>
+          <Toggle label="Allow public client signups" k="allowSignups" sub="Turn off to hide signup CTAs. Never use Supabase Dashboard → Invite for clients — that sends the unwanted invite email. Clients must sign up themselves; staff invites go from Team → Invite only."/>
         </div>
         <Btn style={{marginTop:16}} onClick={()=>R(async()=>{await api.saveSettings({...settings,stripe:f,config:c});await audit("settings.update",{targetType:"settings",detail:"control panel"});},"Control panel saved")}>Save Control Panel</Btn>
       </Card>

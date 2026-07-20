@@ -661,7 +661,7 @@ export const api={
   // Grant/revoke a manager's ability to open (read-only) client accounts.
   // Create a staff login (manager/agent) via the serverless admin function.
   // Passes the caller's access token so the server can verify their role.
-  async createStaff({name,email,password,role}){
+  async createStaff({name,email,role}){
     if(!supa)return{error:"Not connected to database (Supabase keys missing)"};
     let session=null;
     try{
@@ -675,11 +675,11 @@ export const api={
       const r=await fetch("/api/create-staff",{
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({token:String(session.access_token),name,email,password,role}),
+        body:JSON.stringify({token:String(session.access_token),name,email,role}),
       });
       const j=await r.json();
-      if(!r.ok)return{error:j.error||"Failed to create staff account"};
-      return{ok:true};
+      if(!r.ok)return{error:j.error||"Failed to invite staff account"};
+      return{ok:true,invited:!!j.invited};
     }catch(e){return{error:e.message||"Network error"};}
   },
   async setImpersonateGrant(managerId,allowed){
