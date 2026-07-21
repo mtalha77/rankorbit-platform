@@ -32,10 +32,10 @@ export function LandingMarquee({ isMobile }) {
             }}
           >
             {[
-              "Get started and grow your business now with NAP Orbit",
-              "Get discovered by customers worldwide",
-              "Get started and grow your business now with NAP Orbit",
-              "Get discovered by customers worldwide",
+              "Get discovered by customers",
+              "Get started now",
+              "Get discovered by customers",
+              "Get started now",
             ].map((line, i) => (
               <span key={`${copy}-${i}`} style={{display: "inline-flex", alignItems: "center", gap: isMobile ? 28 : 40}}>
                 <span style={{color: i % 2 === 0 ? "#fff" : T.green}}>{line}</span>
@@ -46,7 +46,7 @@ export function LandingMarquee({ isMobile }) {
         ))}
       </div>
       <span style={{position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)"}}>
-        Get started and grow your business now with NAP Orbit. Get discovered by customers worldwide.
+        Get discovered by customers. Get started now.
       </span>
     </div>
   );

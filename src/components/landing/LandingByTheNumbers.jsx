@@ -4,7 +4,7 @@ import { StatNumberCard } from "./landingShared";
 
 export function LandingByTheNumbers({ isMobile }) {
   return (
-    <div style={{background:`linear-gradient(135deg,#0F1028 0%,#171732 45%,#1E1B4B 100%)`,padding:isMobile?"40px 16px":"56px 24px 0",marginTop:0,position:"relative",overflow:"hidden"}}>
+    <div style={{background:`linear-gradient(135deg,#0F1028 0%,#171732 45%,#1E1B4B 100%)`,padding:isMobile?"40px 16px":"56px 24px 0",marginTop:0,position:"relative",overflow:"visible"}}>
       {/* Soft glow */}
       <div aria-hidden="true" style={{position:"absolute",top:"-20%",right:"-10%",width:420,height:420,borderRadius:"50%",background:`radial-gradient(circle,${T.brand}33,transparent 68%)`,pointerEvents:"none"}}/>
       <div aria-hidden="true" style={{position:"absolute",bottom:"-30%",left:"10%",width:360,height:360,borderRadius:"50%",background:`radial-gradient(circle,${T.green}22,transparent 70%)`,pointerEvents:"none"}}/>
@@ -32,10 +32,26 @@ export function LandingByTheNumbers({ isMobile }) {
 
           <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:14}}>
             {[
-              {value:60,suffix:"+",title:"Directories managed",sub:"Google, Apple, Yelp and more",accent:T.green,icon:<><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.4 8 12 8 12s8-6.6 8-12a8 8 0 0 0-8-8z"/></>,suffixColor:T.green},
-              {value:96,suffix:"%",title:"Average NAP accuracy",sub:"Consistent details everywhere",accent:T.brand,icon:<path d="M20 6 9 17l-5-5"/>,suffixColor:"#B8B8FF"},
-              {value:30,suffix:"+",title:"New listings monthly",sub:"Fresh coverage every month",accent:T.green,icon:<><path d="M12 5v14M5 12h14"/></>,suffixColor:T.green},
-              {value:24,suffix:"/7",title:"Edit protection",sub:"Unauthorized changes caught fast",accent:T.brand,icon:<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>,suffixColor:"#B8B8FF",splitSuffix:true},
+              {
+                value:500,suffix:"+",title:"Directories managed",sub:"Google, Apple, Yelp and more",accent:T.green,suffixColor:T.green,
+                // Network / connected directories
+                icon:<><circle cx="12" cy="12" r="2.2"/><circle cx="5" cy="7" r="1.8"/><circle cx="19" cy="7" r="1.8"/><circle cx="5" cy="17" r="1.8"/><circle cx="19" cy="17" r="1.8"/><path d="M10.2 11.2 6.5 8.2M13.8 11.2l3.7-3M10.2 12.8 6.5 15.8M13.8 12.8l3.7 3"/></>,
+              },
+              {
+                value:99,suffix:"%",title:"Average NAP accuracy",sub:"Consistent details everywhere",accent:T.brand,suffixColor:"#B8B8FF",
+                // Target / precision bullseye
+                icon:<><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21"/></>,
+              },
+              {
+                value:30,suffix:"+",title:"New listings monthly",sub:"Fresh coverage every month",accent:T.green,suffixColor:T.green,
+                // Calendar + sparkle (new listings)
+                icon:<><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M12 13.2v4.2M9.9 15.3h4.2"/><path d="M17.5 12.2l.4 1.1 1.1.4-1.1.4-.4 1.1-.4-1.1-1.1-.4 1.1-.4z"/></>,
+              },
+              {
+                value:24,suffix:"/7",title:"Edit protection",sub:"Unauthorized changes caught fast",accent:T.brand,suffixColor:"#B8B8FF",splitSuffix:true,
+                // Shield with check
+                icon:<><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12.2l2 2 4.2-4.5"/></>,
+              },
             ].map((card)=>(
               <StatNumberCard key={card.title} {...card} isMobile={isMobile}/>
             ))}

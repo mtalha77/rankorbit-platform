@@ -1,13 +1,14 @@
 import { T, FONT_D, FONT_B, SHADOW, SHADOW_LG } from "../../../lib/theme";
 import { api } from "../../../lib/api";
 import { downloadBlob, openExternalFile } from "../../../lib/export";
-import { PLANS } from "../../../lib/constants";
+import { PLANS, popularPlanId, orderPlansPopularCenter } from "../../../lib/constants";
 import { Badge, Card, Btn, PageHead, SectionTitle } from "../../atoms";
 import { ProfileGate } from "../ProfileGate";
 import { useClient } from "../ClientContext";
 
 export function Billing() {
-  const { user, isMobile, stripeConfigured, toast, R, reload, setConfirm, PLANSV, plan, invoices, my, myAct, impersonating } = useClient();
+  const { user, isMobile, stripeConfigured, toast, R, reload, setConfirm, PLANSV, plan, invoices, my, myAct, impersonating, cfg } = useClient();
+  const popularId = popularPlanId(cfg || {});
 
     // Paid plans only — Stripe Checkout / change-subscription. No free activate path.
     const stripeReady=stripeConfigured===true;
@@ -145,11 +146,11 @@ export function Billing() {
       <SectionTitle sub="Pick a plan to start, or upgrade anytime, secure checkout via Stripe">{user.plan?"Change Plan":"Choose Your Plan"}</SectionTitle>
       {billingBlocked&&<div style={{padding:"10px 14px",background:T.amberSoft,borderRadius:11,marginBottom:14,fontSize:12,color:T.amber,fontWeight:600}}>Checkout is unavailable until Stripe is configured. All plans are paid — there is no free activation.</div>}
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:14}}>
-        {Object.entries(PLANSV).map(([id,p],i)=>{
+        {orderPlansPopularCenter(Object.entries(PLANSV),popularId).map(([id,p],i)=>{
           const current=id===user.plan;
           return(<div key={id} className="fadeUp hoverCard" style={{animationDelay:`${i*90}ms`,background:T.surface,border:`2px solid ${current?p.color:T.line}`,borderRadius:18,padding:22,position:"relative",boxShadow:current?SHADOW_LG:SHADOW}}>
             {current&&<div style={{position:"absolute",top:-11,left:"50%",transform:"translateX(-50%)",background:p.color,color:"#fff",fontSize:10,fontWeight:800,padding:"3px 13px",borderRadius:20,width:"auto",whiteSpace:"nowrap"}}>CURRENT PLAN</div>}
-            {id==="growth"&&!current&&<div style={{position:"absolute",top:-11,left:"50%",transform:"translateX(-50%)",background:`linear-gradient(135deg,${T.brand},${T.violet})`,color:"#fff",fontSize:10,fontWeight:800,padding:"3px 13px",borderRadius:20,width:"auto",whiteSpace:"nowrap"}}>MOST POPULAR</div>}
+            {id===popularId&&!current&&<div style={{position:"absolute",top:-11,left:"50%",transform:"translateX(-50%)",background:`linear-gradient(135deg,${T.brand},${T.violet})`,color:"#fff",fontSize:10,fontWeight:800,padding:"3px 13px",borderRadius:20,width:"auto",whiteSpace:"nowrap"}}>MOST POPULAR</div>}
             <div style={{fontFamily:FONT_D,fontSize:16,fontWeight:800}}>{p.name}</div>
             <div style={{fontFamily:FONT_D,fontSize:30,fontWeight:800,color:p.color,margin:"5px 0 2px"}}>${p.price}<span style={{fontSize:13,color:T.faint,fontWeight:600}}>/mo</span></div>
             <div style={{fontSize:12,color:T.sub,fontWeight:700,marginBottom:14}}>{p.quota}</div>

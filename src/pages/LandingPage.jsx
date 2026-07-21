@@ -14,7 +14,6 @@ import {
   LandingBento,
   LandingHowItWorks,
   LandingDashboardTour,
-  LandingPublisherBlock,
   LandingStories,
   LandingPricing,
   LandingFinalCta,
@@ -88,7 +87,6 @@ export default function LandingPage({ user = null, focusPricing = false, billing
       <LandingBento isMobile={isMobile} />
       <LandingHowItWorks isMobile={isMobile} />
       <LandingDashboardTour isMobile={isMobile} />
-      <LandingPublisherBlock isMobile={isMobile} />
       <LandingStories isMobile={isMobile} />
       <LandingPricing isMobile={isMobile} isTab={isTab} w={w} user={user} cfg={cfg} lprice={lprice} goPlan={goPlan} planBusy={planBusy} planErr={planErr} billingFlag={billingFlag} />
       <LandingFinalCta isMobile={isMobile} user={user} goDash={goDash} goSignup={goSignup} />

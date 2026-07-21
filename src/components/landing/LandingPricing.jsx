@@ -1,5 +1,5 @@
 import { T, FONT_D, FONT_B, SHADOW, SHADOW_LG } from "../../lib/theme";
-import { planLive } from "../../lib/constants";
+import { planLive, popularPlanId, orderPlansPopularCenter } from "../../lib/constants";
 import { Reveal } from "../Reveal";
 
 export function LandingPricing({ isMobile, isTab, w, user, cfg, lprice, goPlan, planBusy, planErr, billingFlag }) {
@@ -49,11 +49,15 @@ export function LandingPricing({ isMobile, isTab, w, user, cfg, lprice, goPlan, 
         </div>
 
         {(()=>{
-          const cards=[
-            {id:"essentials",n:"Essentials",tag:"GETTING STARTED",q:"10 LISTINGS / MONTH",pop:false,f:["10 directory submissions monthly","NAP consistency management","Unauthorized edit protection","AI search visibility","Live dashboard access"]},
-            {id:"growth",n:"Growth",tag:"GROWING BUSINESS",q:"20 LISTINGS / MONTH",pop:true,f:["20 directory submissions monthly","Everything in Essentials","Expanded directory coverage","AI search visibility","Priority support"]},
-            {id:"gmb",n:"GMB Pro",tag:"MANAGED PRESENCE",q:"15 LISTINGS + GOOGLE PROFILE",pop:false,f:["15 directory submissions every month","Google Business Profile management","AI search visibility","Monthly posts and Q&A","Dedicated manager"]},
-          ].filter(pl=>planLive(pl.id,cfg));
+          const popularId=popularPlanId(cfg);
+          const cards=orderPlansPopularCenter(
+            [
+              {id:"essentials",n:"Essentials",tag:"GETTING STARTED",q:"10 LISTINGS / MONTH",f:["10 directory submissions monthly","NAP consistency management","Unauthorized edit protection","AI search visibility","Live dashboard access"]},
+              {id:"growth",n:"Growth",tag:"GROWING BUSINESS",q:"20 LISTINGS / MONTH",f:["20 directory submissions monthly","Everything in Essentials","Expanded directory coverage","AI search visibility","Priority support"]},
+              {id:"gmb",n:"GMB Pro",tag:"MANAGED PRESENCE",q:"15 LISTINGS + GOOGLE PROFILE",f:["15 directory submissions every month","Google Business Profile management","AI search visibility","Monthly posts and Q&A","Dedicated manager"]},
+            ].map(pl=>({...pl,pop:pl.id===popularId})).filter(pl=>planLive(pl.id,cfg)),
+            popularId,
+          );
 
           // Stack on phone + iPad portrait; 3-up from ~900px (iPad landscape / desktop)
           // Middle “Most Popular” column gets a bit more width when 3 cards
