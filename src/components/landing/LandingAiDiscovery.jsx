@@ -41,7 +41,7 @@ function DetailIcon({ type }) {
 }
 
 function GoogleListingCard({ isMobile }) {
-  const thumbs = ["/ai-listing-1.webp", "/ai-listing-2.webp", "/ai-listing-3.webp"];
+  const thumbs = ["/ai-thumb-1.webp", "/ai-thumb-2.webp", "/ai-thumb-3.webp"];
   return (
     <div
       style={{

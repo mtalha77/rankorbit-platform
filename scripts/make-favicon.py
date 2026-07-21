@@ -1,7 +1,7 @@
 from PIL import Image
 import os
 
-src = os.path.join(os.path.dirname(__file__), "..", "public", "nap-orbit-logo.png")
+src = os.path.join(os.path.dirname(__file__), "..", "public", "nap-orbit-logo-nav.png")
 out_dir = os.path.join(os.path.dirname(__file__), "..", "public")
 im = Image.open(src).convert("RGBA")
 w, h = im.size

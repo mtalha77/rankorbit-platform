@@ -72,7 +72,7 @@ export default function Shell({
           <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div>
-                <img src="/nap-orbit-logo.png" alt="NAP Orbit" width={120} height={22} style={{ height: 22, width: "auto", display: "block" }} />
+                <img src="/nap-orbit-logo-shell.png" alt="NAP Orbit" width={120} height={22} style={{ height: 22, width: "auto", display: "block" }} />
                 {brandTag && (
                   <div style={{ fontSize: 9.5, fontWeight: 800, color: T.red, letterSpacing: ".6px", marginTop: 3 }}>{brandTag}</div>
                 )}
@@ -246,7 +246,7 @@ export default function Shell({
               >
                 ☰
               </button>
-              <img src="/nap-orbit-logo.png" alt="NAP Orbit" width={110} height={20} style={{ height: 20, width: "auto", display: "block" }} />
+              <img src="/nap-orbit-logo-shell.png" alt="NAP Orbit" width={110} height={20} style={{ height: 20, width: "auto", display: "block" }} />
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               {headerRight}
