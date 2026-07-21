@@ -353,6 +353,8 @@ export function LandingBento({ isMobile }) {
                       key={src}
                       src={src}
                       alt=""
+                      width={36}
+                      height={36}
                       style={{
                         width: 36,
                         height: 36,

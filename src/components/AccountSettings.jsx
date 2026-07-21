@@ -27,6 +27,8 @@ export function UserAvatar({ user, size = 36, style = {} }) {
       <img
         src={url}
         alt=""
+        width={size}
+        height={size}
         style={{
           width: size,
           height: size,

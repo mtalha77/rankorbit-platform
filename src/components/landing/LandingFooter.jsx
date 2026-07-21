@@ -66,7 +66,7 @@ export function LandingFooter({ isMobile, isTab, user, nav, goDash, goLogin, goS
         }}>
           {/* Brand column */}
           <div>
-            <img src="/nap-orbit-logo-removebg-preview.png" alt="NAP Orbit" style={{height:isMobile?28:32,width:"auto",display:"block",marginBottom:18}}/>
+            <img src="/nap-orbit-logo-removebg-preview.png" alt="NAP Orbit" width={150} height={32} style={{height:isMobile?28:32,width:"auto",display:"block",marginBottom:18}}/>
             <div style={{fontFamily:FONT_D,fontSize:isMobile?22:26,fontWeight:800,color:T.ink,letterSpacing:"-.5px",marginBottom:10,lineHeight:1.2}}>
               Local visibility, kept simple.
             </div>

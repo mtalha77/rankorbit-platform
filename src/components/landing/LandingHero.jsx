@@ -6,7 +6,7 @@ import { DashboardPreview } from "./DashboardPreview";
 
 export function LandingHero({ isMobile, isTab, user, goDash, goSignup }) {
   return (
-    <div style={{position:"relative",overflow:"hidden",backgroundImage:"url(/hero-bg.png)",backgroundSize:"cover",backgroundPosition:"center 35%"}}>
+    <div style={{position:"relative",overflow:"hidden",backgroundImage:'image-set(url("/hero-bg.webp") type("image/webp"), url("/hero-bg.png") type("image/png"))',backgroundSize:"cover",backgroundPosition:"center 35%"}}>
       {/* Light black shade so headline / CTAs stay readable */}
       <div aria-hidden="true" style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(15,15,28,.42) 0%,rgba(15,15,28,.55) 55%,rgba(15,15,28,.62) 100%)"}}/>
       <div style={{position:"relative",maxWidth:1400,margin:"0 auto",padding:isMobile?"96px 8px 40px":"132px 8px 64px",textAlign:"left",width:"100%",boxSizing:"border-box"}}>

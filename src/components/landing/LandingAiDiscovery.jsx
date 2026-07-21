@@ -41,7 +41,7 @@ function DetailIcon({ type }) {
 }
 
 function GoogleListingCard({ isMobile }) {
-  const thumbs = ["/ai-listing-1.png", "/ai-listing-2.png", "/ai-listing-3.png"];
+  const thumbs = ["/ai-listing-1.webp", "/ai-listing-2.webp", "/ai-listing-3.webp"];
   return (
     <div
       style={{
@@ -89,11 +89,13 @@ function GoogleListingCard({ isMobile }) {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 7, marginBottom: 14 }}>
-        {thumbs.map((src, i) => (
+        {thumbs.map((src) => (
           <img
             key={src}
             src={src}
             alt=""
+            width={120}
+            height={62}
             style={{
               height: isMobile ? 52 : 62,
               width: "100%",

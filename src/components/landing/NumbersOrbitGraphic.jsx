@@ -193,6 +193,8 @@ export function NumbersOrbitGraphic({ isMobile }) {
         <img
           src="/favicon-source.png"
           alt="NAP Orbit"
+          width={52}
+          height={52}
           style={{
             width: isMobile ? 40 : 52,
             height: isMobile ? 40 : 52,

@@ -41,7 +41,7 @@ export default function LegalPage({ mode = "terms" }) {
             onClick={() => nav("/")}
             style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex", alignItems: "center" }}
           >
-            <img src="/nap-orbit-logo-removebg-preview.png" alt="NAP Orbit" style={{ height: isMobile ? 26 : 30, width: "auto", display: "block" }} />
+            <img src="/nap-orbit-logo-removebg-preview.png" alt="NAP Orbit" width={140} height={30} style={{ height: isMobile ? 26 : 30, width: "auto", display: "block" }} />
           </button>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <Link
