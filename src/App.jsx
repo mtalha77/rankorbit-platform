@@ -50,7 +50,6 @@ function ClientAuth({mode="login",user,onLogin,passwordRecovery}){
 // /dashboard — clients with an active plan only. No plan → pricing on landing.
 // After Stripe success, briefly poll until webhook writes the plan.
 function ClientDashboardRoute({user,data,reload,onLogin,onLogout,passwordRecovery,onUserUpdate}){
-  const nav=useNavigate();
   const[params]=useSearchParams();
   const billing=params.get("billing");
   const awaitingPlan=billing==="success"&&user&&!user.plan;
@@ -73,7 +72,7 @@ function ClientDashboardRoute({user,data,reload,onLogin,onLogout,passwordRecover
   },[awaitingPlan,onLogin]);
 
   // Must stay above every early return — hooks can't run conditionally (fixes blank page on refresh).
-  const handleLogout=useCallback(async()=>{await onLogout();nav("/");},[onLogout,nav]);
+  const handleLogout=useCallback(()=>onLogout("/"),[onLogout]);
 
   if(passwordRecovery)return <Navigate to="/reset-password" replace/>;
   if(user&&STAFF_ROLES.includes(user.role))return <Navigate to="/admin" replace/>;
@@ -86,13 +85,12 @@ function ClientDashboardRoute({user,data,reload,onLogin,onLogout,passwordRecover
 
 // /admin — staff (super_admin, manager, agent). Unchanged access rules.
 function StaffPortal({user,data,reload,onLogin,onLogout,passwordRecovery,onUserUpdate}){
-  const nav=useNavigate();
   const viewData=useStableData(data);
   if(passwordRecovery)return <Navigate to="/reset-password" replace/>;
   if(user&&!STAFF_ROLES.includes(user.role))return <Navigate to="/" replace/>;
   if(!user)return <AuthScreen portal="staff" onLogin={async(u)=>{await onLogin(u);}}/>;
   if(!viewData)return <Loading label="Loading admin…"/>;
-  return <AdminDashboard user={user} data={viewData} reload={reload} onLogout={async()=>{await onLogout();nav("/admin");}} onUserUpdate={onUserUpdate}/>;
+  return <AdminDashboard user={user} data={viewData} reload={reload} onLogout={()=>onLogout("/admin")} onUserUpdate={onUserUpdate}/>;
 }
 
 function LandingRoute({user,passwordRecovery}){
@@ -106,7 +104,7 @@ function ResetPasswordRoute({user,passwordRecovery,onClearRecovery,onLogout}){
   return(
     <ResetPassword
       hasSession={!!user||passwordRecovery}
-      onDone={async()=>{onClearRecovery();await onLogout();}}
+      onDone={async()=>{onClearRecovery();await onLogout("/login");}}
     />
   );
 }
@@ -299,13 +297,28 @@ export default function App(){
     api.ensureClientLifecycleNotifs(u);
   },[applyUser]);
 
-  const onLogout=useCallback(async()=>{
-    ignoreSignOutUntilRef.current=0;
+  /**
+   * Sign-out: clear session, then hard-navigate.
+   * Soft SPA nav after SIGNED_OUT was racing (/dashboard → /login → /) and
+   * left production stuck on a blank Suspense/lazy boundary; local Vite never
+   * showed it because chunks resolve instantly.
+   */
+  const onLogout=useCallback(async(redirectTo="/")=>{
+    // Suppress SIGNED_OUT handler so it doesn't Navigate mid-logout.
+    ignoreSignOutUntilRef.current=Date.now()+15000;
     loadedForRef.current.id=null;
     loadGenRef.current+=1;
-    await api.logout();
-    setCurrentUser(null);
-    setData(null);
+    try{
+      await Promise.race([
+        api.logout(),
+        new Promise((resolve)=>setTimeout(resolve,3000)),
+      ]);
+    }catch(e){
+      console.warn("logout:",e);
+      try{localStorage.removeItem("ro_auth");}catch{/* ignore */}
+    }
+    const dest=typeof redirectTo==="string"&&redirectTo.startsWith("/")?redirectTo:"/";
+    window.location.replace(dest);
   },[]);
 
   const onUserUpdate=useCallback((fields)=>{

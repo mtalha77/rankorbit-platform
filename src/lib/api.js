@@ -623,7 +623,16 @@ export const api={
     await this.patchProfile(userId,{avatar:String(dataUrl)});
     return{ok:true,url:String(dataUrl)};
   },
-  async logout(){if(supa)await supa.auth.signOut();},
+  async logout(){
+    if(!supa)return;
+    // Local scope clears the browser session immediately without waiting on the
+    // Auth revoke network call (that hang/fail is a common production-only stall).
+    try{
+      await supa.auth.signOut({scope:"local"});
+    }catch{
+      try{localStorage.removeItem("ro_auth");}catch{/* ignore */}
+    }
+  },
   async loadAll(){
     if(supa){
       const[u,l,g,an,ac,s,au]=await Promise.all([
