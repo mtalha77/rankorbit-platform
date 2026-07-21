@@ -6,6 +6,7 @@ import {
   notifyManagersInApp,
   notifyStaffRoute,
 } from "../server/assign.js";
+import { planAllowsMessaging } from "../server/planEntitlements.js";
 import { randomUUID } from "crypto";
 
 function uid(prefix = "m") {
@@ -64,6 +65,13 @@ export default async function handler(req, res) {
     }
     sender = clientAuth.profile;
     targetClientId = sender.id;
+    // Essentials (and any plan with messaging: false) cannot send — BDM→client still allowed.
+    if (!planAllowsMessaging(sender.plan)) {
+      return res.status(403).json({
+        error: "Chat with your BDM is available on Growth and GMB Pro. Upgrade your plan to unlock Messages.",
+        upgradeRequired: true,
+      });
+    }
   }
 
   try {

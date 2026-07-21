@@ -13,6 +13,7 @@ import ResetPassword, { markPasswordRecovery, clearPasswordRecovery, isPasswordR
 const AuthScreen = lazy(() => import("./pages/AuthScreen"));
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const LegalPage = lazy(() => import("./pages/LegalPage"));
+const ConfirmNotifyEmail = lazy(() => import("./pages/ConfirmNotifyEmail"));
 const ClientDashboard = lazy(() => import("./pages/ClientDashboard"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 
@@ -161,7 +162,7 @@ export default function App(){
     loadedForRef.current.id=prof.id;
     setCurrentUser(prev=>{
       if(!prev||prev.id!==prof.id)return prof;
-      const keys=["plan","role","name","email","avatar","subscriptionStatus","currentPeriodEnd","cancelAtPeriodEnd","assignedAgentId","status","businessName","napScore","canImpersonate","pendingPlanId","pendingPlanEffectiveAt","paymentFailedAt","paymentGraceEndsAt"];
+      const keys=["plan","role","name","email","avatar","subscriptionStatus","currentPeriodStart","currentPeriodEnd","cancelAtPeriodEnd","assignedAgentId","status","businessName","napScore","canImpersonate","pendingPlanId","pendingPlanEffectiveAt","paymentFailedAt","paymentGraceEndsAt","notifyEmail","notifyEmailPending"];
       if(keys.every(k=>prev[k]===prof[k]))return prev;
       return prof;
     });
@@ -324,6 +325,7 @@ export default function App(){
           <Route path="/login" element={<ClientAuth mode="login" user={currentUser} onLogin={onLogin} passwordRecovery={passwordRecovery}/>}/>
           <Route path="/signup" element={<ClientAuth mode="signup" user={currentUser} onLogin={onLogin} passwordRecovery={passwordRecovery}/>}/>
           <Route path="/reset-password" element={<ResetPasswordRoute user={currentUser} passwordRecovery={passwordRecovery} onClearRecovery={clearRecovery} onLogout={onLogout}/>}/>
+          <Route path="/confirm-notify-email" element={<ConfirmNotifyEmail/>}/>
           <Route path="/dashboard" element={<ClientDashboardRoute {...shared}/>}/>
           <Route path="/admin" element={<StaffPortal {...shared}/>}/>
           <Route path="*" element={<Navigate to="/" replace/>}/>

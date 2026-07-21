@@ -307,8 +307,19 @@ export function planLabel(planId) {
 }
 
 /**
- * Client-facing: in-app notification + email to profiles.email (Resend when configured).
- * Without RESEND_API_KEY, in-app still works; email is logged and skipped.
+ * Where to send Resend notification mail for a profile.
+ * Verified notifyEmail wins; otherwise login email. Pending (unconfirmed) is ignored.
+ */
+export function deliveryEmail(profile) {
+  const alt = String(profile?.notifyEmail || "").trim().toLowerCase();
+  if (alt) return alt;
+  const login = String(profile?.email || "").trim().toLowerCase();
+  return login || null;
+}
+
+/**
+ * Client-facing: in-app notification + email (Resend when configured).
+ * Email goes to verified notifyEmail if set, else login email.
  */
 export async function notifyClient(admin, { userId, clientId, type, title, body, meta }) {
   if (!userId) return { notified: false };
@@ -338,18 +349,19 @@ export async function notifyClient(admin, { userId, clientId, type, title, body,
 
   const { data: profile } = await admin
     .from("profiles")
-    .select("email,name")
+    .select("email,name,notifyEmail,role")
     .eq("id", userId)
     .maybeSingle();
 
-  const email = profile?.email?.trim()?.toLowerCase();
+  const email = deliveryEmail(profile);
   if (!email) {
     return { notified: true, notificationId: row?.id, emailResult: { sent: false, reason: "no_email" } };
   }
 
+  const isStaff = profile?.role && profile.role !== "client";
   const emailResult = await sendNotifyEmails([email], title, body, {
-    ctaUrl: `${appBaseUrl()}/dashboard`,
-    ctaLabel: "Open dashboard",
+    ctaUrl: `${appBaseUrl()}${isStaff ? "/admin" : "/dashboard"}`,
+    ctaLabel: isStaff ? "Open admin" : "Open dashboard",
   });
   return { notified: true, notificationId: row?.id, email, emailResult };
 }
@@ -430,7 +442,7 @@ export async function notifyBdm(admin, { agentId, clientId, type, title, body, m
 
   const { data: agent } = await admin
     .from("profiles")
-    .select("email,name,role")
+    .select("email,name,role,notifyEmail")
     .eq("id", agentId)
     .maybeSingle();
 
@@ -449,7 +461,8 @@ export async function notifyBdm(admin, { agentId, clientId, type, title, body, m
   });
 
   const emails = new Set();
-  if (agent?.email) emails.add(agent.email.toLowerCase());
+  const agentMail = deliveryEmail(agent);
+  if (agentMail) emails.add(agentMail);
 
   try {
     const { data: settingsRow } = await admin.from("settings").select("data").eq("id", 1).maybeSingle();

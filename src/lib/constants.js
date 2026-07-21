@@ -1,9 +1,18 @@
 // ─── PRODUCT CONSTANTS ───────────────────────────────────────────────────────
 import { T } from "./theme";
 
-export const PLANS={essentials:{name:"Essentials",price:49,quota:"10 listings/mo",color:T.blue,soft:T.blueSoft,features:["10 directory submissions every month","NAP consistency management","Unauthorized edit protection","Helps you get found in AI searches","Listing monitoring & alerts","Client dashboard access"]},
-  growth:{name:"Growth",price:89,quota:"20 listings/mo",color:T.brand,soft:T.brandSoft,features:["20 directory submissions every month","Everything in Essentials","Helps you get found in AI searches","Expanded directory coverage","Priority support","Monthly coverage report"]},
-  gmb:{name:"GMB Pro",price:249,quota:"15 listings/mo + GMB",color:T.violet,soft:T.violetSoft,features:["15 directory submissions every month","Google Business Profile management","Get found in AI searches (ChatGPT, Gemini, AI Overviews)","Monthly GMB posts & Q&A","Engagement analytics (views, calls)","Dedicated BDM support"]}};
+export const PLANS={essentials:{name:"Essentials",price:49,quota:"10 listings/mo",color:T.blue,soft:T.blueSoft,features:["10 directory submissions every month","NAP consistency management","Unauthorized edit protection","1 regular + 1 guidance BDM call / billing period","Listing monitoring & alerts","Client dashboard access"]},
+  growth:{name:"Growth",price:89,quota:"20 listings/mo",color:T.brand,soft:T.brandSoft,features:["20 directory submissions every month","Everything in Essentials","2 regular + 1 guidance BDM call / billing period","BDM chat (Messages)","Expanded directory coverage","Monthly coverage report"]},
+  gmb:{name:"GMB Pro",price:249,quota:"15 listings/mo + GMB",color:T.violet,soft:T.violetSoft,features:["15 directory submissions every month","Google Business Profile management","3 regular + 1 guidance BDM call / billing period","BDM chat (Messages)","Monthly GMB posts & Q&A","Engagement analytics (views, calls)"]}};
+
+/** Meeting quotas + messaging per plan (billing period). Keep in sync with server/planEntitlements.js */
+export const PLAN_ENTITLEMENTS={
+  essentials:{regularMeetings:1,guidanceMeetings:1,messaging:false},
+  growth:{regularMeetings:2,guidanceMeetings:1,messaging:true},
+  gmb:{regularMeetings:3,guidanceMeetings:1,messaging:true},
+};
+export const getPlanEntitlements=(planId)=>PLAN_ENTITLEMENTS[planId]||PLAN_ENTITLEMENTS.essentials;
+export const planAllowsMessaging=(planId)=>!!getPlanEntitlements(planId).messaging;
 
 /** Tier order for upgrade/downgrade rules (higher = higher plan). */
 export const PLAN_RANK={essentials:1,growth:2,gmb:3};

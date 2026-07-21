@@ -6,6 +6,7 @@ import {
   requireClient,
   resolveSubscriptionId,
   subscriptionFieldsFromStripe,
+  updateProfileSubscriptionFields,
   logBillingActivity,
 } from "../server/billing.js";
 import { notifyClient, notifyStaffRoute } from "../server/assign.js";
@@ -52,9 +53,7 @@ export default async function handler(req, res) {
       fields.canceledAt = new Date().toISOString();
     }
 
-    // Drop undefined keys so PostgREST doesn't reject the patch.
-    const clean = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
-    const { error } = await admin.from("profiles").update(clean).eq("id", profile.id);
+    const { error, clean } = await updateProfileSubscriptionFields(admin, profile.id, fields);
     if (error) {
       console.error("cancel-subscription db:", error.message);
       return res.status(500).json({

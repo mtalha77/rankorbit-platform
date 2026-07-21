@@ -7,6 +7,7 @@ import {
   resolveSubscriptionId,
   syncInvoicesForCustomer,
   subscriptionFieldsFromStripe,
+  updateProfileSubscriptionFields,
 } from "../server/billing.js";
 
 export default async function handler(req, res) {
@@ -28,8 +29,7 @@ export default async function handler(req, res) {
     if (subscriptionId) {
       const sub = existing || (await stripe.subscriptions.retrieve(subscriptionId));
       const fields = subscriptionFieldsFromStripe(sub, profile.plan);
-      const clean = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
-      const { error: upErr } = await admin.from("profiles").update(clean).eq("id", profile.id);
+      const { error: upErr } = await updateProfileSubscriptionFields(admin, profile.id, fields);
       if (upErr) console.error("sync-invoices profile:", upErr.message);
     }
 

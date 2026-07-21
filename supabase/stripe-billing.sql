@@ -8,6 +8,7 @@ alter table profiles add column if not exists "stripePriceId" text;
 alter table profiles add column if not exists "subscriptionStatus" text;
 alter table profiles add column if not exists "cancelAtPeriodEnd" boolean default false;
 alter table profiles add column if not exists "canceledAt" timestamptz;
+alter table profiles add column if not exists "currentPeriodStart" timestamptz;
 alter table profiles add column if not exists "currentPeriodEnd" timestamptz;
 alter table profiles add column if not exists "cardBrand" text;
 alter table profiles add column if not exists "cardLast4" text;
@@ -76,6 +77,7 @@ begin
   new."subscriptionStatus" := old."subscriptionStatus";
   new."cancelAtPeriodEnd" := old."cancelAtPeriodEnd";
   new."canceledAt" := old."canceledAt";
+  new."currentPeriodStart" := old."currentPeriodStart";
   new."currentPeriodEnd" := old."currentPeriodEnd";
   new."cardBrand" := old."cardBrand";
   new."cardLast4" := old."cardLast4";

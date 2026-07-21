@@ -13,7 +13,8 @@ create table profiles (
   "gaId" text, "gbpId" text,
   "stripeCustomerId" text, "stripeSubscriptionId" text, "stripePriceId" text,
   "subscriptionStatus" text, "cancelAtPeriodEnd" boolean default false, "canceledAt" timestamptz,
-  "currentPeriodEnd" timestamptz, "cardBrand" text, "cardLast4" text,
+  "currentPeriodStart" timestamptz, "currentPeriodEnd" timestamptz, "cardBrand" text, "cardLast4" text,
+  "notifyEmail" text, "notifyEmailPending" text, "notifyEmailToken" text, "notifyEmailTokenExpiresAt" timestamptz,
   "pendingPlanId" text, "pendingPlanEffectiveAt" timestamptz,
   "paymentFailedAt" timestamptz, "paymentGraceEndsAt" timestamptz,
   -- Staff / ops (also in profile-ops.sql for existing DBs)
@@ -169,6 +170,7 @@ begin
   new."subscriptionStatus" := old."subscriptionStatus";
   new."cancelAtPeriodEnd" := old."cancelAtPeriodEnd";
   new."canceledAt" := old."canceledAt";
+  new."currentPeriodStart" := old."currentPeriodStart";
   new."currentPeriodEnd" := old."currentPeriodEnd";
   new."cardBrand" := old."cardBrand";
   new."cardLast4" := old."cardLast4";

@@ -347,11 +347,11 @@ export const api={
       return{invoices:j.invoices||[],synced:j.synced||0,profile:j.profile||null,currentPeriodEnd:j.currentPeriodEnd||null};
     }catch(e){return{error:e.message||"Network error",invoices:[]};}
   },
-  async bookCall({slotDate,slotTime,note,replaceBookingId}={}){
+  async bookCall({slotDate,slotTime,note,replaceBookingId,kind}={}){
     const token=await this._accessToken();
     if(!token)return{error:"Not signed in"};
     try{
-      const r=await fetch("/api/book-call",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,slotDate,slotTime,note,replaceBookingId})});
+      const r=await fetch("/api/book-call",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,slotDate,slotTime,note,replaceBookingId,kind})});
       const j=await r.json().catch(()=>({}));
       if(!r.ok)return{error:j.error||"Could not book call"};
       return{ok:true,...j};
@@ -712,6 +712,29 @@ export const api={
   async patchProfile(id,fields){
     if(supa){const{error}=await supa.from("profiles").update(fields).eq("id",id);if(error){console.error("patchProfile:",error.message);throw error;}return;}
     const us=LS("ro3_users")||[];const i=us.findIndex(x=>x.id===id);if(i>=0){us[i]={...us[i],...fields};LSet("ro3_users",us);}
+  },
+  /** Request confirmation email for alternate notification address (or clear). */
+  async setNotifyEmail({email,clear}={}){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const appOrigin=typeof window!=="undefined"?window.location.origin:undefined;
+      const r=await fetch("/api/set-notify-email",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,email,clear:!!clear,appOrigin})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not update notification email"};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
+  /** Confirm pending notify email for the signed-in user (no inbox link needed). */
+  async confirmMyNotifyEmail(){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/confirm-my-notify-email",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not confirm notification email"};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error"};}
   },
   async upsertProfile(u){
     if(supa){

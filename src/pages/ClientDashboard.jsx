@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { T, FONT_D, FONT_B, SHADOW_LG } from "../lib/theme";
 import { api } from "../lib/api";
-import { PLANS, planLive } from "../lib/constants";
+import { PLANS, planLive, planAllowsMessaging } from "../lib/constants";
 import { isPastMeetingNotif, buildLiveGrowthSeries, growthMomTrend, resolveNapScore, paymentGraceState } from "../lib/helpers";
 import { Btn, Confirm, PageHead } from "../components/atoms";
 import Shell from "../components/Shell";
@@ -35,6 +35,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
   const [sysNotifs, setSysNotifs] = useState([]);
   const [notifOpen, setNotifOpen] = useState(false);
   const [chatUnread, setChatUnread] = useState(0);
+  const [callKindPref, setCallKindPref] = useState(null); // "guidance" | "regular" | null
   const notifSig = useRef("");
   const w = useWindowSize();
   const isMobile = w < 820;
@@ -59,6 +60,52 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
   // Safe fallbacks — never crash if a field is briefly missing during load.
   const user = (data?.users || []).find((u) => u.id === userProp?.id) || userProp || {};
   const userId = user.id || userProp?.id || null;
+  // Confirm alternate notification email redirect (?notifyEmail=confirmed).
+  useEffect(() => {
+    if (impersonating) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const sp = new URLSearchParams(window.location.search);
+        const ne = sp.get("notifyEmail");
+        let addr = (sp.get("addr") || "").trim().toLowerCase();
+        if (!addr) {
+          try {
+            const raw = sessionStorage.getItem("ro_notify_email_confirmed");
+            if (raw) {
+              const j = JSON.parse(raw);
+              if (j?.email && Date.now() - (j.at || 0) < 10 * 60 * 1000) addr = String(j.email).toLowerCase();
+              sessionStorage.removeItem("ro_notify_email_confirmed");
+            }
+          } catch { /* ignore */ }
+        }
+        if (!ne && !addr) return;
+        if (ne === "confirmed" || addr) {
+          if (addr) {
+            onUserUpdate?.({ notifyEmail: addr, notifyEmailPending: null });
+          }
+          toast("Notification email confirmed. Alerts will go there.");
+          setPage("settings");
+          const fresh = await api.currentUser();
+          if (!cancelled && fresh) {
+            onUserUpdate?.({
+              notifyEmail: fresh.notifyEmail || addr || null,
+              notifyEmailPending: fresh.notifyEmailPending || null,
+            });
+          }
+          await reload?.();
+        } else if (ne === "expired") toast("Confirmation link expired. Request a new one in Settings.", "info");
+        else if (ne === "invalid" || ne === "missing") toast("That confirmation link is invalid.", "info");
+        else if (ne === "error") toast("Could not confirm notification email.", "info");
+        sp.delete("notifyEmail");
+        sp.delete("addr");
+        const q = sp.toString();
+        window.history.replaceState({}, "", window.location.pathname + (q ? `?${q}` : ""));
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [impersonating]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Resume plan intent from landing (?plan= or sessionStorage) and checkout return (?billing=success).
   useEffect(() => {
     if (impersonating || !userId) return;
@@ -171,11 +218,15 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
     };
   }, [userId, impersonating]);
 
-  // Chat unread badge — poll while not on Messages; don't rebind on every page change.
+  // Chat unread badge — poll while not on Messages (Growth / GMB Pro only).
   const pageRef = useRef(page);
   pageRef.current = page;
+  const messagingAllowed = planAllowsMessaging(user?.plan);
   useEffect(() => {
-    if (impersonating || !userId) return;
+    if (impersonating || !userId || !messagingAllowed) {
+      setChatUnread(0);
+      return;
+    }
     let cancelled = false;
     const pull = async () => {
       if (pageRef.current === "messages") return;
@@ -196,7 +247,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
       clearInterval(t);
       unsub();
     };
-  }, [userId, impersonating]);
+  }, [userId, impersonating, messagingAllowed]);
 
   if (!data || !userId) {
     return (
@@ -205,13 +256,15 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
       </div>
     );
   }
-  const my = (data.listings && data.listings[userId]) || [];
+  const my = ((data.listings && data.listings[userId]) || []).filter((l) => !l.deletedAt);
   const myGmb = (data.gmb && data.gmb[userId]) || null;
   const myAnalytics = (data.analytics && data.analytics[userId]) || null;
   // Hide staff-only internal logs (unauthorized-edit notes not shared with client).
   const myAct = (Array.isArray(data.activity) ? data.activity : []).filter(
     (a) => a.clientId === userId && a.type !== "edit_blocked_internal"
   );
+  const showSetupBanner = !!user.plan && my.length === 0;
+  const canMessage = planAllowsMessaging(user.plan);
   const settings = data.settings || {};
   const cfg = settings?.config || {};
   // Client-visible prices honor the super-admin control-panel overrides, falling back to defaults.
@@ -237,7 +290,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
   const nav = [
     { id: "home", icon: "🏠", label: "Home" },
     { id: "notifications", icon: "🔔", label: "Notifications" },
-    { id: "messages", icon: "💬", label: "Messages" },
+    ...(canMessage ? [{ id: "messages", icon: "💬", label: "Messages" }] : []),
     { id: "listings", icon: "📋", label: "Listings" },
     { id: "analytics", icon: "📈", label: "Analytics" },
     ...(user.plan === "gmb" ? [{ id: "gmb", icon: "📍", label: "GMB" }] : []),
@@ -463,6 +516,32 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
               : null
         }
       >
+        {showSetupBanner && (
+          <div
+            style={{
+              padding: "14px 16px",
+              marginBottom: 14,
+              borderRadius: 14,
+              background: `linear-gradient(135deg,${T.brandSoft},#fff)`,
+              border: `1px solid ${T.brand}33`,
+              display: "flex",
+              gap: 12,
+              alignItems: "center",
+              flexWrap: "wrap",
+              justifyContent: "space-between",
+            }}
+          >
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: T.brand, fontFamily: FONT_D }}>
+                Schedule your guidance meeting
+              </div>
+              <div style={{ fontSize: 12.5, color: T.sub, marginTop: 4, lineHeight: 1.45 }}>
+                Book a guidance call with a senior BDM to get onboarded. This stays up until your first listing is added.
+              </div>
+            </div>
+            <Btn size="sm" onClick={() => { setCallKindPref("guidance"); goPage("call"); }}>Book guidance call →</Btn>
+          </div>
+        )}
         {grace.pastDue && (
           <div
             style={{
@@ -493,7 +572,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
         )}
         {viewPage === "home" && <Home />}
         {viewPage === "notifications" && <NotificationsPage />}
-        {viewPage === "messages" && (
+        {viewPage === "messages" && canMessage && (
           <div
             style={{
               height: isMobile ? "calc(100dvh - 140px)" : "calc(100vh - 100px)",
@@ -520,6 +599,31 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
             </div>
           </div>
         )}
+        {viewPage === "messages" && !canMessage && (
+          <div>
+            <PageHead isMobile={isMobile} title="Messages" sub="Chat with your Business Development Manager" />
+            <div
+              style={{
+                padding: "28px 22px",
+                borderRadius: 16,
+                background: T.amberSoft,
+                border: `1px solid ${T.amber}33`,
+                maxWidth: 520,
+              }}
+            >
+              <div style={{ fontFamily: FONT_D, fontSize: 20, fontWeight: 800, color: T.amber, marginBottom: 8 }}>
+                Upgrade to chat with your BDM
+              </div>
+              <div style={{ fontSize: 13.5, color: T.sub, lineHeight: 1.55, marginBottom: 16 }}>
+                Chat with your BDM is available on Growth and GMB Pro. Upgrade your plan to unlock Messages.
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <Btn onClick={() => goPage("billing")}>View plans →</Btn>
+                <Btn variant="soft" onClick={() => goPage("call")}>Book a call instead</Btn>
+              </div>
+            </div>
+          </div>
+        )}
         {viewPage === "listings" && <Listings />}
         {viewPage === "gmb" && <Gmb />}
         {viewPage === "analytics" && <Analytics />}
@@ -532,6 +636,8 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
             reload={reload}
             onOpenMessages={() => goPage("messages")}
             readOnly={impersonating}
+            initialKind={callKindPref || "regular"}
+            onInitialKindConsumed={() => setCallKindPref(null)}
           />
         )}
         {viewPage === "settings" && !impersonating && (

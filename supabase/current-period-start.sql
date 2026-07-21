@@ -1,11 +1,7 @@
--- Plan switch (pending) + payment-failed 5-day grace. Safe to re-run.
+-- Stripe billing period start (for meeting quota resets). Safe to re-run.
+alter table profiles add column if not exists "currentPeriodStart" timestamptz;
 
-alter table profiles add column if not exists "pendingPlanId" text;
-alter table profiles add column if not exists "pendingPlanEffectiveAt" timestamptz;
-alter table profiles add column if not exists "paymentFailedAt" timestamptz;
-alter table profiles add column if not exists "paymentGraceEndsAt" timestamptz;
-
--- Keep client freeze in sync (same function as profile-security / stripe-billing).
+-- Keep client freeze in sync with profile-security / billing-plan-switch.
 create or replace function protect_profile_billing() returns trigger as $$
 begin
   if auth.uid() is null then
