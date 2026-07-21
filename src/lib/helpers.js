@@ -54,6 +54,58 @@ export function fromDateInputValue(iso){
   return new Date(y,m-1,d).toLocaleDateString("en-US",{year:"numeric",month:"short",day:"numeric"});
 }
 
+/** Filter a notification by createdAt against YYYY-MM-DD from/to inputs (inclusive). */
+export function notifMatchesDateRange(n, fromIso, toIso){
+  if(!fromIso&&!toIso)return true;
+  const t=n?.createdAt?new Date(n.createdAt).getTime():NaN;
+  if(Number.isNaN(t))return false;
+  if(fromIso){
+    const[y,m,d]=fromIso.split("-").map(Number);
+    if(y&&m&&d&&t<new Date(y,m-1,d).getTime())return false;
+  }
+  if(toIso){
+    const[y,m,d]=toIso.split("-").map(Number);
+    if(y&&m&&d&&t>new Date(y,m-1,d,23,59,59,999).getTime())return false;
+  }
+  return true;
+}
+
+/** Local YYYY-MM-DD for today (for date inputs / presets). */
+export function todayIso(){
+  const d=new Date();
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,"0");
+  const day=String(d.getDate()).padStart(2,"0");
+  return`${y}-${m}-${day}`;
+}
+
+/** YYYY-MM-DD for N days ago (local). */
+export function daysAgoIso(days){
+  const d=new Date();
+  d.setDate(d.getDate()-days);
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,"0");
+  const day=String(d.getDate()).padStart(2,"0");
+  return`${y}-${m}-${day}`;
+}
+
+/** Payment-failed grace: 5 days of access after first fail. */
+export function paymentGraceState(user){
+  const pastDue=user?.subscriptionStatus==="past_due"||!!user?.paymentFailedAt;
+  if(!pastDue)return{pastDue:false,inGrace:false,expired:false,endsAt:null,daysLeft:null,label:""};
+  const ends=user?.paymentGraceEndsAt?new Date(user.paymentGraceEndsAt):null;
+  const validEnds=ends&&!Number.isNaN(ends.getTime())?ends:null;
+  if(!validEnds){
+    return{pastDue:true,inGrace:true,expired:false,endsAt:null,daysLeft:null,label:"Payment failed — update your card soon."};
+  }
+  const daysLeft=Math.max(0,Math.ceil((validEnds.getTime()-Date.now())/86400000));
+  const label=validEnds.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+  if(daysLeft>0){
+    return{pastDue:true,inGrace:true,expired:false,endsAt:validEnds,daysLeft,label};
+  }
+  return{pastDue:true,inGrace:false,expired:true,endsAt:validEnds,daysLeft:0,label};
+}
+
 /** Parse Book-a-Call slot ("July 15, 2026" + "9:00 AM") → Date, or null. */
 export function parseBookingSlot(slotDate, slotTime) {
   if (!slotDate || !slotTime) return null;

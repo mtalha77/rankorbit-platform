@@ -14,6 +14,8 @@ create table profiles (
   "stripeCustomerId" text, "stripeSubscriptionId" text, "stripePriceId" text,
   "subscriptionStatus" text, "cancelAtPeriodEnd" boolean default false, "canceledAt" timestamptz,
   "currentPeriodEnd" timestamptz, "cardBrand" text, "cardLast4" text,
+  "pendingPlanId" text, "pendingPlanEffectiveAt" timestamptz,
+  "paymentFailedAt" timestamptz, "paymentGraceEndsAt" timestamptz,
   -- Staff / ops (also in profile-ops.sql for existing DBs)
   "assignedAgentId" uuid references profiles(id) on delete set null,
   "canImpersonate" boolean default false,
@@ -168,6 +170,10 @@ begin
   new."currentPeriodEnd" := old."currentPeriodEnd";
   new."cardBrand" := old."cardBrand";
   new."cardLast4" := old."cardLast4";
+  new."pendingPlanId" := old."pendingPlanId";
+  new."pendingPlanEffectiveAt" := old."pendingPlanEffectiveAt";
+  new."paymentFailedAt" := old."paymentFailedAt";
+  new."paymentGraceEndsAt" := old."paymentGraceEndsAt";
   -- privilege / ops (block client self-escalation)
   new.role := old.role;
   new.status := old.status;

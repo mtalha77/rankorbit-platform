@@ -2,6 +2,7 @@ import { useState } from "react";
 import { T, FONT_D } from "../../../lib/theme";
 import { PLANS } from "../../../lib/constants";
 import { Badge, Card, Btn, Empty, ListToolbar, PageHead } from "../../atoms";
+import { clientPaymentBadge } from "../adminUtils";
 import { UserAvatar } from "../../AccountSettings";
 import { useAdmin } from "../AdminContext";
 
@@ -42,7 +43,11 @@ export function Clients() {
               <div style={{display:"flex",gap:14,alignItems:"center"}}>
                 <UserAvatar user={c} size={46} style={{borderRadius:14}}/>
                 <div>
-                  <div style={{fontSize:14.5,fontWeight:800,fontFamily:FONT_D,display:"flex",alignItems:"center",gap:8}}>{c.businessName||c.name}{c.status==="suspended"&&<Badge type="suspended"/>}</div>
+                  <div style={{fontSize:14.5,fontWeight:800,fontFamily:FONT_D,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                    {c.businessName||c.name}
+                    {c.status==="suspended"&&<Badge type="suspended"/>}
+                    {(()=>{const b=clientPaymentBadge(c);return b?<Badge type={b.type} label={b.label}/>:null;})()}
+                  </div>
                   <div style={{fontSize:12,color:T.sub}}>{c.name} · {c.city||"–"}{c.state?", "+c.state:""} · {c.category||"–"}</div>
                 </div>
               </div>

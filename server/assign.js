@@ -252,11 +252,14 @@ export async function createNotification(admin, row) {
   return payload;
 }
 
+/** Types super_admin may receive in-app (besides peer chat). */
+const SUPER_ADMIN_INAPP_TYPES = new Set(["staff_message", "payment_failed"]);
+
 /** Notify any user (client or staff) in-app only. */
 export async function notifyUser(admin, { userId, clientId, type, title, body, meta }) {
   if (!userId) return null;
-  // Super admins only get peer team-chat pings — never client/agent ops copies.
-  if (type && type !== "staff_message") {
+  // Super admins: team-chat + critical billing alerts only.
+  if (type && !SUPER_ADMIN_INAPP_TYPES.has(type)) {
     const { data: profile } = await admin
       .from("profiles")
       .select("role")
@@ -267,6 +270,30 @@ export async function notifyUser(admin, { userId, clientId, type, title, body, m
     }
   }
   return createNotification(admin, { userId, clientId, type, title, body, meta });
+}
+
+/** Ping every active super_admin in-app (billing alerts). */
+export async function notifySuperAdminsInApp(admin, { clientId, type, title, body, meta }) {
+  const { data: admins } = await admin
+    .from("profiles")
+    .select("id,status,deletedAt")
+    .eq("role", "super_admin");
+  const targets = (admins || []).filter((m) => m.id && !m.deletedAt && m.status !== "suspended");
+  for (const a of targets) {
+    try {
+      await createNotification(admin, {
+        userId: a.id,
+        clientId: clientId || null,
+        type: type || "payment_failed",
+        title,
+        body,
+        meta: { ...(meta || {}), audience: "super_admin" },
+      });
+    } catch (e) {
+      console.warn("notifySuperAdminsInApp:", e.message);
+    }
+  }
+  return targets.length;
 }
 
 const PLAN_LABELS = {

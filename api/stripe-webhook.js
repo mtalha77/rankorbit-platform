@@ -11,7 +11,14 @@ import {
   upsertInvoice,
   syncInvoicesForCustomer,
 } from "../server/billing.js";
-import { autoAssignLeastLoadedAgent, notifyClient, notifyStaffRoute, planLabel } from "../server/assign.js";
+import {
+  autoAssignLeastLoadedAgent,
+  notifyClient,
+  notifyStaffRoute,
+  notifySuperAdminsInApp,
+  notifyManagersInApp,
+  planLabel,
+} from "../server/assign.js";
 
 export const config = { api: { bodyParser: false } };
 
@@ -47,6 +54,22 @@ async function syncSubscription(admin, stripe, sub, hintPlan, { logActivity = fa
 
   const fields = subscriptionFieldsFromStripe(sub, planId);
   fields.stripeCustomerId = customerId || undefined;
+
+  // Clear scheduled switch only when Stripe is actually on the pending plan.
+  const { data: existingRow } = await admin
+    .from("profiles")
+    .select("pendingPlanId")
+    .eq("id", profileId)
+    .maybeSingle();
+  if (existingRow?.pendingPlanId && planId === existingRow.pendingPlanId) {
+    fields.pendingPlanId = null;
+    fields.pendingPlanEffectiveAt = null;
+  }
+  // Successful recovery — clear payment grace.
+  if (sub.status === "active" || sub.status === "trialing") {
+    fields.paymentFailedAt = null;
+    fields.paymentGraceEndsAt = null;
+  }
 
   // Enrich card last4 from default payment method when available.
   try {
@@ -279,29 +302,65 @@ export default async function handler(req, res) {
         if (profileId) {
           await upsertInvoice(admin, invoice, profileId);
           if (event.type === "invoice.payment_failed") {
-            await admin
+            const { data: prof } = await admin
               .from("profiles")
-              .update({ subscriptionStatus: "past_due" })
-              .eq("id", profileId);
+              .select("id,businessName,name,email,paymentFailedAt,paymentGraceEndsAt")
+              .eq("id", profileId)
+              .maybeSingle();
+            const now = new Date();
+            const gracePatch = { subscriptionStatus: "past_due" };
+            // Start 5-day grace once; Stripe retries must not reset the window.
+            const hasActiveGrace =
+              prof?.paymentGraceEndsAt && new Date(prof.paymentGraceEndsAt).getTime() >= now.getTime();
+            if (!hasActiveGrace) {
+              gracePatch.paymentFailedAt = now.toISOString();
+              gracePatch.paymentGraceEndsAt = new Date(now.getTime() + 5 * 86400000).toISOString();
+            }
+            await admin.from("profiles").update(gracePatch).eq("id", profileId);
+
+            const graceEnd = gracePatch.paymentGraceEndsAt || prof?.paymentGraceEndsAt;
+            const graceLabel = graceEnd
+              ? new Date(graceEnd).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+              : "in 5 days";
+            const who = prof?.businessName || prof?.name || prof?.email || profileId;
+
             try {
               await notifyClient(admin, {
                 userId: profileId,
                 clientId: profileId,
                 type: "payment_failed",
                 title: "Payment failed",
-                body: "We couldn't charge your card for this billing period. Please update your payment method under Manage billing so your service stays active.",
-                meta: { invoiceId: invoice.id || null },
+                body: `We couldn't charge your card. Your plan stays active until ${graceLabel}. Update your payment method under Plan & Billing to avoid interruption.`,
+                meta: { invoiceId: invoice.id || null, graceEndsAt: graceEnd || null },
+              });
+              await notifySuperAdminsInApp(admin, {
+                clientId: profileId,
+                type: "payment_failed",
+                title: "Client payment failed",
+                body: `${who} — payment failed. 5-day grace until ${graceLabel}.`,
+                meta: { invoiceId: invoice.id || null, clientId: profileId },
+              });
+              await notifyManagersInApp(admin, {
+                clientId: profileId,
+                type: "payment_failed",
+                title: "Client payment failed",
+                body: `${who} — payment failed. Grace until ${graceLabel}.`,
+                meta: { invoiceId: invoice.id || null, clientId: profileId },
               });
               await notifyStaffRoute(admin, {
                 kind: "system",
                 title: "Payment failed",
-                body: `Payment failed for client ${profileId}. Invoice ${invoice.id || ""}.`,
+                body: `Payment failed for ${who}. Invoice ${invoice.id || ""}. Grace until ${graceLabel}.`,
               });
             } catch (e) {
               console.warn("notify payment_failed:", e.message);
             }
           }
           if (event.type === "invoice.paid") {
+            await admin
+              .from("profiles")
+              .update({ paymentFailedAt: null, paymentGraceEndsAt: null })
+              .eq("id", profileId);
             const amount =
               typeof invoice.amount_paid === "number"
                 ? `$${(invoice.amount_paid / 100).toFixed(2)}`

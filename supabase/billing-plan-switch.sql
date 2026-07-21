@@ -1,17 +1,19 @@
--- Lock privileged profile columns so clients cannot self-escalate via direct Supabase updates.
--- Safe to re-run. Extends protect_profile_billing() (billing freeze stays + privilege freeze).
--- Staff + service_role + null JWT (webhooks/server) may still update everything.
+-- Plan switch (pending) + payment-failed 5-day grace. Safe to re-run.
 
+alter table profiles add column if not exists "pendingPlanId" text;
+alter table profiles add column if not exists "pendingPlanEffectiveAt" timestamptz;
+alter table profiles add column if not exists "paymentFailedAt" timestamptz;
+alter table profiles add column if not exists "paymentGraceEndsAt" timestamptz;
+
+-- Keep client freeze in sync (same function as profile-security / stripe-billing).
 create or replace function protect_profile_billing() returns trigger as $$
 begin
-  -- service role / no JWT / postgres: allow (webhooks + server routes)
   if auth.uid() is null then
     return new;
   end if;
   if coalesce(auth.jwt() ->> 'role', '') = 'service_role' then
     return new;
   end if;
-  -- staff: allow full updates
   if exists (
     select 1 from profiles p
     where p.id = auth.uid()
@@ -20,7 +22,6 @@ begin
     return new;
   end if;
 
-  -- ── client: freeze billing + plan ──────────────────────────────────────────
   new.plan := old.plan;
   new."stripeCustomerId" := old."stripeCustomerId";
   new."stripeSubscriptionId" := old."stripeSubscriptionId";
@@ -36,7 +37,6 @@ begin
   new."paymentFailedAt" := old."paymentFailedAt";
   new."paymentGraceEndsAt" := old."paymentGraceEndsAt";
 
-  -- ── client: freeze privilege / ops columns (no self role-escalation) ───────
   new.role := old.role;
   new.status := old.status;
   new.perms := old.perms;
@@ -57,8 +57,3 @@ begin
   return new;
 end;
 $$ language plpgsql security definer;
-
-drop trigger if exists trg_protect_profile_billing on profiles;
-create trigger trg_protect_profile_billing
-  before update on profiles
-  for each row execute function protect_profile_billing();

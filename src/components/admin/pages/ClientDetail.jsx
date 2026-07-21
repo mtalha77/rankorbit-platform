@@ -5,6 +5,7 @@ import { actIcon } from "../../../lib/helpers";
 import { Badge, Card, Btn, Empty, SectionTitle } from "../../atoms";
 import ChatThread from "../../ChatThread";
 import { useAdmin } from "../AdminContext";
+import { clientPaymentBadge } from "../adminUtils";
 
 export function ClientDetail() {
   const { selClient, clients, listings, gmb, analytics, activity, isMobile, isStaffMgr, isAdmin, isAgent, user, canImpersonate, setViewAs, setPage, setSelClient, setModal, setConfirm, R, audit, toast, addActivity, PLANSV } = useAdmin();
@@ -45,10 +46,21 @@ export function ClientDetail() {
           </div>
         </div>
       </Card>}
+      {(()=>{const b=clientPaymentBadge(c);if(!b)return null;const graceEnd=c.paymentGraceEndsAt?fmtDT(c.paymentGraceEndsAt):null;return(
+        <Card style={{marginBottom:16,background:b.type==="rejected"?T.redSoft:T.amberSoft,border:`1px solid ${b.type==="rejected"?T.red:T.amber}33`}}>
+          <div style={{fontSize:14,fontWeight:800,color:b.type==="rejected"?T.red:T.amber}}>{b.label}</div>
+          <div style={{fontSize:12.5,color:T.sub,marginTop:4,lineHeight:1.55}}>
+            Auto-payment failed{c.paymentFailedAt?<> on <b>{fmtDT(c.paymentFailedAt)}</b></>:""}.
+            {graceEnd?<> Grace {b.type==="rejected"?"ended":"until"} <b>{graceEnd}</b>.</>:null}
+          </div>
+        </Card>
+      );})()}
       <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:20,flexWrap:"wrap"}}>
         <button onClick={()=>{setPage("clients");setSelClient(null);}} style={{background:T.surface,border:`1px solid ${T.line}`,borderRadius:10,padding:"7px 14px",color:T.sub,fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>← Clients</button>
         <div style={{fontFamily:FONT_D,fontSize:isMobile?17:21,fontWeight:800}}>{c.businessName||c.name}</div>
-        <Badge type={c.status==="suspended"?"suspended":"active"}/>{c.plan&&PLANSV?.[c.plan]&&<Badge type="submitted" label={`${PLANSV[c.plan].name} $${PLANSV[c.plan].price}/mo`}/>}
+        <Badge type={c.status==="suspended"?"suspended":"active"}/>
+        {c.plan&&PLANSV?.[c.plan]&&<Badge type="submitted" label={`${PLANSV[c.plan].name} $${PLANSV[c.plan].price}/mo`}/>}
+        {(()=>{const b=clientPaymentBadge(c);return b?<Badge type={b.type} label={b.label}/>:null;})()}
       </div>
       {(canEdit||can("gmb")||can("nap")||can("logEdit")||can("listings"))&&<div style={{display:"flex",gap:8,marginBottom:18,flexWrap:"wrap"}}>
         <Btn variant={chatOpen?"soft":"ghost"} size="sm" onClick={()=>setChatOpen(o=>!o)}>{chatOpen?"Hide chat":"💬 Open chat"}</Btn>

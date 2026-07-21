@@ -5,6 +5,10 @@ export const PLANS={essentials:{name:"Essentials",price:49,quota:"10 listings/mo
   growth:{name:"Growth",price:89,quota:"20 listings/mo",color:T.brand,soft:T.brandSoft,features:["20 directory submissions every month","Everything in Essentials","Helps you get found in AI searches","Expanded directory coverage","Priority support","Monthly coverage report"]},
   gmb:{name:"GMB Pro",price:249,quota:"15 listings/mo + GMB",color:T.violet,soft:T.violetSoft,features:["15 directory submissions every month","Google Business Profile management","Get found in AI searches (ChatGPT, Gemini, AI Overviews)","Monthly GMB posts & Q&A","Engagement analytics (views, calls)","Dedicated BDM support"]}};
 
+/** Tier order for upgrade/downgrade rules (higher = higher plan). */
+export const PLAN_RANK={essentials:1,growth:2,gmb:3};
+export const isPlanDowngrade=(fromId,toId)=>(PLAN_RANK[toId]||0)<(PLAN_RANK[fromId]||0);
+
 const PRICE_CFG_KEYS={essentials:"priceEssentials",growth:"priceGrowth",gmb:"priceGmb"};
 
 /** Display price: control-panel override when set, else PLANS default. */

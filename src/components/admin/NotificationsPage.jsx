@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { T, FONT_B } from "../../lib/theme";
 import { api } from "../../lib/api";
-import { isBookingPast } from "../../lib/helpers";
-import { Badge, Card, Btn, Input, Empty, PageHead } from "../atoms";
+import { isBookingPast, notifMatchesDateRange } from "../../lib/helpers";
+import { Card, Btn, Empty, PageHead } from "../atoms";
+import { NotifDateFilters } from "../NotifDateFilters";
 import { filterVisibleStaffNotifs } from "./adminUtils";
 
 export function NotificationsPage({user,isAdmin,isMobile,toast,setNotifBadge,setSelClient,setPage}){
@@ -12,6 +13,8 @@ export function NotificationsPage({user,isAdmin,isMobile,toast,setNotifBadge,set
   const[openId,setOpenId]=useState(null);
   const[zoomByNotif,setZoomByNotif]=useState({});
   const[zoomErr,setZoomErr]=useState({});
+  const[from,setFrom]=useState("");
+  const[to,setTo]=useState("");
   const load=async()=>{
     setLoading(true);
     const rows=await api.listMyNotifications();
@@ -69,25 +72,46 @@ export function NotificationsPage({user,isAdmin,isMobile,toast,setNotifBadge,set
   const typeIcon=(t)=>({
     staff_created:"🔑",client_assigned:"👤",client_unassigned:"👤",call_booked:"📅",
     bdm_message:"💬",chat_message:"💬",staff_message:"💬",meeting_confirmed:"✅",meeting_cancelled:"❌",
+    payment_failed:"⚠️",
   }[t]||"🔔");
   const typeLabel=(t)=>({
     staff_created:"Staff",client_assigned:"Assignment",client_unassigned:"Assignment",call_booked:"Meeting",
     bdm_message:"Message",chat_message:"Chat",staff_message:"Team chat",meeting_confirmed:"Meeting",meeting_cancelled:"Meeting",
+    payment_failed:"Billing",
   }[t]||"Update");
   const canRespond=(n)=>!isAdmin&&n.type==="call_booked"&&n.meta?.bookingId&&(!n.meta?.status||n.meta.status==="pending")&&!n.meta?.reportOnly&&!isBookingPast(n.meta?.slotDate,n.meta?.slotTime);
   const emptySub=isAdmin
-    ?"Team chat pings show here. Client and agent activity stays with managers and agents."
+    ?"Team chat and client payment-failed alerts show here."
     :"When a client is assigned to you or schedules a meeting, it appears here.";
+  const filtered=useMemo(()=>notifs.filter(n=>notifMatchesDateRange(n,from,to)),[notifs,from,to]);
+  const hasFilter=!!(from||to);
   return(<div>
     <PageHead isMobile={isMobile} title="Notifications"
-      sub={isAdmin?"Team messages only — no client or agent ops alerts":"Client assignments, meeting requests, and messages"}
-      right={unread.length>0?<Btn variant="soft" size="sm" onClick={markAll}>Mark all read</Btn>:null}/>
+      sub={isAdmin?"Team chat + client payment-failed alerts":"Client assignments, meeting requests, and messages"}
+      right={
+        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",justifyContent:"flex-end",marginTop:isMobile?28:34}}>
+          <NotifDateFilters
+            from={from}
+            to={to}
+            onFrom={setFrom}
+            onTo={setTo}
+            onClear={()=>{setFrom("");setTo("");}}
+          />
+          {unread.length>0&&<Btn variant="soft" size="sm" onClick={markAll}>Mark all read</Btn>}
+        </div>
+      }/>
     <Card>
       {loading?(<div style={{padding:28,textAlign:"center",color:T.faint,fontSize:13}}>Loading…</div>):
-        notifs.length===0?(<Empty icon="📭" title="No notifications yet" sub={emptySub}/>):(
+        notifs.length===0?(<Empty icon="📭" title="No notifications yet" sub={emptySub}/>):
+        filtered.length===0?(<Empty icon="🗓️" title="No notifications in this range" sub={hasFilter?"Try a different date range or clear the filters.":"Nothing to show."}/>):(
         <div>
-          {notifs.map((n,i)=>(
-            <div key={n.id} style={{borderBottom:i<notifs.length-1?`1px solid ${T.line}`:"none"}}>
+          {hasFilter&&(
+            <div style={{fontSize:12,color:T.faint,fontWeight:600,marginBottom:8,padding:"0 6px"}}>
+              Showing {filtered.length} of {notifs.length}
+            </div>
+          )}
+          {filtered.map((n,i)=>(
+            <div key={n.id} style={{borderBottom:i<filtered.length-1?`1px solid ${T.line}`:"none"}}>
               <div onClick={()=>openOne(n)} style={{display:"flex",gap:12,padding:"14px 6px",cursor:"pointer",opacity:n.read?0.85:1}}>
                 <div style={{width:36,height:36,borderRadius:10,background:n.read?T.surface2:T.brandSoft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{typeIcon(n.type)}</div>
                 <div style={{flex:1,minWidth:0}}>
@@ -155,7 +179,7 @@ export function NotificationsPage({user,isAdmin,isMobile,toast,setNotifBadge,set
                   )}
                 </div>
               )}
-              {openId===n.id&&(n.type==="client_assigned"||n.type==="client_unassigned"||n.type==="call_booked"||n.type==="bdm_message"||n.type==="chat_message"||n.type==="meeting_confirmed"||n.type==="meeting_cancelled")&&n.clientId&&(
+              {openId===n.id&&(n.type==="client_assigned"||n.type==="client_unassigned"||n.type==="call_booked"||n.type==="bdm_message"||n.type==="chat_message"||n.type==="meeting_confirmed"||n.type==="meeting_cancelled"||n.type==="payment_failed")&&n.clientId&&(
                 <div style={{padding:"0 6px 14px 54px",display:"flex",gap:8,flexWrap:"wrap"}}>
                   <Btn variant="soft" size="sm" onClick={()=>{setSelClient(n.clientId);setPage("clientDetail");}}>Open client →</Btn>
                   {(n.type==="chat_message"||n.type==="bdm_message")&&(

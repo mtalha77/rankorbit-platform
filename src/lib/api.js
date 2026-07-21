@@ -283,13 +283,23 @@ export const api={
       return{url:j.url};
     }catch(e){return{error:e.message||"Network error"};}
   },
-  async changeSubscription(planId){
+  async changeSubscription(planId,{when="now"}={}){
     const token=await this._accessToken();
     if(!token)return{error:"Not signed in"};
     try{
-      const r=await fetch("/api/change-subscription",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,planId})});
+      const r=await fetch("/api/change-subscription",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,planId,when})});
       const j=await r.json().catch(()=>({}));
       if(!r.ok)return{error:j.error||"Could not change plan"};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
+  async cancelPendingPlanChange(){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/change-subscription",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,action:"cancel_pending"})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not cancel scheduled change"};
       return{ok:true};
     }catch(e){return{error:e.message||"Network error"};}
   },
@@ -542,7 +552,7 @@ export const api={
     if(!supa)return[];
     const{data:{session}}=await supa.auth.getSession();
     if(!session)return[];
-    const{data,error}=await supa.from("notifications").select("*").eq("userId",session.user.id).order("createdAt",{ascending:false}).limit(40);
+    const{data,error}=await supa.from("notifications").select("*").eq("userId",session.user.id).order("createdAt",{ascending:false}).limit(100);
     if(error){console.warn("notifications:",error.message);return[];}
     return data||[];
   },

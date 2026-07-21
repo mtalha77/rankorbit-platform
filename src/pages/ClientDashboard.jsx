@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { T, FONT_D, FONT_B, SHADOW_LG } from "../lib/theme";
 import { api } from "../lib/api";
 import { PLANS, planLive } from "../lib/constants";
-import { isPastMeetingNotif, buildLiveGrowthSeries, growthMomTrend, resolveNapScore } from "../lib/helpers";
+import { isPastMeetingNotif, buildLiveGrowthSeries, growthMomTrend, resolveNapScore, paymentGraceState } from "../lib/helpers";
 import { Btn, Confirm, PageHead } from "../components/atoms";
 import Shell from "../components/Shell";
 import ChatThread from "../components/ChatThread";
@@ -368,15 +368,28 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
       flagged: "🚩",
       nap_fix: "🔧",
     }[t] || "🔔");
+  const grace = paymentGraceState(user);
+  const graceAllowed = new Set(["billing", "settings", "messages", "notifications", "legal", "help"]);
+  // After grace expires, keep user on billing (no effect — avoids hooks-after-return).
+  const viewPage = grace.expired && !graceAllowed.has(page) ? "billing" : page;
+  const goPage = (p) => {
+    if (grace.expired && !graceAllowed.has(p)) {
+      toast("Update your payment method to restore full access", "info");
+      setPage("billing");
+      return;
+    }
+    setPage(p);
+  };
+
   const openNotif = async (a) => {
     setNotifOpen(false);
     if (a.kind === "sys") await markOneRead(a.id);
-    setPage(notifTarget(a.type));
+    goPage(notifTarget(a.type));
   };
 
   const clientCtx = {
     user, userId, data, reload, onLogout, impersonating, onUserUpdate,
-    page, setPage, toast, showManual, setShowManual, confirm, setConfirm,
+    page: viewPage, setPage: goPage, toast, showManual, setShowManual, confirm, setConfirm,
     stripeConfigured, invoices, sysNotifs, setSysNotifs, notifOpen, setNotifOpen,
     chatUnread, setChatUnread, isMobile, R,
     my, myGmb, myAnalytics, myAct, settings, cfg, PLANSALL, PLANSV,
@@ -387,7 +400,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
 
   // Stable module components — <Home/> is safe (no remount flicker from inner const recreation).
   const homeHeaderLeft =
-    page === "home" ? (
+    viewPage === "home" ? (
       <div style={{ minWidth: 0 }}>
         <div
           style={{
@@ -420,8 +433,8 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
     ) : null;
   const homeHeaderRight = (
     <>
-      {page === "home" && (
-        <Btn variant="soft" size="sm" onClick={() => setPage("call")} style={{ whiteSpace: "nowrap" }}>
+      {viewPage === "home" && (
+        <Btn variant="soft" size="sm" onClick={() => goPage("call")} style={{ whiteSpace: "nowrap" }}>
           📞 Talk to your BDM
         </Btn>
       )}
@@ -434,8 +447,8 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
       <Shell
         user={user}
         nav={nav}
-        page={page}
-        setPage={setPage}
+        page={viewPage}
+        setPage={goPage}
         onLogout={onLogout}
         planBadge={planBadge}
         showLegalLinks
@@ -444,20 +457,48 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
         badgeCounts={{ notifications: unreadSys, messages: chatUnread }}
         settingsPageId={impersonating ? null : "settings"}
         contentPadding={
-          page === "legal"
+          viewPage === "legal"
             ? isMobile
               ? "6px 14px 4px"
               : "8px 34px 4px"
-            : page === "home"
+            : viewPage === "home"
               ? isMobile
                 ? "14px 16px 40px"
                 : "20px 34px 50px"
               : null
         }
       >
-        {page === "home" && <Home />}
-        {page === "notifications" && <NotificationsPage />}
-        {page === "messages" && (
+        {grace.pastDue && (
+          <div
+            style={{
+              padding: "12px 14px",
+              marginBottom: 14,
+              borderRadius: 12,
+              background: grace.expired ? T.redSoft : T.amberSoft,
+              border: `1px solid ${grace.expired ? T.red : T.amber}33`,
+              display: "flex",
+              gap: 12,
+              alignItems: "center",
+              flexWrap: "wrap",
+              justifyContent: "space-between",
+            }}
+          >
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 800, color: grace.expired ? T.red : T.amber }}>
+                {grace.expired ? "Payment overdue — access limited" : "Payment failed"}
+              </div>
+              <div style={{ fontSize: 12.5, color: T.sub, marginTop: 3, lineHeight: 1.45 }}>
+                {grace.expired
+                  ? "Your 5-day grace period ended. Update your card under Plan & Billing to restore access."
+                  : `We couldn't charge your card. Plan stays active until ${grace.label}${grace.daysLeft != null ? ` (${grace.daysLeft} day${grace.daysLeft === 1 ? "" : "s"} left)` : ""}.`}
+              </div>
+            </div>
+            <Btn variant="soft" size="sm" onClick={() => goPage("billing")}>Fix payment →</Btn>
+          </div>
+        )}
+        {viewPage === "home" && <Home />}
+        {viewPage === "notifications" && <NotificationsPage />}
+        {viewPage === "messages" && (
           <div
             style={{
               height: isMobile ? "calc(100dvh - 140px)" : "calc(100vh - 100px)",
@@ -478,30 +519,30 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
                 readOnly={impersonating}
                 toast={toast}
                 onUnreadChange={impersonating ? undefined : setChatUnread}
-                onOpenCall={() => setPage("call")}
+                onOpenCall={() => goPage("call")}
                 fill
               />
             </div>
           </div>
         )}
-        {page === "listings" && <Listings />}
-        {page === "gmb" && <Gmb />}
-        {page === "analytics" && <Analytics />}
-        {page === "billing" && <Billing />}
-        {page === "call" && (
+        {viewPage === "listings" && <Listings />}
+        {viewPage === "gmb" && <Gmb />}
+        {viewPage === "analytics" && <Analytics />}
+        {viewPage === "billing" && <Billing />}
+        {viewPage === "call" && (
           <ClientCallPage
             user={user}
             isMobile={isMobile}
             toast={toast}
             reload={reload}
-            onOpenMessages={() => setPage("messages")}
+            onOpenMessages={() => goPage("messages")}
             readOnly={impersonating}
           />
         )}
-        {page === "settings" && !impersonating && (
+        {viewPage === "settings" && !impersonating && (
           <AccountSettings user={user} toast={toast} reload={reload} onUserUpdate={onUserUpdate} isMobile={isMobile} />
         )}
-        {page === "legal" && <ClientLegalPage isMobile={isMobile} />}
+        {viewPage === "legal" && <ClientLegalPage isMobile={isMobile} />}
       </Shell>
       {/* Floating Help button — FAQs (tour stays first-login only) */}
       <button

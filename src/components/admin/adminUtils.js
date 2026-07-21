@@ -1,8 +1,19 @@
 import { isPastMeetingNotif } from "../../lib/helpers";
 
-/** Super admin: team-chat pings only. Others: all live (non-past) staff notifs. */
+/** Super admin: team-chat + payment_failed. Others: all live (non-past) staff notifs. */
 export function filterVisibleStaffNotifs(rows, role) {
   const live = (rows || []).filter((x) => !isPastMeetingNotif(x));
   if (role !== "super_admin") return live;
-  return live.filter((x) => x.type === "staff_message");
+  return live.filter((x) => x.type === "staff_message" || x.type === "payment_failed");
+}
+
+/** Client payment-fail badge helper for admin lists. */
+export function clientPaymentBadge(c) {
+  if (!c) return null;
+  if (c.subscriptionStatus !== "past_due" && !c.paymentFailedAt) return null;
+  const ends = c.paymentGraceEndsAt ? new Date(c.paymentGraceEndsAt).getTime() : null;
+  const expired = ends != null && ends < Date.now();
+  return expired
+    ? { type: "rejected", label: "Grace expired" }
+    : { type: "pending", label: "Payment failed" };
 }

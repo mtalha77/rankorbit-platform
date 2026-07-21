@@ -7,6 +7,11 @@ const cleanUrl = (s) => (s ? String(s).replace(/[^\x21-\x7E]/g, "").trim() : s);
 const cleanKey = (s) => (s ? String(s).replace(/[^A-Za-z0-9._\-]/g, "") : s);
 
 export const PLAN_IDS = ["essentials", "growth", "gmb"];
+const PLAN_RANK = { essentials: 1, growth: 2, gmb: 3 };
+/** True when moving to a lower tier (e.g. Growth → Essentials). */
+export function isPlanDowngrade(fromId, toId) {
+  return (PLAN_RANK[toId] || 0) < (PLAN_RANK[fromId] || 0);
+}
 
 export function appUrl() {
   const raw = process.env.APP_URL || process.env.VERCEL_URL || "";

@@ -75,6 +75,10 @@ begin
   new."currentPeriodEnd" := old."currentPeriodEnd";
   new."cardBrand" := old."cardBrand";
   new."cardLast4" := old."cardLast4";
+  new."pendingPlanId" := old."pendingPlanId";
+  new."pendingPlanEffectiveAt" := old."pendingPlanEffectiveAt";
+  new."paymentFailedAt" := old."paymentFailedAt";
+  new."paymentGraceEndsAt" := old."paymentGraceEndsAt";
   -- client: freeze privilege / ops columns
   new.role := old.role;
   new.status := old.status;
