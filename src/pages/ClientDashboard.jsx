@@ -36,6 +36,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
   const [notifOpen, setNotifOpen] = useState(false);
   const [chatUnread, setChatUnread] = useState(0);
   const [callKindPref, setCallKindPref] = useState(null); // "guidance" | "regular" | null
+  const [guidanceBooked, setGuidanceBooked] = useState(false);
   const notifSig = useRef("");
   const w = useWindowSize();
   const isMobile = w < 820;
@@ -249,6 +250,25 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
     };
   }, [userId, impersonating, messagingAllowed]);
 
+  // Guidance onboarding banner — confirm via bookings API (source of truth).
+  useEffect(() => {
+    if (impersonating || !userId || !user?.plan) {
+      setGuidanceBooked(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const r = await api.getMyBdm();
+      if (cancelled) return;
+      const used = (r.quota?.guidance?.used || 0) > 0;
+      const upcoming = (r.bookings || []).some((b) => b.kind === "guidance");
+      setGuidanceBooked(used || upcoming);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, user?.plan, impersonating, page, data?.activity?.length]);
+
   if (!data || !userId) {
     return (
       <div style={{ padding: 40, textAlign: "center", color: T.sub, fontFamily: FONT_B }}>
@@ -263,7 +283,11 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
   const myAct = (Array.isArray(data.activity) ? data.activity : []).filter(
     (a) => a.clientId === userId && a.type !== "edit_blocked_internal"
   );
-  const showSetupBanner = !!user.plan && my.length === 0;
+  // Onboarding banner: hide once a guidance meeting is booked (or first listing exists).
+  const guidanceFromNotifs = sysNotifs.some((n) => n?.meta?.kind === "guidance");
+  const guidanceFromActivity = myAct.some((a) => /guidance\s+call/i.test(String(a.desc || "")));
+  const showSetupBanner =
+    !!user.plan && my.length === 0 && !guidanceBooked && !guidanceFromNotifs && !guidanceFromActivity;
   const canMessage = planAllowsMessaging(user.plan);
   const settings = data.settings || {};
   const cfg = settings?.config || {};
@@ -536,7 +560,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
                 Schedule your guidance meeting
               </div>
               <div style={{ fontSize: 12.5, color: T.sub, marginTop: 4, lineHeight: 1.45 }}>
-                Book a guidance call with a senior BDM to get onboarded. This stays up until your first listing is added.
+                Book a guidance call with a senior BDM to get onboarded. This disappears once your guidance meeting is booked.
               </div>
             </div>
             <Btn size="sm" onClick={() => { setCallKindPref("guidance"); goPage("call"); }}>Book guidance call →</Btn>

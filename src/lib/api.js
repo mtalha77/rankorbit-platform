@@ -541,6 +541,7 @@ export const api={
         takenSlots:Array.isArray(j.takenSlots)?j.takenSlots:[],
         support:!!j.support,
         needsBdm:!!j.needsBdm,
+        quota:j.quota||null,
       };
     }catch(e){return{agent:null,bookings:[],takenSlots:[],error:e.message};}
   },
