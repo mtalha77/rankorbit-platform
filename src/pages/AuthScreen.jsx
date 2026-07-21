@@ -105,7 +105,7 @@ export default function AuthScreen({onLogin,portal="client",initialMode="login"}
             <span style={{fontSize:14,color:T.sub}}>{f}</span>
           </div>))}
       </div>)}
-      <div className="pop" style={{width:"100%",maxWidth:430}}>
+      <main className="pop" style={{width:"100%",maxWidth:430}}>
         {isMobile&&(<div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20,justifyContent:"center"}}>
           <MiniOrbit size={40}/><div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800}}>NAP <span style={{color:T.brand}}>Orbit</span></div>
         </div>)}
@@ -164,7 +164,7 @@ export default function AuthScreen({onLogin,portal="client",initialMode="login"}
             <span onClick={()=>{setMode("login");setError("");setFieldErrors({});}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>← Back to sign in</span>
           </div>)}
         </Card>
-      </div>
+      </main>
     </div>
   </div>);
 }

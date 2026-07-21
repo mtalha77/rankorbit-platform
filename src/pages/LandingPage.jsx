@@ -80,16 +80,18 @@ export default function LandingPage({ user = null, focusPricing = false, billing
   return (
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: FONT_B, color: T.ink, overflowX: "hidden" }}>
       <LandingNav isMobile={isMobile} navSolid={navSolid} user={user} avatarLetter={avatarLetter} displayName={displayName} goDash={goDash} goLogin={goLogin} goSignup={goSignup} />
-      <LandingHero isMobile={isMobile} isTab={isTab} user={user} goDash={goDash} goSignup={goSignup} />
-      <LandingMarquee isMobile={isMobile} />
-      <LandingByTheNumbers isMobile={isMobile} />
-      <LandingAiDiscovery isMobile={isMobile} />
-      <LandingBento isMobile={isMobile} />
-      <LandingHowItWorks isMobile={isMobile} />
-      <LandingDashboardTour isMobile={isMobile} />
-      <LandingStories isMobile={isMobile} />
-      <LandingPricing isMobile={isMobile} isTab={isTab} w={w} user={user} cfg={cfg} lprice={lprice} goPlan={goPlan} planBusy={planBusy} planErr={planErr} billingFlag={billingFlag} />
-      <LandingFinalCta isMobile={isMobile} user={user} goDash={goDash} goSignup={goSignup} />
+      <main>
+        <LandingHero isMobile={isMobile} isTab={isTab} user={user} goDash={goDash} goSignup={goSignup} />
+        <LandingMarquee isMobile={isMobile} />
+        <LandingByTheNumbers isMobile={isMobile} />
+        <LandingAiDiscovery isMobile={isMobile} />
+        <LandingBento isMobile={isMobile} />
+        <LandingHowItWorks isMobile={isMobile} />
+        <LandingDashboardTour isMobile={isMobile} />
+        <LandingStories isMobile={isMobile} />
+        <LandingPricing isMobile={isMobile} isTab={isTab} w={w} user={user} cfg={cfg} lprice={lprice} goPlan={goPlan} planBusy={planBusy} planErr={planErr} billingFlag={billingFlag} />
+        <LandingFinalCta isMobile={isMobile} user={user} goDash={goDash} goSignup={goSignup} />
+      </main>
       <LandingFooter isMobile={isMobile} isTab={isTab} user={user} nav={nav} goDash={goDash} goLogin={goLogin} goSignup={goSignup} scrollPricing={scrollPricing} />
     </div>
   );

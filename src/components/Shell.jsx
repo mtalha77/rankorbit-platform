@@ -281,7 +281,7 @@ export default function Shell({
         {isMobile && headerLeft && (
           <div style={{ padding: "12px 16px 0", flexShrink: 0 }}>{headerLeft}</div>
         )}
-        <div style={{ flex: 1, overflow: "auto", padding: contentPadding || (isMobile ? "18px 16px 40px" : "30px 34px 50px") }}>{children}</div>
+        <main style={{ flex: 1, overflow: "auto", padding: contentPadding || (isMobile ? "18px 16px 40px" : "30px 34px 50px") }}>{children}</main>
       </div>
     </div>
   );

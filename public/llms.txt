@@ -1,19 +1,12 @@
 # NAP Orbit
 
-NAP Orbit is a local visibility platform that publishes and protects business Name, Address, and Phone (NAP) data across maps, directories, and AI-powered search.
+> Local visibility platform for business Name, Address, and Phone (NAP) consistency across maps, directories, and AI search.
 
-## Product
+## Docs
 
-- [Home](https://nap.rankorbit.com/)
-- [Pricing](https://nap.rankorbit.com/?focus=pricing)
-- [Sign in](https://nap.rankorbit.com/login)
-- [Sign up](https://nap.rankorbit.com/signup)
-
-## Legal
-
-- [Terms of Service](https://nap.rankorbit.com/terms)
-- [Privacy Policy](https://nap.rankorbit.com/privacy)
-
-## Contact
-
-- Website: [https://nap.rankorbit.com/](https://nap.rankorbit.com/)
+- [Home](https://nap.rankorbit.com/): Product overview and landing page
+- [Pricing](https://nap.rankorbit.com/?focus=pricing): Plans and pricing
+- [Sign in](https://nap.rankorbit.com/login): Client sign in
+- [Sign up](https://nap.rankorbit.com/signup): Create a client account
+- [Terms of Service](https://nap.rankorbit.com/terms): Terms
+- [Privacy Policy](https://nap.rankorbit.com/privacy): Privacy policy
