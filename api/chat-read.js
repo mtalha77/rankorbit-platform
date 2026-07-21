@@ -13,7 +13,7 @@ export default async function handler(req, res) {
   const { token, clientId } = await readJson(req);
 
   const staff = await requireStaff(admin, token, {
-    roles: ["super_admin", "manager", "agent"],
+    roles: ["super_admin", "manager", "bdm", "agent"],
   });
 
   let myId = null;
@@ -24,7 +24,7 @@ export default async function handler(req, res) {
     if (!clientId) return res.status(400).json({ error: "clientId required" });
     targetClientId = clientId;
 
-    if (staff.profile.role === "agent") {
+    if (staff.profile.role === "bdm" || staff.profile.role === "agent") {
       const { data: client } = await admin
         .from("profiles")
         .select("assignedAgentId,role")

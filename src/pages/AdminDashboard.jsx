@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { T, FONT_B, SHADOW } from "../lib/theme";
 import { api } from "../lib/api";
 import { livePlanEntries, planPrice, plansWithPrices } from "../lib/constants";
-import { todayFull, uid } from "../lib/helpers";
+import { todayFull, uid, isBdmRole, staffRoleLabel } from "../lib/helpers";
 import { Confirm } from "../components/atoms";
 import Shell from "../components/Shell";
 import AccountSettings from "../components/AccountSettings";
@@ -39,6 +39,7 @@ import {
   AuditTrail,
   Trash,
   Settings,
+  ScheduledMeetings,
 } from "../components/admin";
 
 export default function AdminDashboard({ user, data, reload, onLogout, onUserUpdate }) {
@@ -96,7 +97,7 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
   const staff = users.filter((u) => u.role !== "client");
   const isAdmin = user.role === "super_admin";
   const isStaffMgr = user.role === "super_admin" || user.role === "manager";
-  const isAgent = user.role === "agent";
+  const isAgent = isBdmRole(user.role);
   const clients = isAgent ? allClients.filter((c) => c.assignedAgentId === user.id) : allClients;
   const labelForClientId = (id) => {
     if (!id) return "Unknown client";
@@ -125,13 +126,13 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
     await api.logAudit({ actor: user, action, targetType, targetId, targetName, detail });
   };
   const notifyManagersIfAgent = async (action, listing) => {
-    if (user.role !== "agent") return;
+    if (!isBdmRole(user.role)) return;
     const clientName = clients.find((c) => c.id === listing.clientId)?.businessName || "a client";
     await api.addActivity({ id: uid(), clientId: listing.clientId, type: "edit_blocked_internal", desc: `Manager review: ${user.name} ${action} "${listing.directory}" for ${clientName}`, date: todayFull(), by: "System" });
     api.notifyClient({
       clientId: listing.clientId,
       type: "agent_edit",
-      title: `Agent ${action} a listing`,
+      title: `BDM ${action} a listing`,
       body: `${user.name} ${action} "${listing.directory}" for ${clientName}. Review in the admin dashboard.`,
       meta: { directory: listing.directory, action },
     });
@@ -212,11 +213,12 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
   }, [user.id]);
 
   const nav = [
-    { id: "overview", icon: "📊", label: "Overview", roles: ["super_admin", "manager", "agent"] },
-    { id: "notifications", icon: "🔔", label: "Notifications", roles: ["super_admin", "manager", "agent"] },
-    { id: "messages", icon: "💬", label: "Messages", roles: ["super_admin", "manager", "agent"] },
-    { id: "clients", icon: "👥", label: "Clients", roles: ["super_admin", "manager", "agent"], match: ["clientDetail"] },
-    { id: "listings", icon: "📋", label: "All Listings", roles: ["super_admin", "manager", "agent"] },
+    { id: "overview", icon: "📊", label: "Overview", roles: ["super_admin", "manager", "bdm", "agent"] },
+    { id: "notifications", icon: "🔔", label: "Notifications", roles: ["super_admin", "manager", "bdm", "agent"] },
+    { id: "meetings", icon: "📅", label: "Scheduled Meetings", roles: ["super_admin", "manager", "bdm", "agent"] },
+    { id: "messages", icon: "💬", label: "Messages", roles: ["super_admin", "manager", "bdm", "agent"] },
+    { id: "clients", icon: "👥", label: "Clients", roles: ["super_admin", "manager", "bdm", "agent"], match: ["clientDetail"] },
+    { id: "listings", icon: "📋", label: "All Listings", roles: ["super_admin", "manager", "bdm", "agent"] },
     { id: "gmb", icon: "📍", label: "GMB", roles: ["super_admin", "manager"] },
     { id: "team", icon: "👥", label: "Team", roles: ["super_admin", "manager"] },
     { id: "activity", icon: "📜", label: "Activity Log", roles: ["super_admin", "manager"] },
@@ -230,7 +232,7 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
     <div style={{ marginTop: 14, padding: "9px 13px", background: T.surface2, borderRadius: 12 }}>
       <div style={{ fontSize: 10, color: T.faint, fontWeight: 800, letterSpacing: ".5px" }}>SIGNED IN AS</div>
       <div style={{ fontSize: 13, fontWeight: 800, color: T.brand, marginTop: 2 }}>
-        {user.role === "super_admin" ? "Super Admin" : user.role === "manager" ? "Manager" : "Agent"}
+        {staffRoleLabel(user.role)}
       </div>
     </div>
   );
@@ -275,6 +277,7 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
         {page === "notifications" && (
           <NotificationsPage user={user} isAdmin={isAdmin} isMobile={isMobile} toast={toast} setNotifBadge={setNotifBadge} setSelClient={setSelClient} setPage={setPage} />
         )}
+        {page === "meetings" && <ScheduledMeetings />}
         {page === "messages" && (
           <StaffMessagesInbox user={user} clients={clients} selClient={selClient} setSelClient={setSelClient} setChatUnreadTotal={setChatUnreadTotal} toast={toast} isMobile={isMobile} isAdmin={isAdmin} />
         )}

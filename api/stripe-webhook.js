@@ -13,7 +13,6 @@ import {
   syncInvoicesForCustomer,
 } from "../server/billing.js";
 import {
-  autoAssignLeastLoadedAgent,
   notifyClient,
   notifyStaffRoute,
   notifySuperAdminsInApp,
@@ -213,10 +212,34 @@ export default async function handler(req, res) {
             } catch (e) {
               console.warn("notify after checkout:", e.message);
             }
+            // No auto BDM assign — notify super admins to assign manually.
             try {
-              await autoAssignLeastLoadedAgent(admin, profileId);
+              const { data: buyer } = await admin
+                .from("profiles")
+                .select("id,email,name,businessName,plan,assignedAgentId")
+                .eq("id", profileId)
+                .maybeSingle();
+              const who = buyer?.businessName || buyer?.name || buyer?.email || "A client";
+              const planName = planLabel(planId || buyer?.plan);
+              if (!buyer?.assignedAgentId) {
+                await notifySuperAdminsInApp(admin, {
+                  clientId: profileId,
+                  type: "needs_bdm",
+                  title: "Assign a BDM — new plan purchase",
+                  body: `${who} purchased ${planName}. Assign a BDM from the client page.`,
+                  meta: { planId: planId || buyer?.plan || null, source: "checkout" },
+                });
+              } else {
+                await notifySuperAdminsInApp(admin, {
+                  clientId: profileId,
+                  type: "plan_subscribed",
+                  title: `New subscription · ${planName}`,
+                  body: `${who} purchased ${planName}.`,
+                  meta: { planId: planId || buyer?.plan || null, source: "checkout" },
+                });
+              }
             } catch (e) {
-              console.warn("auto-assign after checkout:", e.message);
+              console.warn("super-admin notify after checkout:", e.message);
             }
           }
         }

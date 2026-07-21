@@ -52,7 +52,13 @@ export default function AuthScreen({onLogin,portal="client",initialMode="login"}
     if(!r.user){setError("Sign-in failed. Please try again.");return;}
     const role=r.user.role;
     if(isStaff && !STAFF_ROLES.includes(role)){await api.logout();setError("This is the staff portal. Clients sign in at /login.");return;}
-    if(!isStaff && STAFF_ROLES.includes(role)){await api.logout();setError("Staff accounts sign in at /admin.");return;}
+    // Staff who signed in via the client /login link → send them to admin (don't treat as client).
+    if(!isStaff && STAFF_ROLES.includes(role)){
+      setError("");setFieldErrors({});
+      try{await onLogin(r.user);}catch(e){setError(e.message||"Sign-in failed. Please try again.");return;}
+      nav("/admin",{replace:true});
+      return;
+    }
     setError("");setFieldErrors({});
     try{await onLogin(r.user);}catch(e){setError(e.message||"Sign-in failed. Please try again.");}
   };

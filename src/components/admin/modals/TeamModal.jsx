@@ -7,7 +7,7 @@ import { useAdmin } from "../AdminContext";
 export function TeamModal({ onClose }) {
   const { isAdmin, audit, toast, reload } = useAdmin();
 
-  const [f, setF] = useState({ role: isAdmin ? "manager" : "agent" });
+  const [f, setF] = useState({ role: isAdmin ? "manager" : "bdm" });
   const [errs, setErrs] = useState({ name: "", email: "" });
   const [saving, setSaving] = useState(false);
   const set = (k, v) => {
@@ -45,9 +45,9 @@ export function TeamModal({ onClose }) {
     ? [
         { value: "super_admin", label: "Super Admin" },
         { value: "manager", label: "Manager" },
-        { value: "agent", label: "Agent" },
+        { value: "bdm", label: "BDM" },
       ]
-    : [{ value: "agent", label: "Agent" }];
+    : [{ value: "bdm", label: "BDM" }];
 
   return (
     <Modal open onClose={onClose} title="Invite Team Member">

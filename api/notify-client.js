@@ -51,7 +51,7 @@ export default async function handler(req, res) {
 
   // Prefer staff auth; fall back to client for self lifecycle notifs.
   const staff = await requireStaff(admin, token, {
-    roles: ["super_admin", "manager", "agent"],
+    roles: ["super_admin", "manager", "bdm", "agent"],
   });
   let targetClientId = payload.clientId || null;
   let isStaff = false;

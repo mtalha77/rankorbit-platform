@@ -7,7 +7,7 @@ import { getAdmin, readJson, requireClient, requireStaff } from "../server/billi
 
 async function requireAnyUser(admin, token) {
   const staff = await requireStaff(admin, token, {
-    roles: ["super_admin", "manager", "agent"],
+    roles: ["super_admin", "manager", "bdm", "agent"],
   });
   if (!staff.error) return { profile: staff.profile };
   const client = await requireClient(admin, token);

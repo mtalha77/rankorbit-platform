@@ -9,7 +9,7 @@ export function NapConfirmModal({ client,newScore,onClose }) {
 
     const hist=client.napHistory||[];
     const last3=hist.slice(-3).reverse();
-    const roleLabel=user.role==="super_admin"?"Super Admin":user.role==="manager"?"Manager":"Agent";
+    const roleLabel=user.role==="super_admin"?"Super Admin":user.role==="manager"?"Manager":"BDM";
     const[saving,setSaving]=useState(false);
     const save=async()=>{
       setSaving(true);

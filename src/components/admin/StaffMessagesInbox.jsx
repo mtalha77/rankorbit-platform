@@ -45,7 +45,7 @@ export function StaffMessagesInbox({user,clients,selClient,setSelClient,setChatU
   const clientPeer=active?.kind==="client"?clients.find(c=>c.id===active.id):null;
   const staffPeer=active?.kind==="staff"?staffThreads.find(t=>t.staffId===active.id):null;
   const teamTitle="Team";
-  const roleLabel=(r)=>r==="super_admin"?"Super Admin":r==="manager"?"Manager":r==="agent"?"Agent":"Staff";
+  const roleLabel=(r)=>r==="super_admin"?"Super Admin":r==="manager"?"Manager":(r==="bdm"||r==="agent")?"BDM":"Staff";
 
   const ThreadRow=({label,sub,when,unread,activeSel,onClick})=>(
     <div onClick={onClick}

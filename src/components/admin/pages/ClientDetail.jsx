@@ -1,18 +1,19 @@
 import { useState, useEffect } from "react";
 import { T, FONT_D, FONT_B } from "../../../lib/theme";
 import { api } from "../../../lib/api";
-import { actIcon } from "../../../lib/helpers";
+import { actIcon, isBdmRole } from "../../../lib/helpers";
 import { Badge, Card, Btn, Empty, SectionTitle } from "../../atoms";
 import ChatThread from "../../ChatThread";
 import { useAdmin } from "../AdminContext";
 import { clientPaymentBadge } from "../adminUtils";
 
 export function ClientDetail() {
-  const { selClient, clients, listings, gmb, analytics, activity, isMobile, isStaffMgr, isAdmin, isAgent, user, canImpersonate, setViewAs, setPage, setSelClient, setModal, setConfirm, R, audit, toast, addActivity, PLANSV } = useAdmin();
+  const { selClient, clients, staff, listings, gmb, analytics, activity, isMobile, isStaffMgr, isAdmin, isAgent, user, canImpersonate, setViewAs, setPage, setSelClient, setModal, setConfirm, R, audit, toast, addActivity, PLANSV, reload } = useAdmin();
 
     const c=clients.find(x=>x.id===selClient);
     const[nap,setNap]=useState(0);
     const[chatOpen,setChatOpen]=useState(false);
+    const[assigningBdm,setAssigningBdm]=useState(false);
     useEffect(()=>{
       if(c)setNap(c.napScore||0);
     },[c?.id,c?.napScore]);
@@ -33,6 +34,23 @@ export function ClientDetail() {
     const ap=user.perms||{listings:true,nap:true,logEdit:true,gmb:true};
     const can=(action)=>isStaffMgr||(isAgent&&c.assignedAgentId===user.id&&ap[action]!==false);
     const fmtDT=(d)=>d?new Date(d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"}):"";
+    const bdms=staff.filter(m=>isBdmRole(m.role)&&!m.deletedAt&&m.status!=="suspended");
+    const assignedBdm=bdms.find(m=>m.id===c.assignedAgentId)||staff.find(m=>m.id===c.assignedAgentId);
+    const assignBdm=async(agentId)=>{
+      const next=agentId||null;
+      if((c.assignedAgentId||null)===(next||null))return;
+      setAssigningBdm(true);
+      try{
+        await api.assignClient(c.id,next);
+        await audit("agent.assign",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name,detail:next?`BDM ${bdms.find(b=>b.id===next)?.name||next}`:"unassigned"});
+        await reload();
+        toast(next?"BDM assigned":"BDM unassigned");
+      }catch(e){
+        toast(e.message||"Could not assign BDM","info");
+      }finally{
+        setAssigningBdm(false);
+      }
+    };
     return(<div>
       {c.status==="suspended"&&<Card style={{marginBottom:16,background:T.redSoft,border:`1px solid ${T.red}33`}}>
         <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
@@ -92,6 +110,26 @@ export function ClientDetail() {
             compact
           />
         </div>
+      )}
+      {isStaffMgr&&(
+        <Card style={{marginBottom:16,border:!c.assignedAgentId&&c.plan?`1.5px solid ${T.amber}`:undefined,background:!c.assignedAgentId&&c.plan?T.amberSoft:undefined}}>
+          <SectionTitle sub="Assigned after plan purchase — not automatic">Assigned BDM</SectionTitle>
+          <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+            <select
+              value={c.assignedAgentId||""}
+              disabled={assigningBdm||bdms.length===0}
+              onChange={e=>assignBdm(e.target.value)}
+              style={{flex:"1 1 220px",padding:"10px 12px",borderRadius:10,border:`1.5px solid ${T.line}`,background:T.surface,fontFamily:FONT_B,fontSize:13,fontWeight:700,color:T.ink}}
+            >
+              <option value="">{bdms.length? "— Unassigned —" : "No BDMs on the team yet"}</option>
+              {bdms.map(b=>(
+                <option key={b.id} value={b.id}>{b.name||b.email}</option>
+              ))}
+            </select>
+            {assignedBdm&&<span style={{fontSize:12.5,color:T.sub}}>{assignedBdm.email}</span>}
+            {!c.assignedAgentId&&c.plan&&<Badge type="pending" label="Needs BDM"/>}
+          </div>
+        </Card>
       )}
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16,marginBottom:18}}>
         <Card><SectionTitle>Business Info</SectionTitle>

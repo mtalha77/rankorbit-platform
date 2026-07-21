@@ -1,10 +1,11 @@
 import { getAdmin, readJson, requireStaff } from "../server/billing.js";
 import { notifyBdm, notifySuperAdmins, notifyClient } from "../server/assign.js";
+import { isBdmRole } from "../server/roles.js";
 
 /**
- * Staff assigns (or unassigns) a client to an agent.
+ * Staff assigns (or unassigns) a client to a BDM.
  * Body: { token, clientId, agentId|null }
- * Notifies the agent + all super admins.
+ * Notifies the BDM.
  */
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -37,8 +38,8 @@ export default async function handler(req, res) {
         .eq("id", agentId)
         .maybeSingle();
       if (aErr) return res.status(500).json({ error: aErr.message });
-      if (!a || a.role !== "agent" || a.deletedAt || a.status === "suspended") {
-        return res.status(400).json({ error: "Agent not found or inactive" });
+      if (!a || !isBdmRole(a.role) || a.deletedAt || a.status === "suspended") {
+        return res.status(400).json({ error: "BDM not found or inactive" });
       }
       agent = a;
     }

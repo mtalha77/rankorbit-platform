@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { T, FONT_B } from "../../../lib/theme";
 import { api } from "../../../lib/api";
+import { isBdmRole, staffRoleLabel } from "../../../lib/helpers";
 import { Modal, Btn, Badge } from "../../atoms";
 import { UserAvatar } from "../../AccountSettings";
 import { useAdmin } from "../AdminContext";
@@ -11,19 +12,19 @@ export function PermissionsModal({ member:memberProp,onClose }) {
     const member=staff.find(x=>x.id===memberProp.id)||memberProp;
     const isSelf=member.id===user.id;
     const canEdit=!isSelf;
-    const role=member.role==="super_admin"?"Super Admin":member.role==="manager"?"Manager":"Agent";
+    const role=staffRoleLabel(member.role);
     const assignedCount=allClients.filter(c=>c.assignedAgentId===member.id).length;
     const rolePerms=member.role==="super_admin"
       ?["Full platform access","Manage clients, listings, and GMB","Manage team, finance, and settings","Read-only client account view","View activity logs"]
       :member.role==="manager"
-        ?["Manage clients, listings, and GMB","Assign clients to agents","View team activity logs"]
+        ?["Manage clients, listings, and GMB","Assign clients to BDMs","View team activity logs"]
         :["Work on assigned clients only"];
     const agentPermDefs=[["listings","Update listings"],["nap","Update NAP score"],["logEdit","Log unauthorized edits"],["gmb","GMB changes"]];
     const defPerms={listings:true,nap:true,logEdit:true,gmb:true};
     const[perms,setPerms]=useState({...defPerms,...(member.perms||{})});
     const[canViewAccounts,setCanViewAccounts]=useState(!!member.canImpersonate);
     const[saving,setSaving]=useState(false);
-    const dirtyAgent=member.role==="agent"&&JSON.stringify(perms)!==JSON.stringify({...defPerms,...(member.perms||{})});
+    const dirtyAgent=isBdmRole(member.role)&&JSON.stringify(perms)!==JSON.stringify({...defPerms,...(member.perms||{})});
     const dirtyMgr=member.role==="manager"&&canViewAccounts!==!!member.canImpersonate;
     const dirty=dirtyAgent||dirtyMgr;
     const togglePerm=(k)=>{if(!canEdit)return;setPerms(p=>({...p,[k]:!p[k]}));};
@@ -31,7 +32,7 @@ export function PermissionsModal({ member:memberProp,onClose }) {
       if(!canEdit||!dirty)return;
       setSaving(true);
       try{
-        if(member.role==="agent"&&isStaffMgr){
+        if(isBdmRole(member.role)&&isStaffMgr){
           await api.patchProfile(member.id,{perms});
           await audit("agent.perms",{targetType:"staff",targetId:member.id,targetName:member.name,detail:Object.entries(perms).filter(([,v])=>v).map(([k])=>k).join(", ")||"none"});
         }
@@ -67,8 +68,8 @@ export function PermissionsModal({ member:memberProp,onClose }) {
       <div style={{display:"flex",flexDirection:"column",gap:7,marginBottom:16}}>
         {rolePerms.map(p=><PermRow key={p} ok label={p}/>)}
       </div>
-      {member.role==="agent"&&(<>
-        <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:8}}>AGENT ACTION ACCESS · {assignedCount} clients assigned</div>
+      {isBdmRole(member.role)&&(<>
+        <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:8}}>BDM ACTION ACCESS · {assignedCount} clients assigned</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16}}>
           {agentPermDefs.map(([k,label])=>(
             <label key={k} style={{display:"flex",alignItems:"center",gap:9,padding:"9px 12px",background:perms[k]?T.brandSoft:T.surface2,border:`1.5px solid ${perms[k]?T.brand:T.line}`,borderRadius:10,cursor:canEdit&&isStaffMgr?"pointer":"default",opacity:canEdit||perms[k]?1:0.85,transition:"all .12s"}}>
@@ -91,11 +92,11 @@ export function PermissionsModal({ member:memberProp,onClose }) {
       <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:8}}>MORE</div>
       <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:4}}>
         <Btn variant="ghost" onClick={()=>{onClose();setPage("team");setTeamView(member.id);}}>View logs</Btn>
-        {canEdit&&isStaffMgr&&member.role==="agent"&&<Btn variant="ghost" onClick={()=>setModal({type:"assign",agent:member})}>Assign clients</Btn>}
+        {canEdit&&isStaffMgr&&isBdmRole(member.role)&&<Btn variant="ghost" onClick={()=>setModal({type:"assign",agent:member})}>Assign clients</Btn>}
       </div>
       <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:14}}>
         <Btn variant="ghost" onClick={onClose}>Close</Btn>
-        {canEdit&&(member.role==="agent"&&isStaffMgr||member.role==="manager"&&isAdmin)&&(
+        {canEdit&&(isBdmRole(member.role)&&isStaffMgr||member.role==="manager"&&isAdmin)&&(
           <Btn onClick={save} disabled={saving||!dirty}>{saving?"Saving…":"Save permissions"}</Btn>
         )}
       </div>

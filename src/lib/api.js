@@ -571,6 +571,16 @@ export const api={
       return{ok:true,...j};
     }catch(e){return{error:e.message||"Network error"};}
   },
+  async listMyMeetings({includePast=false}={}){
+    const token=await this._accessToken();
+    if(!token)return{meetings:[],counts:{total:0,pending:0,confirmed:0},error:"Not signed in"};
+    try{
+      const r=await fetch("/api/my-meetings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,includePast})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{meetings:[],counts:{total:0,pending:0,confirmed:0},error:j.error||"Could not load meetings"};
+      return{meetings:j.meetings||[],counts:j.counts||{total:0,pending:0,confirmed:0}};
+    }catch(e){return{meetings:[],counts:{total:0,pending:0,confirmed:0},error:e.message||"Network error"};}
+  },
   async resetPassword(email){
     if(!supa)return{error:"Password reset needs the live database."};
     const{error}=await supa.auth.resetPasswordForEmail(email,{

@@ -1,6 +1,7 @@
-// Auto-assign clients to least-loaded agents + notify BDMs.
+// BDM assignment helpers + notifications. Auto-assign is disabled — super admins assign manually.
 import { randomUUID } from "crypto";
 import { appBaseUrl, buildNotifyEmail } from "./emailTemplate.js";
+import { isBdmRole } from "./roles.js";
 
 function uid(prefix = "n") {
   try {
@@ -14,14 +15,14 @@ function todayLabel() {
   return new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
-/** Pick the active agent with the fewest assigned clients. Ties → earliest created. */
+/** Pick the active BDM with the fewest assigned clients. Ties → earliest created. */
 export async function pickLeastLoadedAgent(admin) {
   const { data: agents, error } = await admin
     .from("profiles")
-    .select("id,email,name,createdAt,status,deletedAt")
-    .eq("role", "agent");
+    .select("id,email,name,createdAt,status,deletedAt,role")
+    .in("role", ["bdm", "agent"]);
   if (error) throw new Error(error.message);
-  const activeAgents = (agents || []).filter((a) => !a.deletedAt && a.status !== "suspended");
+  const activeAgents = (agents || []).filter((a) => !a.deletedAt && a.status !== "suspended" && isBdmRole(a.role));
   if (!activeAgents.length) return null;
 
   const { data: clients } = await admin
@@ -123,7 +124,7 @@ export async function autoAssignLeastLoadedAgent(admin, clientId, opts = {}) {
   return { agent, assigned: true };
 }
 
-/** Ensure client has an agent (auto-assign if missing), then return agent profile. */
+/** Return client's assigned BDM only — never auto-assigns. */
 export async function resolveClientAgent(admin, clientId) {
   const { data: client } = await admin
     .from("profiles")
@@ -138,11 +139,10 @@ export async function resolveClientAgent(admin, clientId) {
       .select("id,email,name,role")
       .eq("id", client.assignedAgentId)
       .maybeSingle();
-    return { client, agent };
+    return { client, agent: agent || null };
   }
 
-  const result = await autoAssignLeastLoadedAgent(admin, clientId);
-  return { client, agent: result?.agent || null };
+  return { client, agent: null };
 }
 
 /** Active manager with the fewest assigned clients (for chat support fallback). */
@@ -173,8 +173,8 @@ export async function pickLeastLoadedManager(admin) {
 }
 
 /**
- * Staff peer for client chat / Book a Call: assigned/auto BDM, else a manager (support).
- * Does not set assignedAgentId to a manager — a real agent can still be assigned later.
+ * Staff peer for client chat / Book a Call: assigned BDM, else a manager (support).
+ * Does not set assignedAgentId — super admin assigns a BDM manually after plan purchase.
  */
 export async function resolveClientChatPeer(admin, clientId) {
   const { client, agent } = await resolveClientAgent(admin, clientId);
@@ -184,8 +184,8 @@ export async function resolveClientChatPeer(admin, clientId) {
     return {
       client,
       peer: agent,
-      kind: agent.role === "manager" ? "support" : "bdm",
-      needsBdm: agent.role === "manager",
+      kind: isBdmRole(agent.role) ? "bdm" : agent.role === "manager" ? "support" : "bdm",
+      needsBdm: !isBdmRole(agent.role),
     };
   }
 
@@ -253,7 +253,7 @@ export async function createNotification(admin, row) {
 }
 
 /** Types super_admin may receive in-app (besides peer chat). */
-const SUPER_ADMIN_INAPP_TYPES = new Set(["staff_message", "payment_failed"]);
+const SUPER_ADMIN_INAPP_TYPES = new Set(["staff_message", "payment_failed", "plan_subscribed", "needs_bdm"]);
 
 /** Notify any user (client or staff) in-app only. */
 export async function notifyUser(admin, { userId, clientId, type, title, body, meta }) {

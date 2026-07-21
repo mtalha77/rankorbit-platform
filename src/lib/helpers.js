@@ -277,7 +277,15 @@ export function passwordScore(pw){
   return Math.min(s,4); // 0-4
 }
 // STAFF roles can never be created via public signup, enforced here AND by DB trigger.
-export const STAFF_ROLES=["super_admin","manager","agent"];
+// `agent` is a legacy alias for `bdm` (Business Development Manager).
+export const STAFF_ROLES=["super_admin","manager","bdm","agent"];
+export const isBdmRole=(role)=>role==="bdm"||role==="agent";
+export const staffRoleLabel=(role)=>{
+  if(role==="super_admin")return"Super Admin";
+  if(role==="manager")return"Manager";
+  if(isBdmRole(role))return"BDM";
+  return role||"Staff";
+};
 // Master switch: flip to false at go-live to hide all demo quick-fill buttons.
 export const SHOW_DEMOS=(import.meta.env.VITE_SHOW_DEMOS!=="false");
 

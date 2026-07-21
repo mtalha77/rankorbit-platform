@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { T, FONT_B } from "../lib/theme";
 import { api } from "../lib/api";
 import { PLANS } from "../lib/constants";
+import { STAFF_ROLES } from "../lib/helpers";
 import { useWindowSize } from "../hooks";
 import {
   LandingNav,
@@ -27,16 +28,21 @@ export default function LandingPage({ user = null, focusPricing = false, billing
   const isTab = w >= 768 && w < 1024;
   const [planBusy, setPlanBusy] = useState(null);
   const [planErr, setPlanErr] = useState("");
+  const isStaff = !!(user && STAFF_ROLES.includes(user.role));
   const scrollPricing = () => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth", block: "start" });
   const goLogin = () => nav("/login");
   const goSignup = () => nav("/signup");
+  // Staff → admin. Clients with a plan → dashboard. Clients without → pricing.
   const goDash = () => {
+    if (isStaff) { nav("/admin"); return; }
     if (user?.plan) nav("/dashboard");
     else scrollPricing();
   };
   // Logged-in + no plan → Stripe checkout from landing. Guest → signup with plan intent.
+  // Staff never buy plans from the marketing site.
   const goPlan = async (planId) => {
     setPlanErr("");
+    if (isStaff) { nav("/admin"); return; }
     if (user?.plan === planId) return;
     if (user?.plan) { nav("/dashboard"); return; }
     try { sessionStorage.setItem("ro_pending_plan", planId); } catch {}
@@ -48,6 +54,10 @@ export default function LandingPage({ user = null, focusPricing = false, billing
     if (r.url) window.location.href = r.url;
   };
   useEffect(() => {
+    if (isStaff) nav("/admin", { replace: true });
+  }, [isStaff, nav]);
+  useEffect(() => {
+    if (isStaff) return;
     if (focusPricing || billingFlag === "cancel") {
       const t = setTimeout(scrollPricing, 120);
       return () => clearTimeout(t);
@@ -58,7 +68,7 @@ export default function LandingPage({ user = null, focusPricing = false, billing
         return () => clearTimeout(t);
       }
     } catch {}
-  }, [focusPricing, billingFlag, user]);
+  }, [focusPricing, billingFlag, user, isStaff]);
   const displayName = (user?.name || user?.email || "Account").split(" ")[0];
   const avatarLetter = (user?.avatar || displayName?.[0] || "U").toString().slice(0, 1).toUpperCase();
   // Load which plans are live + any price overrides (set by super-admin control panel).
@@ -77,9 +87,12 @@ export default function LandingPage({ user = null, focusPricing = false, billing
     return v != null && v !== "" ? Number(v) : PLANS[id]?.price;
   };
 
+  // Don't flash marketing / plan CTAs while bouncing staff to /admin.
+  if (isStaff) return null;
+
   return (
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: FONT_B, color: T.ink, overflowX: "hidden" }}>
-      <LandingNav isMobile={isMobile} navSolid={navSolid} user={user} avatarLetter={avatarLetter} displayName={displayName} goDash={goDash} goLogin={goLogin} goSignup={goSignup} />
+      <LandingNav isMobile={isMobile} navSolid={navSolid} user={user} isStaff={isStaff} avatarLetter={avatarLetter} displayName={displayName} goDash={goDash} goLogin={goLogin} goSignup={goSignup} />
       <main>
         <LandingHero isMobile={isMobile} isTab={isTab} user={user} goDash={goDash} goSignup={goSignup} />
         <LandingMarquee isMobile={isMobile} />

@@ -38,13 +38,17 @@ function useStableData(data){
   return data||ref.current;
 }
 
-// /login and /signup — auth only. After success → client dashboard.
+// /login and /signup — auth only. Clients → dashboard; staff → /admin.
 function ClientAuth({mode="login",user,onLogin,passwordRecovery}){
   const nav=useNavigate();
   if(passwordRecovery)return <Navigate to="/reset-password" replace/>;
   if(user&&STAFF_ROLES.includes(user.role))return <Navigate to="/admin" replace/>;
   if(user)return <Navigate to="/dashboard" replace/>;
-  return <AuthScreen key={mode} portal="client" initialMode={mode} onLogin={async(u)=>{await onLogin(u);nav("/dashboard",{replace:true});}}/>;
+  return <AuthScreen key={mode} portal="client" initialMode={mode} onLogin={async(u)=>{
+    await onLogin(u);
+    if(STAFF_ROLES.includes(u?.role))nav("/admin",{replace:true});
+    else nav("/dashboard",{replace:true});
+  }}/>;
 }
 
 // /dashboard — clients with an active plan only. No plan → pricing on landing.
@@ -96,8 +100,22 @@ function StaffPortal({user,data,reload,onLogin,onLogout,passwordRecovery,onUserU
 function LandingRoute({user,passwordRecovery}){
   const[params]=useSearchParams();
   if(passwordRecovery)return <Navigate to="/reset-password" replace/>;
+  // Staff always go to admin — never marketing pricing / plan CTAs.
   if(user&&STAFF_ROLES.includes(user.role))return <Navigate to="/admin" replace/>;
   return <LandingPage user={user} focusPricing={params.get("focus")==="pricing"} billingFlag={params.get("billing")}/>;
+}
+
+/** After invite/login, bounce staff off client routes onto /admin. */
+function StaffGate({user,children}){
+  const nav=useNavigate();
+  useEffect(()=>{
+    if(!user||!STAFF_ROLES.includes(user.role))return;
+    const path=typeof window!=="undefined"?window.location.pathname:"";
+    if(path==="/"||path==="/login"||path==="/signup"||path==="/dashboard"){
+      nav("/admin",{replace:true});
+    }
+  },[user,nav]);
+  return children;
 }
 
 function ResetPasswordRoute({user,passwordRecovery,onClearRecovery,onLogout}){
@@ -257,7 +275,10 @@ export default function App(){
           if(!prof){
             const m=session.user.user_metadata||{};
             const name=m.full_name||m.name||session.user.email?.split("@")[0]||"there";
-            await supa.from("profiles").upsert({id:session.user.id,email:session.user.email,role:"client",name,avatar:(name[0]||"U").toUpperCase(),status:"active"},{onConflict:"id"});
+            // Staff invites carry role in metadata — never default those to client.
+            const metaRole=m.role;
+            const role=STAFF_ROLES.includes(metaRole)?metaRole:"client";
+            await supa.from("profiles").upsert({id:session.user.id,email:session.user.email,role,name,avatar:(name[0]||"U").toUpperCase(),status:"active"},{onConflict:"id"});
             const r=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
             prof=r.data;
           }
@@ -265,6 +286,13 @@ export default function App(){
             await applyUser(prof,{forceReload:false});
             // Email-confirm / OAuth land here — not only explicit onLogin.
             api.ensureClientLifecycleNotifs(prof);
+            // Invite/magic links often land on Site URL (/) — send staff to admin immediately.
+            if(STAFF_ROLES.includes(prof.role)&&typeof window!=="undefined"){
+              const path=window.location.pathname||"/";
+              if(path==="/"||path==="/login"||path==="/signup"||path==="/dashboard"){
+                window.history.replaceState(null,"","/admin");
+              }
+            }
           }
         }catch(e){
           console.error("auth hydrate failed:",e);
@@ -330,20 +358,22 @@ export default function App(){
   const shared={user:currentUser,data,reload,onLogin,onLogout,passwordRecovery,onUserUpdate};
   return(<><GlobalStyle/>
     <BrowserRouter>
-      <Suspense fallback={<Loading/>}>
-        <Routes>
-          <Route path="/" element={<LandingRoute user={currentUser} passwordRecovery={passwordRecovery}/>}/>
-          <Route path="/terms" element={<LegalPage mode="terms"/>}/>
-          <Route path="/privacy" element={<LegalPage mode="privacy"/>}/>
-          <Route path="/login" element={<ClientAuth mode="login" user={currentUser} onLogin={onLogin} passwordRecovery={passwordRecovery}/>}/>
-          <Route path="/signup" element={<ClientAuth mode="signup" user={currentUser} onLogin={onLogin} passwordRecovery={passwordRecovery}/>}/>
-          <Route path="/reset-password" element={<ResetPasswordRoute user={currentUser} passwordRecovery={passwordRecovery} onClearRecovery={clearRecovery} onLogout={onLogout}/>}/>
-          <Route path="/confirm-notify-email" element={<ConfirmNotifyEmail/>}/>
-          <Route path="/dashboard" element={<ClientDashboardRoute {...shared}/>}/>
-          <Route path="/admin" element={<StaffPortal {...shared}/>}/>
-          <Route path="*" element={<Navigate to="/" replace/>}/>
-        </Routes>
-      </Suspense>
+      <StaffGate user={currentUser}>
+        <Suspense fallback={<Loading/>}>
+          <Routes>
+            <Route path="/" element={<LandingRoute user={currentUser} passwordRecovery={passwordRecovery}/>}/>
+            <Route path="/terms" element={<LegalPage mode="terms"/>}/>
+            <Route path="/privacy" element={<LegalPage mode="privacy"/>}/>
+            <Route path="/login" element={<ClientAuth mode="login" user={currentUser} onLogin={onLogin} passwordRecovery={passwordRecovery}/>}/>
+            <Route path="/signup" element={<ClientAuth mode="signup" user={currentUser} onLogin={onLogin} passwordRecovery={passwordRecovery}/>}/>
+            <Route path="/reset-password" element={<ResetPasswordRoute user={currentUser} passwordRecovery={passwordRecovery} onClearRecovery={clearRecovery} onLogout={onLogout}/>}/>
+            <Route path="/confirm-notify-email" element={<ConfirmNotifyEmail/>}/>
+            <Route path="/dashboard" element={<ClientDashboardRoute {...shared}/>}/>
+            <Route path="/admin" element={<StaffPortal {...shared}/>}/>
+            <Route path="*" element={<Navigate to="/" replace/>}/>
+          </Routes>
+        </Suspense>
+      </StaffGate>
     </BrowserRouter>
     <Toaster position="top-right" richColors closeButton duration={3200}/>
   </>);

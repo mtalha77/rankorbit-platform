@@ -8,6 +8,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { notifySuperAdmins, sendNotifyEmails } from "../server/assign.js";
+import { isBdmRole, staffRoleLabel } from "../server/roles.js";
 
 const cleanUrl = (s) => (s ? String(s).replace(/[^\x21-\x7E]/g, "").trim() : s);
 const cleanKey = (s) => (s ? String(s).replace(/[^A-Za-z0-9._\-]/g, "") : s);
@@ -59,8 +60,8 @@ export default async function handler(req, res) {
   }
 
   if (!name || !email || !role) return res.status(400).json({ error: "Missing name, email, or role" });
-  if (!["super_admin", "manager", "agent"].includes(role)) return res.status(400).json({ error: "Invalid role" });
-  if (callerRole === "manager" && role !== "agent") return res.status(403).json({ error: "Managers can only invite agents" });
+  if (!["super_admin", "manager", "bdm", "agent"].includes(role)) return res.status(400).json({ error: "Invalid role" });
+  if (callerRole === "manager" && !isBdmRole(role)) return res.status(403).json({ error: "Managers can only invite BDMs" });
 
   const emailNorm = String(email).trim().toLowerCase();
 
@@ -123,7 +124,7 @@ export default async function handler(req, res) {
     });
   }
 
-  const roleLabel = role === "super_admin" ? "Super Admin" : role === "manager" ? "Manager" : "Agent";
+  const roleLabel = staffRoleLabel(role);
   const { data: callerProfile } = await admin.from("profiles").select("name,email").eq("id", callerId).maybeSingle();
   const byWhom = callerProfile?.name || callerProfile?.email || "Staff";
   try {

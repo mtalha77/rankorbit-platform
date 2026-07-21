@@ -12,13 +12,13 @@ export default async function handler(req, res) {
 
   const { token } = await readJson(req);
   const auth = await requireStaff(admin, token, {
-    roles: ["super_admin", "manager", "agent"],
+    roles: ["super_admin", "manager", "bdm", "agent"],
   });
   if (auth.error) return res.status(auth.status).json({ error: auth.error });
 
   try {
     let clientIds = null;
-    if (auth.profile.role === "agent") {
+    if (auth.profile.role === "bdm" || auth.profile.role === "agent") {
       const { data: clients, error } = await admin
         .from("profiles")
         .select("id")

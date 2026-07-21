@@ -81,7 +81,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "A Zoom / meeting link is required (https://…)" });
   }
 
-  const auth = await requireStaff(admin, token, { roles: ["agent", "manager", "super_admin"] });
+  const auth = await requireStaff(admin, token, { roles: ["bdm", "agent", "manager", "super_admin"] });
   if (auth.error) return res.status(auth.status).json({ error: auth.error });
 
   try {
@@ -93,8 +93,8 @@ export default async function handler(req, res) {
     if (bErr) return res.status(500).json({ error: bErr.message });
     if (!booking) return res.status(404).json({ error: "Booking not found" });
 
-    if (auth.profile.role === "agent" && booking.agentId !== auth.profile.id) {
-      return res.status(403).json({ error: "This booking is assigned to another agent" });
+    if ((auth.profile.role === "bdm" || auth.profile.role === "agent") && booking.agentId !== auth.profile.id) {
+      return res.status(403).json({ error: "This booking is assigned to another BDM" });
     }
 
     const when = `${booking.slotDate} at ${booking.slotTime}`;

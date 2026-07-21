@@ -4,9 +4,9 @@ export const SEED = {
   users:[
     {id:"u1",email:"admin@rankorbit.com",password:"admin123",role:"super_admin",name:"Talha (Admin)",avatar:"T",protected:true},
     {id:"u2",email:"manager@rankorbit.com",password:"manager123",role:"manager",name:"Sara (Manager)",avatar:"S",protected:true},
-    {id:"u3",email:"agent@rankorbit.com",password:"agent123",role:"agent",name:"Ali (Agent)",avatar:"A",protected:true},
-    {id:"u4",email:"mike@example.com",password:"client123",role:"client",name:"Mike Johnson",avatar:"M",businessName:"Mike's Plumbing",plan:"growth",phone:"(555) 200-1000",address:"123 Main St",city:"Austin",state:"TX",zip:"78701",website:"mikesplumbing.com",category:"Home Services",status:"active",napScore:94,protected:true},
-    {id:"u5",email:"sarah@dentalcare.com",password:"client123",role:"client",name:"Sarah Miller",avatar:"S",businessName:"Sarah's Dental Care",plan:"gmb",phone:"(555) 300-2000",address:"456 Oak Ave",city:"Houston",state:"TX",zip:"77001",website:"sarahsdental.com",category:"Medical / Health",status:"active",napScore:88,protected:true},
+    {id:"u3",email:"bdm@rankorbit.com",password:"bdm123",role:"bdm",name:"Ali (BDM)",avatar:"A",protected:true},
+    {id:"u4",email:"mike@example.com",password:"client123",role:"client",name:"Mike Johnson",avatar:"M",businessName:"Mike's Plumbing",plan:"growth",phone:"(555) 200-1000",address:"123 Main St",city:"Austin",state:"TX",zip:"78701",website:"mikesplumbing.com",category:"Home Services",status:"active",napScore:94,assignedAgentId:"u3",protected:true},
+    {id:"u5",email:"sarah@dentalcare.com",password:"client123",role:"client",name:"Sarah Miller",avatar:"S",businessName:"Sarah's Dental Care",plan:"gmb",phone:"(555) 300-2000",address:"456 Oak Ave",city:"Houston",state:"TX",zip:"77001",website:"sarahsdental.com",category:"Medical / Health",status:"active",napScore:88,assignedAgentId:"u3",protected:true},
     {id:"u6",email:"john@autoshop.com",password:"client123",role:"client",name:"John Davis",avatar:"J",businessName:"Davis Auto Repair",plan:"essentials",phone:"(555) 400-3000",address:"789 Elm Rd",city:"Dallas",state:"TX",zip:"75201",website:"davisauto.com",category:"Auto Services",status:"active",napScore:72,protected:true},
   ],
   listings:[
@@ -37,12 +37,12 @@ export const SEED = {
     photos:3,completeness:{category:true,description:true,hours:true,photo:true,services:false,attributes:false}}},
   analytics:{},
   activity:[
-    {id:"a1",clientId:"u4",type:"listing_live",desc:"Yellow Pages listing went live",date:"Jul 4, 2025",by:"Ali (Agent)"},
-    {id:"a2",clientId:"u4",type:"nap_fix",desc:"Phone corrected on MerchantCircle",date:"Jun 24, 2025",by:"Ali (Agent)"},
+    {id:"a1",clientId:"u4",type:"listing_live",desc:"Yellow Pages listing went live",date:"Jul 4, 2025",by:"Ali (BDM)"},
+    {id:"a2",clientId:"u4",type:"nap_fix",desc:"Phone corrected on MerchantCircle",date:"Jun 24, 2025",by:"Ali (BDM)"},
     {id:"a3",clientId:"u4",type:"edit_blocked",desc:"Unauthorized edit blocked on Yelp, hours change reverted",date:"Jun 22, 2025",by:"System"},
-    {id:"a4",clientId:"u5",type:"listing_live",desc:"Healthgrades listing went live",date:"Jun 18, 2025",by:"Ali (Agent)"},
+    {id:"a4",clientId:"u5",type:"listing_live",desc:"Healthgrades listing went live",date:"Jun 18, 2025",by:"Ali (BDM)"},
     {id:"a5",clientId:"u6",type:"flagged",desc:"Yelp listing flagged, unauthorized edit detected",date:"Jun 20, 2025",by:"System"},
-    {id:"a6",clientId:"u6",type:"rejected",desc:"Manta listing rejected, duplicate found",date:"May 10, 2025",by:"Ali (Agent)"},
+    {id:"a6",clientId:"u6",type:"rejected",desc:"Manta listing rejected, duplicate found",date:"May 10, 2025",by:"Ali (BDM)"},
   ],
   settings:{stripe:{pubKey:""}},
 };

@@ -25,3 +25,4 @@ export { Finance } from "./pages/Finance";
 export { AuditTrail } from "./pages/AuditTrail";
 export { Trash } from "./pages/Trash";
 export { Settings } from "./pages/Settings";
+export { ScheduledMeetings } from "./pages/ScheduledMeetings";

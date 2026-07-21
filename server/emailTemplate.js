@@ -132,7 +132,7 @@ export function buildNotifyEmail({ subject, body, ctaUrl = null, ctaLabel = "Ope
   return { html, text };
 }
 
-const STAFF_ROLES = new Set(["super_admin", "manager", "agent"]);
+const STAFF_ROLES = new Set(["super_admin", "manager", "bdm", "agent"]);
 
 export function isStaffInviteRole(role) {
   return STAFF_ROLES.has(String(role || "").toLowerCase());

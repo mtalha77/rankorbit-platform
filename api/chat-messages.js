@@ -16,7 +16,7 @@ export default async function handler(req, res) {
   const limit = Math.min(Math.max(Number(lim) || 80, 1), 200);
 
   const staff = await requireStaff(admin, token, {
-    roles: ["super_admin", "manager", "agent"],
+    roles: ["super_admin", "manager", "bdm", "agent"],
   });
   let profile = null;
   let isStaff = false;
@@ -37,7 +37,7 @@ export default async function handler(req, res) {
     if (!client || client.role !== "client") {
       return res.status(404).json({ error: "Client not found" });
     }
-    if (profile.role === "agent" && client.assignedAgentId !== profile.id) {
+    if ((profile.role === "bdm" || profile.role === "agent") && client.assignedAgentId !== profile.id) {
       return res.status(403).json({ error: "This client is not assigned to you" });
     }
   } else {

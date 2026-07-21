@@ -575,7 +575,7 @@ export async function assertCanManageGbp(admin, staff, clientId) {
   if (staff.role === "super_admin" || staff.role === "manager") {
     return { client };
   }
-  if (staff.role === "agent") {
+  if (staff.role === "bdm" || staff.role === "agent") {
     if (client.assignedAgentId !== staff.id) {
       return { error: "Client not assigned to you", status: 403 };
     }

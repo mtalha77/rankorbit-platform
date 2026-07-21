@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { T, FONT_D, FONT_B } from "../../../lib/theme";
 import { api } from "../../../lib/api";
-import { actIcon } from "../../../lib/helpers";
+import { actIcon, isBdmRole, staffRoleLabel } from "../../../lib/helpers";
 import { Badge, Card, Btn, Empty, PageHead, SectionTitle, StatCard } from "../../atoms";
 import { UserAvatar } from "../../AccountSettings";
 import { useAdmin } from "../AdminContext";
@@ -38,8 +38,8 @@ export function Team() {
     teamView, setTeamView, setModal, setConfirm, R, audit, toast, setPage, setSelClient,
   } = useAdmin();
 
-    // Managers see agents + themselves (not super-admins), and cannot manage grants/removal.
-    const visibleStaff=isAdmin?staff:staff.filter(m=>m.role==="agent"||m.id===user.id);
+    // Managers see BDMs + themselves (not super-admins), and cannot manage grants/removal.
+    const visibleStaff=isAdmin?staff:staff.filter(m=>isBdmRole(m.role)||m.id===user.id);
     if(teamView){
       const m=staff.find(x=>x.id===teamView);
       if(!m){setTeamView(null);return null;}
@@ -50,15 +50,15 @@ export function Team() {
         <button onClick={()=>setTeamView(null)} style={{background:"none",border:"none",color:T.brand,fontWeight:700,fontSize:13,cursor:"pointer",marginBottom:14,fontFamily:FONT_B}}>← Back to Team</button>
         <div style={{display:"flex",gap:14,alignItems:"center",marginBottom:20,flexWrap:"wrap"}}>
           <UserAvatar user={m} size={52}/>
-          <div><div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800}}>{m.name}</div><div style={{fontSize:13,color:T.sub}}>{m.email} · {m.role==="manager"?"Manager":m.role==="super_admin"?"Super Admin":"Agent"}</div></div>
+          <div><div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800}}>{m.name}</div><div style={{fontSize:13,color:T.sub}}>{m.email} · {staffRoleLabel(m.role)}</div></div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(3,1fr)",gap:14,marginBottom:20}}>
           <StatCard label="Actions logged" value={memberActs.length} icon="⚡" color={T.brand} soft={T.brandSoft}/>
-          {m.role==="agent"&&<StatCard label="Clients assigned" value={assigned.length} icon="👥" color={T.blue} soft={T.blueSoft}/>}
+          {isBdmRole(m.role)&&<StatCard label="Clients assigned" value={assigned.length} icon="👥" color={T.blue} soft={T.blueSoft}/>}
           <StatCard label="Last active" value={memberActs[0]?.date?memberActs[0].date.split(" at ")[0]:"–"} icon="🕐" color={T.violet} soft={T.violetSoft}/>
         </div>
-        {m.role==="agent"&&<Card style={{marginBottom:16}}>
-          <SectionTitle sub="Clients this agent can work on">Assigned clients</SectionTitle>
+        {isBdmRole(m.role)&&<Card style={{marginBottom:16}}>
+          <SectionTitle sub="Clients this BDM can work on">Assigned clients</SectionTitle>
           {assigned.length===0?<div style={{fontSize:12.5,color:T.faint}}>No clients assigned yet.</div>:
             <div style={{display:"flex",flexWrap:"wrap",gap:8}}>{assigned.map(c=><span key={c.id} style={{fontSize:12,fontWeight:700,background:T.surface2,padding:"5px 11px",borderRadius:20}}>{c.businessName||c.name}</span>)}</div>}
           {isStaffMgr&&<Btn variant="ghost" size="sm" style={{marginTop:12}} onClick={()=>setModal({type:"assign",agent:m})}>Manage assignments</Btn>}
@@ -82,13 +82,13 @@ export function Team() {
             <div>
               <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                 <span style={{fontSize:14,fontWeight:800}}>{m.name}</span>
-                <Badge type={m.role==="super_admin"?"live":m.role==="manager"?"pending":"submitted"} label={m.role==="super_admin"?"Super Admin":m.role==="manager"?"Manager":"Agent"}/>
+                <Badge type={m.role==="super_admin"?"live":m.role==="manager"?"pending":"submitted"} label={staffRoleLabel(m.role)}/>
               </div>
               <div style={{fontSize:12,color:T.sub}}>{m.email}</div>
             </div>
           </div>
           <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-            {m.role==="agent"&&<span style={{fontSize:11,color:T.sub,fontWeight:700,background:T.blueSoft,padding:"3px 9px",borderRadius:20}}>{allClients.filter(c=>c.assignedAgentId===m.id).length} clients</span>}
+            {isBdmRole(m.role)&&<span style={{fontSize:11,color:T.sub,fontWeight:700,background:T.blueSoft,padding:"3px 9px",borderRadius:20}}>{allClients.filter(c=>c.assignedAgentId===m.id).length} clients</span>}
             <Btn variant="soft" size="sm" onClick={()=>setModal({type:"permissions",member:m})}>Permissions</Btn>
             {isAdmin&&m.id!==user.id&&<Btn variant="danger" size="sm" onClick={()=>setConfirm({title:"Remove team member?",msg:`Permanently remove ${m.name}? Their login and team messages will be deleted.`,danger:true,yes:"Remove",onYes:()=>R(async()=>{const r=await api.deleteStaff(m.id);if(r?.error)throw new Error(r.error);},`${m.name} removed`)})}>Remove</Btn>}
           </div>
@@ -97,7 +97,7 @@ export function Team() {
       </Card>))}
       <Card style={{background:T.surface2,boxShadow:"none",border:`1px dashed ${T.line}`}}>
         <div style={{fontSize:11,fontWeight:800,color:T.faint,marginBottom:10,letterSpacing:".6px"}}>ROLE PERMISSIONS</div>
-        {[["Super Admin",T.brand,"Full access, clients, listings, GMB, team, finance, settings, and read-only account view"],["Manager",T.amber,"Clients, listings, GMB, assign clients to agents, view team logs. Account view only if granted."],["Agent",T.blue,"Update listings only for clients a manager has assigned to them."]].map(([r,c,p])=>(
+        {[["Super Admin",T.brand,"Full access, clients, listings, GMB, team, finance, settings, and read-only account view"],["Manager",T.amber,"Clients, listings, GMB, assign clients to BDMs, view team logs. Account view only if granted."],["BDM",T.blue,"Update listings only for clients a super admin or manager has assigned to them."]].map(([r,c,p])=>(
           <div key={r} style={{display:"flex",gap:9,marginBottom:8,alignItems:"flex-start"}}><span style={{width:8,height:8,borderRadius:3,background:c,marginTop:5,flexShrink:0}}/><div style={{fontSize:12.5}}><b style={{color:c}}>{r}:</b> <span style={{color:T.sub}}>{p}</span></div></div>))}
       </Card>
     </div>);

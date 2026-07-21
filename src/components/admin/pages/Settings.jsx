@@ -7,7 +7,6 @@ import { useAdmin } from "../AdminContext";
 
 export function Settings() {
   const { isMobile, settings, R, toast, reload, audit } = useAdmin();
-
     const s={pubKey:"",...(settings?.stripe||{})};
     const[f,setF]=useState({pubKey:s.pubKey||""});
     const set=(k,v)=>setF(x=>({...x,[k]:v}));
@@ -97,7 +96,7 @@ export function Settings() {
           <Toggle label="Email on new signup" k="notifySignup"/>
           <Toggle label="Email on cancellation" k="notifyCancel"/>
           <Toggle label="Email on plan change" k="notifyPlanChange"/>
-          <Toggle label="Alert managers when an agent edits/deletes a listing" k="notifyAgentEdit"/>
+          <Toggle label="Alert managers when a BDM edits/deletes a listing" k="notifyAgentEdit"/>
           <Toggle label="Send monthly finance report" k="monthlyReport" sub="Signups, revenue, cancellations to report recipients"/>
           <Toggle label="Allow public client signups" k="allowSignups" sub="Turn off to hide signup CTAs. Never use Supabase Dashboard → Invite for clients — that sends the unwanted invite email. Clients must sign up themselves; staff invites go from Team → Invite only."/>
         </div>
@@ -113,7 +112,7 @@ export function Settings() {
           {k:"routeOnboard",label:"New client onboarding",desc:"When a client completes their profile / picks a plan"},
           {k:"routeCancel",label:"Cancellation",desc:"When a client cancels their subscription"},
           {k:"routeBdm",label:"BDM / call bookings",desc:"When a client books a call"},
-          {k:"routeAgentEdit",label:"Agent edit alerts",desc:"When an agent edits or deletes a listing"},
+          {k:"routeAgentEdit",label:"BDM edit alerts",desc:"When a BDM edits or deletes a listing"},
           {k:"routeSystem",label:"System alerts",desc:"Errors, payment failures, and other platform alerts"},
           {k:"routeReport",label:"Monthly finance report",desc:"Signups, revenue, churn summary"},
         ].map((n,idx,arr)=>(

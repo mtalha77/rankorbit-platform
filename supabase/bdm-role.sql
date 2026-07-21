@@ -1,11 +1,15 @@
--- Plan switch (pending) + payment-failed 5-day grace. Safe to re-run.
+-- BDM role: separate staff role (replaces product name "Agent").
+-- Safe to re-run. Existing role='agent' rows keep working until migrated.
+-- Run in Supabase SQL Editor after deploy.
 
-alter table profiles add column if not exists "pendingPlanId" text;
-alter table profiles add column if not exists "pendingPlanEffectiveAt" timestamptz;
-alter table profiles add column if not exists "paymentFailedAt" timestamptz;
-alter table profiles add column if not exists "paymentGraceEndsAt" timestamptz;
+create or replace function is_staff() returns boolean as $$
+  select exists(
+    select 1 from profiles
+    where id = auth.uid()
+      and role in ('super_admin', 'manager', 'bdm', 'agent')
+  );
+$$ language sql security definer stable;
 
--- Keep client freeze in sync (same function as profile-security / stripe-billing).
 create or replace function protect_profile_billing() returns trigger as $$
 begin
   if auth.uid() is null then
@@ -58,3 +62,11 @@ begin
   return new;
 end;
 $$ language plpgsql security definer;
+
+drop trigger if exists trg_protect_profile_billing on profiles;
+create trigger trg_protect_profile_billing
+  before update on profiles
+  for each row execute function protect_profile_billing();
+
+-- Optional: rename legacy agent → bdm (keeps assigned clients / perms)
+update profiles set role = 'bdm' where role = 'agent';

@@ -72,22 +72,22 @@ export function NotificationsPage({user,isAdmin,isMobile,toast,setNotifBadge,set
   const typeIcon=(t)=>({
     staff_created:"🔑",client_assigned:"👤",client_unassigned:"👤",call_booked:"📅",
     bdm_message:"💬",chat_message:"💬",staff_message:"💬",meeting_confirmed:"✅",meeting_cancelled:"❌",
-    payment_failed:"⚠️",
+    payment_failed:"⚠️",plan_subscribed:"💳",needs_bdm:"👤",
   }[t]||"🔔");
   const typeLabel=(t)=>({
     staff_created:"Staff",client_assigned:"Assignment",client_unassigned:"Assignment",call_booked:"Meeting",
     bdm_message:"Message",chat_message:"Chat",staff_message:"Team chat",meeting_confirmed:"Meeting",meeting_cancelled:"Meeting",
-    payment_failed:"Billing",
+    payment_failed:"Billing",plan_subscribed:"Plan",needs_bdm:"Assign BDM",
   }[t]||"Update");
   const canRespond=(n)=>!isAdmin&&n.type==="call_booked"&&n.meta?.bookingId&&(!n.meta?.status||n.meta.status==="pending")&&!n.meta?.reportOnly&&!isBookingPast(n.meta?.slotDate,n.meta?.slotTime);
   const emptySub=isAdmin
-    ?"Team chat and client payment-failed alerts show here."
+    ?"Team chat, plan purchases (assign BDM), and payment-failed alerts show here."
     :"When a client is assigned to you or schedules a meeting, it appears here.";
   const filtered=useMemo(()=>notifs.filter(n=>notifMatchesDateRange(n,from,to)),[notifs,from,to]);
   const hasFilter=!!(from||to);
   return(<div>
     <PageHead isMobile={isMobile} title="Notifications"
-      sub={isAdmin?"Team chat + client payment-failed alerts":"Client assignments, meeting requests, and messages"}
+      sub={isAdmin?"Team chat, plan purchases, and payment-failed alerts":"Client assignments, meeting requests, and messages"}
       right={
         <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",justifyContent:"flex-end",marginTop:isMobile?28:34}}>
           <NotifDateFilters
@@ -179,9 +179,11 @@ export function NotificationsPage({user,isAdmin,isMobile,toast,setNotifBadge,set
                   )}
                 </div>
               )}
-              {openId===n.id&&(n.type==="client_assigned"||n.type==="client_unassigned"||n.type==="call_booked"||n.type==="bdm_message"||n.type==="chat_message"||n.type==="meeting_confirmed"||n.type==="meeting_cancelled"||n.type==="payment_failed")&&n.clientId&&(
+              {openId===n.id&&(n.type==="client_assigned"||n.type==="client_unassigned"||n.type==="call_booked"||n.type==="bdm_message"||n.type==="chat_message"||n.type==="meeting_confirmed"||n.type==="meeting_cancelled"||n.type==="payment_failed"||n.type==="plan_subscribed"||n.type==="needs_bdm")&&n.clientId&&(
                 <div style={{padding:"0 6px 14px 54px",display:"flex",gap:8,flexWrap:"wrap"}}>
-                  <Btn variant="soft" size="sm" onClick={()=>{setSelClient(n.clientId);setPage("clientDetail");}}>Open client →</Btn>
+                  <Btn variant="soft" size="sm" onClick={()=>{setSelClient(n.clientId);setPage("clientDetail");}}>
+                    {n.type==="needs_bdm"?"Assign BDM →":"Open client →"}
+                  </Btn>
                   {(n.type==="chat_message"||n.type==="bdm_message")&&(
                     <Btn size="sm" onClick={()=>{setSelClient(n.clientId);setPage("messages");}}>Open chat →</Btn>
                   )}

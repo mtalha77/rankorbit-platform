@@ -6,7 +6,7 @@ const cleanUrl = (s) => (s ? String(s).replace(/[^\x21-\x7E]/g, "").trim() : s);
 const cleanKey = (s) => (s ? String(s).replace(/[^A-Za-z0-9._\-]/g, "") : s);
 const URL = cleanUrl(process.env.VITE_SUPABASE_URL);
 const SERVICE_KEY = cleanKey(process.env.SUPABASE_SERVICE_ROLE_KEY);
-const STAFF = new Set(["super_admin", "manager", "agent"]);
+const STAFF = new Set(["super_admin", "manager", "bdm", "agent"]);
 
 function readJson(req) {
   return new Promise((resolve) => {

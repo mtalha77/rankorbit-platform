@@ -1,10 +1,10 @@
 /**
  * Resolve the DB thread key for staff DMs.
- * Every staff role (super_admin, manager, agent) DMs peers the same way:
+ * Every staff role (super_admin, manager, bdm) DMs peers the same way:
  * staffId = min(a,b), peerId = max(a,b) — one shared thread both sides.
  */
 
-export const STAFF_ROLES = ["super_admin", "manager", "agent"];
+export const STAFF_ROLES = ["super_admin", "manager", "bdm", "agent"];
 
 export function staffPairKey(a, b) {
   return a < b ? { staffId: a, peerId: b } : { staffId: b, peerId: a };

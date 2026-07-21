@@ -34,7 +34,7 @@ export default async function handler(req, res) {
   if (text.length > 4000) return res.status(400).json({ error: "Message is too long" });
 
   const staff = await requireStaff(admin, token, {
-    roles: ["super_admin", "manager", "agent"],
+    roles: ["super_admin", "manager", "bdm", "agent"],
   });
 
   let sender = null;
@@ -55,7 +55,7 @@ export default async function handler(req, res) {
     if (!clientRow || clientRow.role !== "client") {
       return res.status(404).json({ error: "Client not found" });
     }
-    if (sender.role === "agent" && clientRow.assignedAgentId !== sender.id) {
+    if ((sender.role === "bdm" || sender.role === "agent") && clientRow.assignedAgentId !== sender.id) {
       return res.status(403).json({ error: "This client is not assigned to you" });
     }
   } else {

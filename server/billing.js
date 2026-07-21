@@ -139,7 +139,7 @@ export function decodeJwt(token) {
   }
 }
 
-/** Verify staff JWT (super_admin | manager | agent) and load profile. */
+/** Verify staff JWT (super_admin | manager | bdm | agent) and load profile. */
 export async function requireStaff(admin, token, { roles } = {}) {
   if (!token) return { error: "Not authenticated", status: 401 };
   const payload = decodeJwt(token);
@@ -152,7 +152,7 @@ export async function requireStaff(admin, token, { roles } = {}) {
   if (error) return { error: "Profile lookup failed: " + error.message, status: 500 };
   if (!profile) return { error: "No profile found", status: 401 };
   if (profile.status === "suspended") return { error: "Account suspended", status: 403 };
-  const allowed = roles?.length ? roles : ["super_admin", "manager", "agent"];
+  const allowed = roles?.length ? roles : ["super_admin", "manager", "bdm", "agent"];
   if (!allowed.includes(profile.role)) {
     return { error: "Staff access required", status: 403 };
   }
@@ -172,7 +172,7 @@ export async function requireClient(admin, token) {
   if (error) return { error: "Profile lookup failed: " + error.message, status: 500 };
   if (!profile) return { error: "No profile found", status: 401 };
   if (profile.status === "suspended") return { error: "Account suspended", status: 403 };
-  if (["super_admin", "manager", "agent"].includes(profile.role)) {
+  if (["super_admin", "manager", "bdm", "agent"].includes(profile.role)) {
     return { error: "Staff accounts cannot purchase plans here", status: 403 };
   }
   return { profile };

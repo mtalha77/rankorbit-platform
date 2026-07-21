@@ -128,9 +128,9 @@ alter table settings enable row level security;
 alter table stripe_events enable row level security;
 alter table invoices enable row level security;
 
--- helper: is the current user staff (admin/manager/agent)?
+-- helper: is the current user staff (admin/manager/bdm)?
 create or replace function is_staff() returns boolean as $$
-  select exists(select 1 from profiles where id=auth.uid() and role in ('super_admin','manager','agent'));
+  select exists(select 1 from profiles where id=auth.uid() and role in ('super_admin','manager','bdm','agent'));
 $$ language sql security definer stable;
 
 -- profiles: everyone reads their own; staff read/write all; users update own row
@@ -159,7 +159,7 @@ create or replace function protect_profile_billing() returns trigger as $$
 begin
   if auth.uid() is null then return new; end if;
   if coalesce(auth.jwt() ->> 'role', '') = 'service_role' then return new; end if;
-  if exists (select 1 from profiles p where p.id=auth.uid() and p.role in ('super_admin','manager','agent')) then
+  if exists (select 1 from profiles p where p.id=auth.uid() and p.role in ('super_admin','manager','bdm','agent')) then
     return new;
   end if;
   -- billing + plan
