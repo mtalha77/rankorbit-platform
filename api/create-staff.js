@@ -1,17 +1,13 @@
-// Vercel serverless function: invite a staff (manager/agent) login account.
-// Uses Supabase inviteUserByEmail (service-role) so ONLY staff get the Auth
-// "invite" email. Clients must sign up themselves (signUp → confirm email only).
+// Vercel serverless: invite a staff (manager/agent) login account.
+// Creates Auth user via generateLink (no Supabase Auth mailer) and sends
+// the invite email ourselves through Resend — avoids Auth "email rate limit".
+// Clients never use this path (they sign up + confirm).
 //
-// Env vars required (Vercel → Settings → Environment Variables):
-//   VITE_SUPABASE_URL
-//   SUPABASE_SERVICE_ROLE_KEY
-//   APP_URL (optional — invite redirect)
-//
-// SECURITY: caller must be authenticated super_admin or manager.
-// Managers may only invite agents; super_admins may invite any staff role.
+// Env: VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, RESEND_API_KEY,
+//      NOTIFY_FROM_EMAIL, APP_URL (optional)
 
 import { createClient } from "@supabase/supabase-js";
-import { notifySuperAdmins } from "../server/assign.js";
+import { notifySuperAdmins, sendNotifyEmails } from "../server/assign.js";
 
 const cleanUrl = (s) => (s ? String(s).replace(/[^\x21-\x7E]/g, "").trim() : s);
 const cleanKey = (s) => (s ? String(s).replace(/[^A-Za-z0-9._\-]/g, "") : s);
@@ -66,20 +62,35 @@ export default async function handler(req, res) {
   if (!["super_admin", "manager", "agent"].includes(role)) return res.status(400).json({ error: "Invalid role" });
   if (callerRole === "manager" && role !== "agent") return res.status(403).json({ error: "Managers can only invite agents" });
 
-  // Invite email only for staff — role is stored in user_metadata so the
-  // auth-send-email-hook can allow this invite and block client invites.
-  const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: { name, role },
-    redirectTo: `${appBase()}/admin`,
-  });
-  if (inviteErr) return res.status(400).json({ error: inviteErr.message });
+  const emailNorm = String(email).trim().toLowerCase();
 
-  const newId = invited.user?.id;
+  // generateLink creates/updates the Auth user and returns action_link — does NOT send email.
+  const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
+    type: "invite",
+    email: emailNorm,
+    options: {
+      data: { name, role },
+      redirectTo: `${appBase()}/admin`,
+    },
+  });
+  if (linkErr) {
+    const msg = linkErr.message || "Could not create invite";
+    if (/rate limit|email rate/i.test(msg)) {
+      return res.status(429).json({
+        error: "Invite temporarily limited. Wait a minute and try again, or use a different email.",
+      });
+    }
+    return res.status(400).json({ error: msg });
+  }
+
+  const newId = linkData?.user?.id;
+  const actionLink = linkData?.properties?.action_link;
   if (!newId) return res.status(400).json({ error: "Invite created but no user id returned" });
+  if (!actionLink) return res.status(500).json({ error: "Invite link missing from Auth response" });
 
   const { error: profErr } = await admin.from("profiles").upsert({
     id: newId,
-    email,
+    email: emailNorm,
     name,
     role,
     avatar: (name[0] || "?").toUpperCase(),
@@ -88,7 +99,29 @@ export default async function handler(req, res) {
     staffPassword: null,
     createdByRole: callerRole === "super_admin" ? "Super Admin" : "Manager",
   }, { onConflict: "id" });
-  if (profErr) return res.status(400).json({ error: "Invite sent but profile failed: " + profErr.message });
+  if (profErr) return res.status(400).json({ error: "User created but profile failed: " + profErr.message });
+
+  const emailResult = await sendNotifyEmails(
+    [emailNorm],
+    "You're invited to NAP Orbit (staff)",
+    "You've been invited to join the NAP Orbit staff team. Click below to accept and set your password.",
+    { ctaUrl: actionLink, ctaLabel: "Accept invitation" }
+  );
+  if (!emailResult.sent) {
+    const reason = emailResult.reason || "email_failed";
+    if (reason === "no_resend_key") {
+      return res.status(500).json({
+        error: "Staff account created, but RESEND_API_KEY is missing — invite email was not sent.",
+        id: newId,
+        invited: false,
+      });
+    }
+    return res.status(502).json({
+      error: `Staff account created, but invite email failed: ${reason}`,
+      id: newId,
+      invited: false,
+    });
+  }
 
   const roleLabel = role === "super_admin" ? "Super Admin" : role === "manager" ? "Manager" : "Agent";
   const { data: callerProfile } = await admin.from("profiles").select("name,email").eq("id", callerId).maybeSingle();
@@ -97,13 +130,13 @@ export default async function handler(req, res) {
     await notifySuperAdmins(admin, {
       type: "staff_created",
       title: `New ${roleLabel.toLowerCase()} invited`,
-      body: `${name} (${email}) was invited as ${roleLabel} by ${byWhom}.`,
-      meta: { staffId: newId, role, email, name, createdBy: callerId },
+      body: `${name} (${emailNorm}) was invited as ${roleLabel} by ${byWhom}.`,
+      meta: { staffId: newId, role, email: emailNorm, name, createdBy: callerId },
       excludeUserId: null,
     });
   } catch (e) {
     console.warn("create-staff notify:", e.message);
   }
 
-  return res.status(200).json({ ok: true, id: newId, email, role, invited: true });
+  return res.status(200).json({ ok: true, id: newId, email: emailNorm, role, invited: true });
 }

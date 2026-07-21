@@ -58,7 +58,7 @@ export function TeamModal({ onClose }) {
       <Input label="Email" value={f.email} onChange={(v) => set("email", v)} placeholder="name@naporbit.com" validate="email" required error={errs.email} />
       <Select label="Role" value={f.role} onChange={(v) => set("role", v)} options={roleOpts} />
       <div style={{ padding: "11px 14px", background: T.amberSoft, borderRadius: 11, fontSize: 11.5, color: T.amber, fontWeight: 600, lineHeight: 1.5, marginBottom: 16 }}>
-        Only staff invites use the Supabase invite email. Client onboarding uses signup + confirm only.
+        Staff invites send via Resend (accept link + set password). Clients never get this — they use signup + confirm only.
       </div>
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
         <Btn variant="ghost" onClick={onClose}>
