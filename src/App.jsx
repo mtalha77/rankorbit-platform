@@ -37,13 +37,13 @@ function useStableData(data){
   return data||ref.current;
 }
 
-// /login and /signup — auth only. After success → landing (/). Never the dashboard.
+// /login and /signup — auth only. After success → client dashboard.
 function ClientAuth({mode="login",user,onLogin,passwordRecovery}){
   const nav=useNavigate();
   if(passwordRecovery)return <Navigate to="/reset-password" replace/>;
   if(user&&STAFF_ROLES.includes(user.role))return <Navigate to="/admin" replace/>;
-  if(user)return <Navigate to="/" replace/>;
-  return <AuthScreen key={mode} portal="client" initialMode={mode} onLogin={async(u)=>{await onLogin(u);nav("/",{replace:true});}}/>;
+  if(user)return <Navigate to="/dashboard" replace/>;
+  return <AuthScreen key={mode} portal="client" initialMode={mode} onLogin={async(u)=>{await onLogin(u);nav("/dashboard",{replace:true});}}/>;
 }
 
 // /dashboard — clients with an active plan only. No plan → pricing on landing.
