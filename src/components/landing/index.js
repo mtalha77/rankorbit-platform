@@ -1,8 +1,3 @@
-export { BrandMark } from "./BrandMark";
-export { NumbersOrbitGraphic } from "./NumbersOrbitGraphic";
-export { GrowthOrbitGraphic } from "./GrowthOrbitGraphic";
-export { PublisherNetworkSVG } from "./PublisherNetworkSVG";
-export { Eyebrow, Ico, StatNumberCard } from "./landingShared";
 export { LandingNav } from "./LandingNav";
 export { LandingHero } from "./LandingHero";
 export { LandingMarquee } from "./LandingMarquee";
@@ -11,7 +6,6 @@ export { LandingAiDiscovery } from "./LandingAiDiscovery";
 export { LandingBento } from "./LandingBento";
 export { LandingHowItWorks } from "./LandingHowItWorks";
 export { LandingDashboardTour } from "./LandingDashboardTour";
-export { LandingPublisherBlock } from "./LandingPublisherBlock";
 export { LandingStories } from "./LandingStories";
 export { LandingPricing } from "./LandingPricing";
 export { LandingFinalCta } from "./LandingFinalCta";

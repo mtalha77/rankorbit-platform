@@ -17,7 +17,6 @@ export function GlobalStyle(){
     @keyframes revealUp{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:none}}
     @keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
     .marqueeTrack{display:flex;width:max-content;animation:marquee 32s linear infinite}
-    @keyframes countUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
     .reveal{opacity:0}
     .reveal.in{animation:revealUp .7s cubic-bezier(.22,.8,.36,1) both}
     .lift{transition:transform .3s cubic-bezier(.22,.8,.36,1),box-shadow .3s}

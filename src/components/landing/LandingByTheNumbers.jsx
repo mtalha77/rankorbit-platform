@@ -48,7 +48,7 @@ export function LandingByTheNumbers({ isMobile }) {
                 icon:<><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M12 13.2v4.2M9.9 15.3h4.2"/><path d="M17.5 12.2l.4 1.1 1.1.4-1.1.4-.4 1.1-.4-1.1-1.1-.4 1.1-.4z"/></>,
               },
               {
-                value:24,suffix:"/7",title:"Edit protection",sub:"Unauthorized changes caught fast",accent:T.brand,suffixColor:"#B8B8FF",splitSuffix:true,
+                value:24,suffix:"/7",title:"Edit protection",sub:"Unauthorized changes caught fast",accent:T.brand,suffixColor:"#B8B8FF",
                 // Shield with check
                 icon:<><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12.2l2 2 4.2-4.5"/></>,
               },
