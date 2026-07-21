@@ -33,9 +33,8 @@ export function LandingFooter({ isMobile, isTab, user, nav, goDash, goLogin, goS
         <svg
           viewBox="0 0 1100 130"
           width="100%"
-          height="auto"
           preserveAspectRatio="xMidYMid meet"
-          style={{display:"block",userSelect:"none",maxHeight:isMobile?88:isTab?120:150}}
+          style={{display:"block",width:"100%",height:"auto",userSelect:"none",maxHeight:isMobile?88:isTab?120:150}}
         >
           <text
             x="550"

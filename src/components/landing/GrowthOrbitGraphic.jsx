@@ -244,7 +244,7 @@ function NodeIcon({ name, size }) {
 
 function LaptopMock() {
   return (
-    <svg viewBox="0 0 320 240" width="100%" height="auto" style={{ display: "block", filter: "drop-shadow(0 22px 40px rgba(0,0,0,.4))" }} aria-hidden>
+    <svg viewBox="0 0 320 240" width="100%" style={{ display: "block", width: "100%", height: "auto", filter: "drop-shadow(0 22px 40px rgba(0,0,0,.4))" }} aria-hidden>
       <rect x="48" y="18" width="224" height="148" rx="12" fill="#1A1A2E" />
       <rect x="56" y="26" width="208" height="124" rx="6" fill="#0F1224" />
       <rect x="66" y="36" width="54" height="54" rx="8" fill="#1E2340" />
