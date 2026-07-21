@@ -36,7 +36,6 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
   const [notifOpen, setNotifOpen] = useState(false);
   const [chatUnread, setChatUnread] = useState(0);
   const notifSig = useRef("");
-  const billingSyncedFor = useRef(null);
   const w = useWindowSize();
   const isMobile = w < 820;
   // Async action runner: run fn, optionally toast, then refresh data. Used by billing actions.
@@ -108,14 +107,9 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
       setStripeConfigured(!!s.configured);
     })();
   }, []);
-  // Load invoices + refresh Stripe period once per visit to Billing (avoids reload loops / flicker).
+  // Sync Stripe invoices every time Billing opens (fills descriptions + new proration invoices).
   useEffect(() => {
-    if (page !== "billing" || !userId || impersonating) {
-      if (page !== "billing") billingSyncedFor.current = null;
-      return;
-    }
-    if (billingSyncedFor.current === userId) return;
-    billingSyncedFor.current = userId;
+    if (page !== "billing" || !userId || impersonating) return;
     let cancelled = false;
     (async () => {
       const synced = await api.syncInvoices();
@@ -132,7 +126,8 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
         (p.plan !== user.plan ||
           p.subscriptionStatus !== user.subscriptionStatus ||
           p.currentPeriodEnd !== user.currentPeriodEnd ||
-          !!p.cancelAtPeriodEnd !== !!user.cancelAtPeriodEnd)
+          !!p.cancelAtPeriodEnd !== !!user.cancelAtPeriodEnd ||
+          p.pendingPlanId !== user.pendingPlanId)
       )
         await reload();
     })();

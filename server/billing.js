@@ -340,9 +340,21 @@ export async function upsertInvoice(admin, invoice, clientId) {
 /** Pull invoices from Stripe for a customer and mirror them into Supabase. */
 export async function syncInvoicesForCustomer(stripe, admin, customerId, clientId) {
   if (!stripe || !admin || !customerId || !clientId) return { synced: 0 };
-  const list = await stripe.invoices.list({ customer: customerId, limit: 24 });
+  const list = await stripe.invoices.list({
+    customer: customerId,
+    limit: 24,
+    expand: ["data.lines"],
+  });
   let synced = 0;
-  for (const inv of list.data || []) {
+  for (let inv of list.data || []) {
+    // Ensure line items exist so descriptions (plan + proration) can be built.
+    if (!inv.lines?.data?.length) {
+      try {
+        inv = await stripe.invoices.retrieve(inv.id, { expand: ["lines"] });
+      } catch (e) {
+        console.warn("syncInvoices retrieve:", inv.id, e.message);
+      }
+    }
     const ok = await upsertInvoice(admin, inv, clientId);
     if (ok) synced += 1;
   }

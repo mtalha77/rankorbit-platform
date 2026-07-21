@@ -341,7 +341,7 @@ export function Billing() {
                       return (
                         <tr key={inv.id} className="hoverRow">
                           <td style={{ padding: "12px", fontSize: 13, fontWeight: 700, borderBottom: `1px solid ${T.line}` }}>{dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</td>
-                          <td style={{ padding: "12px", fontSize: 12.5, color: T.sub, borderBottom: `1px solid ${T.line}`, maxWidth: 280 }}>{desc}</td>
+                          <td style={{ padding: "12px", fontSize: 12.5, color: T.sub, borderBottom: `1px solid ${T.line}`, maxWidth: 320, lineHeight: 1.45 }}>{desc}</td>
                           <td style={{ padding: "12px", fontSize: 12.5, color: T.sub, borderBottom: `1px solid ${T.line}`, whiteSpace: "nowrap" }}>{user.cardBrand || "Card"} •••• {last4}</td>
                           <td style={{ padding: "12px", fontSize: 13, fontWeight: 800, borderBottom: `1px solid ${T.line}` }}>${amt}</td>
                           <td style={{ padding: "12px", borderBottom: `1px solid ${T.line}` }}><Badge type={paid ? "paid" : "pending"} /></td>

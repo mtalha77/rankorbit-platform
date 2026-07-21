@@ -159,9 +159,11 @@ export default async function handler(req, res) {
     const itemId = sub.items?.data?.[0]?.id;
     if (!itemId) return res.status(500).json({ error: "Subscription has no items" });
 
+    // always_invoice = create prorations AND finalize/charge a separate invoice now
+    // (create_prorations alone only parks items until the next renewal — history looks "stuck").
     const updated = await stripe.subscriptions.update(subscriptionId, {
       items: [{ id: itemId, price: priceId }],
-      proration_behavior: "create_prorations",
+      proration_behavior: "always_invoice",
       metadata: { ...(sub.metadata || {}), supabase_user_id: profile.id, plan_id: planId },
       cancel_at_period_end: false,
     });
