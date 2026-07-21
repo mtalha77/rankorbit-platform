@@ -10,6 +10,7 @@ import {
   subscriptionFieldsFromStripe,
   logBillingActivity,
   isPlanDowngrade,
+  syncInvoicesForCustomer,
 } from "../server/billing.js";
 import { notifyClient, notifyStaffRoute, planLabel } from "../server/assign.js";
 
@@ -178,6 +179,13 @@ export default async function handler(req, res) {
     }
 
     await logBillingActivity(admin, profile.id, `Plan changed to ${planId} via Stripe`);
+
+    // Mirror newest invoices (incl. prorated plan-change charge) into Supabase.
+    try {
+      await syncInvoicesForCustomer(stripe, admin, profile.stripeCustomerId, profile.id);
+    } catch (e) {
+      console.warn("change-subscription sync invoices:", e.message);
+    }
 
     try {
       await notifyClient(admin, {

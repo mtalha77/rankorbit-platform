@@ -33,12 +33,16 @@ create table if not exists invoices (
   "amountCents" int default 0,
   currency text default 'usd',
   status text,
+  description text,
+  "billingReason" text,
   "hostedInvoiceUrl" text,
   "invoicePdf" text,
   "periodStart" timestamptz,
   "periodEnd" timestamptz,
   "createdAt" timestamptz default now()
 );
+alter table invoices add column if not exists description text;
+alter table invoices add column if not exists "billingReason" text;
 alter table invoices enable row level security;
 drop policy if exists inv_read on invoices;
 create policy inv_read on invoices for select using ("clientId"=auth.uid() or is_staff());

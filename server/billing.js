@@ -271,6 +271,46 @@ export function subscriptionFieldsFromStripe(sub, planId) {
   };
 }
 
+function formatLineAmount(cents, currency = "usd") {
+  const n = (Number(cents) || 0) / 100;
+  const abs = Math.abs(n).toFixed(2);
+  const cur = (currency || "usd").toUpperCase() === "USD" ? "$" : `${(currency || "").toUpperCase()} `;
+  if (n < 0) return `−${cur}${abs}`;
+  return `${cur}${abs}`;
+}
+
+/** Build a short client-facing description from Stripe invoice lines / billing_reason. */
+export function invoiceDescriptionFromStripe(invoice) {
+  const reason = invoice?.billing_reason || "";
+  const currency = invoice?.currency || "usd";
+  const lines = (invoice?.lines?.data || [])
+    .map((l) => {
+      const label = (l.description || "").trim();
+      if (!label) return "";
+      // Plan-change invoices: show credit (old plan) + charge (new plan) with amounts.
+      if (reason === "subscription_update" && typeof l.amount === "number") {
+        return `${label} (${formatLineAmount(l.amount, currency)})`;
+      }
+      return label;
+    })
+    .filter(Boolean);
+  const joined = lines.slice(0, 3).join(" · ");
+
+  if (reason === "subscription_update") {
+    return joined || "Plan change (prorated charge)";
+  }
+  if (reason === "subscription_create") {
+    return joined || "Subscription started";
+  }
+  if (reason === "subscription_cycle") {
+    return joined || "Monthly subscription";
+  }
+  if (reason === "subscription_threshold") {
+    return joined || "Usage / threshold invoice";
+  }
+  return joined || invoice?.number || "Invoice";
+}
+
 export async function upsertInvoice(admin, invoice, clientId) {
   if (!invoice?.id || !clientId) return;
   const row = {
@@ -279,13 +319,20 @@ export async function upsertInvoice(admin, invoice, clientId) {
     amountCents: invoice.amount_paid ?? invoice.amount_due ?? 0,
     currency: invoice.currency || "usd",
     status: invoice.status || null,
+    description: invoiceDescriptionFromStripe(invoice),
+    billingReason: invoice.billing_reason || null,
     hostedInvoiceUrl: invoice.hosted_invoice_url || null,
     invoicePdf: invoice.invoice_pdf || null,
     periodStart: invoice.period_start ? new Date(invoice.period_start * 1000).toISOString() : null,
     periodEnd: invoice.period_end ? new Date(invoice.period_end * 1000).toISOString() : null,
     createdAt: invoice.created ? new Date(invoice.created * 1000).toISOString() : new Date().toISOString(),
   };
-  const { error } = await admin.from("invoices").upsert(row, { onConflict: "id" });
+  let { error } = await admin.from("invoices").upsert(row, { onConflict: "id" });
+  // Older DBs may not have description / billingReason yet — retry without them.
+  if (error && /description|billingReason/i.test(error.message || "")) {
+    const { description: _d, billingReason: _b, ...basic } = row;
+    ({ error } = await admin.from("invoices").upsert(basic, { onConflict: "id" }));
+  }
   if (error) console.error("upsertInvoice:", error.message, invoice.id);
   return !error;
 }

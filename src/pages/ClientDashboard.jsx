@@ -390,7 +390,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
   const clientCtx = {
     user, userId, data, reload, onLogout, impersonating, onUserUpdate,
     page: viewPage, setPage: goPage, toast, showManual, setShowManual, confirm, setConfirm,
-    stripeConfigured, invoices, sysNotifs, setSysNotifs, notifOpen, setNotifOpen,
+    stripeConfigured, invoices, setInvoices, sysNotifs, setSysNotifs, notifOpen, setNotifOpen,
     chatUnread, setChatUnread, isMobile, R,
     my, myGmb, myAnalytics, myAct, settings, cfg, PLANSALL, PLANSV,
     live, pending, napScore, plan, greet, nav, planBadge, growthData, liveMomTrend,

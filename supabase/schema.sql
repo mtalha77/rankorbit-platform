@@ -107,6 +107,8 @@ create table invoices (
   "amountCents" int default 0,
   currency text default 'usd',
   status text,
+  description text,
+  "billingReason" text,
   "hostedInvoiceUrl" text,
   "invoicePdf" text,
   "periodStart" timestamptz,

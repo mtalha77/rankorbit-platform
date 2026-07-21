@@ -9,7 +9,7 @@ import { ProfileGate } from "../ProfileGate";
 import { useClient } from "../ClientContext";
 
 export function Billing() {
-  const { user, isMobile, stripeConfigured, toast, R, reload, setConfirm, PLANSV, plan, invoices, my, myAct, impersonating, cfg } = useClient();
+  const { user, isMobile, stripeConfigured, toast, R, reload, setConfirm, PLANSV, plan, invoices, setInvoices, my, myAct, impersonating, cfg } = useClient();
   const popularId = popularPlanId(cfg || {});
   const [switchTo, setSwitchTo] = useState(null);
   const [when, setWhen] = useState("now");
@@ -59,11 +59,17 @@ export function Billing() {
       const r = await api.changeSubscription(switchTo, { when: timing });
       if (r.error) { toast(r.error, "info"); return; }
       try { sessionStorage.removeItem("ro_pending_plan"); } catch {}
+      const targetName = PLANS[switchTo].name;
       setSwitchTo(null);
+      // Pull latest Stripe invoices (proration / renewal) into the history table.
+      try {
+        const synced = await api.syncInvoices();
+        if (synced?.invoices?.length && setInvoices) setInvoices(synced.invoices);
+      } catch { /* non-blocking */ }
       if (timing === "period_end") {
-        await R(async () => {}, `Scheduled switch to ${PLANS[switchTo].name}`);
+        await R(async () => {}, `Scheduled switch to ${targetName}`);
       } else {
-        await R(async () => {}, `Switched to ${PLANS[switchTo].name}`);
+        await R(async () => {}, `Switched to ${targetName}`);
       }
     } finally {
       setSwitching(false);
@@ -325,10 +331,17 @@ export function Billing() {
                       const amt = ((inv.amountCents || 0) / 100).toFixed(2);
                       const last4 = user.cardLast4 || "••••";
                       const paid = inv.status === "paid";
+                      const desc =
+                        inv.description ||
+                        (inv.billingReason === "subscription_update"
+                          ? "Plan change (prorated)"
+                          : inv.billingReason === "subscription_create"
+                            ? "Subscription started"
+                            : `${plan.name} plan · monthly`);
                       return (
                         <tr key={inv.id} className="hoverRow">
                           <td style={{ padding: "12px", fontSize: 13, fontWeight: 700, borderBottom: `1px solid ${T.line}` }}>{dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</td>
-                          <td style={{ padding: "12px", fontSize: 12.5, color: T.sub, borderBottom: `1px solid ${T.line}` }}>{plan.name} plan · monthly</td>
+                          <td style={{ padding: "12px", fontSize: 12.5, color: T.sub, borderBottom: `1px solid ${T.line}`, maxWidth: 280 }}>{desc}</td>
                           <td style={{ padding: "12px", fontSize: 12.5, color: T.sub, borderBottom: `1px solid ${T.line}`, whiteSpace: "nowrap" }}>{user.cardBrand || "Card"} •••• {last4}</td>
                           <td style={{ padding: "12px", fontSize: 13, fontWeight: 800, borderBottom: `1px solid ${T.line}` }}>${amt}</td>
                           <td style={{ padding: "12px", borderBottom: `1px solid ${T.line}` }}><Badge type={paid ? "paid" : "pending"} /></td>
