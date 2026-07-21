@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useSearchParams } from "react-router-dom";
-import { Toaster } from "sonner";
+import { Toaster, toast } from "sonner";
 import { T, FONT_B } from "./lib/theme";
 import { STAFF_ROLES } from "./lib/helpers";
 import { supa } from "./lib/supabase";
@@ -30,6 +30,40 @@ const urlLooksLikeRecovery=()=>{
   const search=window.location.search||"";
   return /type=recovery/i.test(hash)||/type=recovery/i.test(search);
 };
+
+/**
+ * Supabase expired invite / magic links land as:
+ * /admin#error=access_denied&error_code=otp_expired&error_description=...
+ * Scrub the hash and return a human message (or null).
+ */
+function consumeAuthUrlError(){
+  if(typeof window==="undefined")return null;
+  const hash=window.location.hash||"";
+  const search=window.location.search||"";
+  const fromHash=hash.startsWith("#")?hash.slice(1):hash;
+  const params=new URLSearchParams(fromHash.includes("error")?fromHash:search);
+  const err=params.get("error")||"";
+  const code=params.get("error_code")||"";
+  const desc=decodeURIComponent((params.get("error_description")||"").replace(/\+/g," "));
+  if(!err&&!code)return null;
+
+  // Always clear ugly auth error from the address bar.
+  const keepSearch=search&&!/[?&]error=/.test(search)?search:"";
+  window.history.replaceState(null,"",window.location.pathname+keepSearch);
+
+  if(code==="otp_expired"||/expired|invalid/i.test(desc)){
+    return "This email invite link has expired or was already used. Ask a super admin to send a new invite, or sign in with your password at /admin.";
+  }
+  if(err==="access_denied"){
+    return "Access denied — that email link is invalid. Sign in with your password, or ask for a new invite.";
+  }
+  return desc||"That authentication link failed. Please sign in with your password.";
+}
+
+// Run once at module load so the hash is gone before first paint.
+const BOOT_AUTH_URL_ERROR=(()=>{
+  try{return consumeAuthUrlError();}catch{return null;}
+})();
 
 /** Keep last non-null data so admin/client dashboards don't unmount during a soft reload. */
 function useStableData(data){
@@ -252,10 +286,12 @@ export default function App(){
         if(event==="SIGNED_IN"&&(urlLooksLikeRecovery()||isPasswordRecovery()))enterRecovery();
 
         const scrubHash=()=>{
-          if(typeof window==="undefined"||!window.location.hash.includes("access_token"))return;
+          if(typeof window==="undefined")return;
+          const h=window.location.hash||"";
+          if(!h.includes("access_token")&&!h.includes("error="))return;
           const path=(isPasswordRecovery()||urlLooksLikeRecovery()||event==="PASSWORD_RECOVERY")
             ?"/reset-password"
-            :(window.location.pathname+window.location.search);
+            :window.location.pathname;
           window.history.replaceState(null,"",path);
         };
 
@@ -353,6 +389,18 @@ export default function App(){
     if(!fields||typeof fields!=="object")return;
     setCurrentUser(prev=>prev?{...prev,...fields}:prev);
   },[]);
+
+  // Surface expired-invite / bad-link errors once (hash already scrubbed at module load).
+  const authLinkErrShown=useRef(false);
+  useEffect(()=>{
+    if(!ready||!BOOT_AUTH_URL_ERROR||authLinkErrShown.current)return;
+    authLinkErrShown.current=true;
+    if(currentUser){
+      toast.error(BOOT_AUTH_URL_ERROR,{duration:7000});
+    }else{
+      try{sessionStorage.setItem("ro_auth_link_error",BOOT_AUTH_URL_ERROR);}catch{/* ignore */}
+    }
+  },[ready,currentUser]);
 
   if(!ready)return(<><GlobalStyle/><Loading/><Toaster position="top-right" richColors closeButton duration={3200}/></>);
   const shared={user:currentUser,data,reload,onLogin,onLogout,passwordRecovery,onUserUpdate};

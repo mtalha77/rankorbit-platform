@@ -31,6 +31,12 @@ export default function AuthScreen({onLogin,portal="client",initialMode="login"}
         setInfo("Password updated. Sign in with your new password.");
         setMode("login");
       }
+      const linkErr=sessionStorage.getItem("ro_auth_link_error");
+      if(linkErr){
+        sessionStorage.removeItem("ro_auth_link_error");
+        setError(linkErr);
+        setMode("login");
+      }
     }catch{}
   },[]);
   const clearField=(key)=>setFieldErrors(prev=>{if(!prev[key])return prev;const next={...prev};delete next[key];return next;});
@@ -117,7 +123,7 @@ export default function AuthScreen({onLogin,portal="client",initialMode="login"}
         </div>)}
         <Card style={{padding:28,boxShadow:SHADOW_LG}}>
           <div style={{fontFamily:FONT_D,fontSize:18,fontWeight:800,marginBottom:4}}>{isStaff?"Staff sign in":mode==="login"?"Sign in":mode==="signup"?"Create your account":"Reset password"}</div>
-          <div style={{fontSize:13,color:T.sub,marginBottom:20}}>{isStaff?"Admin, manager & agent access.":mode==="login"?"Welcome back. Enter your details.":mode==="signup"?"Start getting listed everywhere.":"We'll email you a reset link."}</div>
+          <div style={{fontSize:13,color:T.sub,marginBottom:20}}>{isStaff?"Super admin, manager & BDM access.":mode==="login"?"Welcome back. Enter your details.":mode==="signup"?"Start getting listed everywhere.":"We'll email you a reset link."}</div>
           {info&&<div style={{fontSize:12.5,color:T.green,marginBottom:12,background:T.greenSoft,padding:"8px 12px",borderRadius:9}}>{info}</div>}
           {mode==="signup"&&!isStaff&&(<>
             <Input label="Full Name" value={name} onChange={setNameVal} placeholder="Mike Johnson" required error={fieldErrors.name||""}/>
