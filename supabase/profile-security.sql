@@ -28,6 +28,7 @@ begin
   new."subscriptionStatus" := old."subscriptionStatus";
   new."cancelAtPeriodEnd" := old."cancelAtPeriodEnd";
   new."canceledAt" := old."canceledAt";
+  new."currentPeriodStart" := old."currentPeriodStart";
   new."currentPeriodEnd" := old."currentPeriodEnd";
   new."cardBrand" := old."cardBrand";
   new."cardLast4" := old."cardLast4";

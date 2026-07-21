@@ -8,6 +8,7 @@ import {
   requireClient,
   resolveSubscriptionId,
   subscriptionFieldsFromStripe,
+  updateProfileSubscriptionFields,
   logBillingActivity,
   isPlanDowngrade,
   syncInvoicesForCustomer,
@@ -173,8 +174,7 @@ export default async function handler(req, res) {
     fields.cancelAtPeriodEnd = false;
     fields.pendingPlanId = null;
     fields.pendingPlanEffectiveAt = null;
-    const clean = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
-    const { error } = await admin.from("profiles").update(clean).eq("id", profile.id);
+    const { error } = await updateProfileSubscriptionFields(admin, profile.id, fields);
     if (error) {
       console.error("change-subscription db:", error.message);
       return res.status(500).json({ error: "Stripe updated but DB save failed: " + error.message });

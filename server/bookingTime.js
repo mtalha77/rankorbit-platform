@@ -34,6 +34,21 @@ export function isSlotStillOpen(slotDate, slotTime, now = new Date(), bufferMs =
   return start.getTime() > now.getTime() + bufferMs;
 }
 
+/** Minimum lead time before a slot can be booked (all plans). */
+export const BOOKING_LEAD_MS = 24 * 60 * 60 * 1000;
+
+/** True when slot starts at least `leadMs` from now. */
+export function isSlotBeyondLead(slotDate, slotTime, now = new Date(), leadMs = BOOKING_LEAD_MS) {
+  const start = parseBookingSlot(slotDate, slotTime);
+  if (!start) return false;
+  return start.getTime() >= now.getTime() + leadMs;
+}
+
+/** Open for booking: not past buffer AND meets 24h lead. */
+export function isSlotBookable(slotDate, slotTime, now = new Date()) {
+  return isSlotStillOpen(slotDate, slotTime, now) && isSlotBeyondLead(slotDate, slotTime, now);
+}
+
 export function slotKey(slotDate, slotTime) {
   return `${String(slotDate || "").trim()}|${String(slotTime || "").trim()}`;
 }

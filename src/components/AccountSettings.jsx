@@ -1,5 +1,5 @@
-// ─── ACCOUNT SETTINGS (name, photo, password) ────────────────────────────────
-import { useRef, useState } from "react";
+// ─── ACCOUNT SETTINGS (name, photo, password, notification email) ────────────
+import { useRef, useState, useEffect } from "react";
 import { T, FONT_D } from "../lib/theme";
 import { api } from "../lib/api";
 import { passwordIssues } from "../lib/helpers";
@@ -117,10 +117,21 @@ export default function AccountSettings({
   const [savingPw, setSavingPw] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState(null);
-
+  const [notifyDraft, setNotifyDraft] = useState(user?.notifyEmail || user?.notifyEmailPending || "");
+  const [savingNotify, setSavingNotify] = useState(false);
   const [showPw, setShowPw] = useState({ next: false, confirm: false });
 
+  useEffect(() => {
+    // Prefer verified address once confirmed; pending only while waiting.
+    setNotifyDraft((user?.notifyEmail || user?.notifyEmailPending || "").trim());
+  }, [user?.notifyEmail, user?.notifyEmailPending]);
+
   const displayUser = preview ? { ...user, avatar: preview } : user;
+  const verifiedNotify = (user?.notifyEmail || "").trim();
+  // Hide pending banner once verified is set (stale pending in memory).
+  const pendingNotify = verifiedNotify ? "" : (user?.notifyEmailPending || "").trim();
+  const draftNorm = notifyDraft.trim().toLowerCase();
+  const alreadyActiveDraft = !!(verifiedNotify && draftNorm === verifiedNotify.toLowerCase());
 
   const applyLocal = (fields) => {
     if (typeof onUserUpdate === "function") onUserUpdate(fields);
@@ -206,6 +217,93 @@ export default function AccountSettings({
     }
   };
 
+  const sendNotifyConfirm = async () => {
+    const email = notifyDraft.trim().toLowerCase();
+    if (!email) {
+      toast?.("Enter an email, or clear to use your login email", "info");
+      return;
+    }
+    if (verifiedNotify && email === verifiedNotify.toLowerCase()) {
+      toast?.("This notification email is already confirmed and active.", "info");
+      return;
+    }
+    setSavingNotify(true);
+    try {
+      const r = await api.setNotifyEmail({ email });
+      if (r.error) {
+        toast?.(r.error, "info");
+        return;
+      }
+      if (r.already) {
+        applyLocal({
+          notifyEmail: r.notifyEmail || email,
+          notifyEmailPending: null,
+        });
+        setNotifyDraft(r.notifyEmail || email);
+        await reload?.();
+        toast?.("This notification email is already confirmed and active.");
+        return;
+      }
+      applyLocal({
+        notifyEmailPending: r.pending || email,
+        notifyEmail: user?.notifyEmail || null,
+      });
+      await reload?.();
+      toast?.(`Confirmation sent to ${r.pending || email}. Then tap Confirm now below.`);
+    } finally {
+      setSavingNotify(false);
+    }
+  };
+
+  const confirmNotifyNow = async () => {
+    setSavingNotify(true);
+    try {
+      const r = await api.confirmMyNotifyEmail();
+      if (r.error) {
+        toast?.(r.error, "info");
+        return;
+      }
+      const email = String(r.notifyEmail || "").trim().toLowerCase();
+      setNotifyDraft(email);
+      applyLocal({
+        notifyEmail: email || null,
+        notifyEmailPending: null,
+      });
+      const fresh = await api.currentUser();
+      if (fresh) {
+        applyLocal({
+          notifyEmail: fresh.notifyEmail || email || null,
+          notifyEmailPending: fresh.notifyEmailPending || null,
+        });
+        if (fresh.notifyEmail) setNotifyDraft(fresh.notifyEmail);
+      }
+      await reload?.();
+      toast?.(`Notification email confirmed: ${email || "saved"}`);
+    } finally {
+      setSavingNotify(false);
+    }
+  };
+
+  const clearNotifyEmail = async () => {
+    setSavingNotify(true);
+    try {
+      const r = await api.setNotifyEmail({ clear: true });
+      if (r.error) {
+        toast?.(r.error, "info");
+        return;
+      }
+      setNotifyDraft("");
+      applyLocal({
+        notifyEmail: null,
+        notifyEmailPending: null,
+      });
+      await reload?.();
+      toast?.("Notification emails will go to your login email again");
+    } finally {
+      setSavingNotify(false);
+    }
+  };
+
   const savePassword = async () => {
     const issues = passwordIssues(pw.next);
     if (issues.length) {
@@ -260,6 +358,60 @@ export default function AccountSettings({
           <Btn onClick={saveProfile} disabled={savingProfile || !name.trim()}>
             {savingProfile ? "Saving…" : "Save profile"}
           </Btn>
+        </div>
+      </Card>
+
+      <Card style={{ marginBottom: 16 }}>
+        <SectionTitle sub="Optional — does not change how you sign in">Notification email</SectionTitle>
+        <div style={{ fontSize: 12.5, color: T.sub, lineHeight: 1.5, marginBottom: 14 }}>
+          Login stays on <b style={{ color: T.ink }}>{user?.email || "your account email"}</b>.
+          Add another address (e.g. Gmail) to receive app notification emails only there after you confirm the link.
+          Leave empty to keep notifications on your login email.
+        </div>
+        <Input
+          label="Notification email"
+          value={notifyDraft}
+          onChange={setNotifyDraft}
+          placeholder="notifications@gmail.com"
+          validate="email"
+        />
+        {verifiedNotify && (
+          <div style={{ fontSize: 12, color: T.green, fontWeight: 700, marginBottom: 8 }}>
+            Active: {verifiedNotify}
+            {alreadyActiveDraft ? " — already confirmed" : ""}
+          </div>
+        )}
+        {pendingNotify && (
+          <div style={{ fontSize: 12, color: T.amber, fontWeight: 700, marginBottom: 10, lineHeight: 1.45 }}>
+            Pending: {pendingNotify}. Open the email link, or tap <b>Confirm now</b> below (works while signed in).
+          </div>
+        )}
+        {!verifiedNotify && !pendingNotify && (
+          <div style={{ fontSize: 12, color: T.faint, marginBottom: 8 }}>
+            Currently using login email for notifications.
+          </div>
+        )}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+          {(verifiedNotify || pendingNotify) && (
+            <Btn variant="ghost" onClick={clearNotifyEmail} disabled={savingNotify}>
+              Use login email
+            </Btn>
+          )}
+          {pendingNotify && (
+            <Btn variant="green" onClick={confirmNotifyNow} disabled={savingNotify}>
+              {savingNotify ? "Confirming…" : "Confirm now"}
+            </Btn>
+          )}
+          {!alreadyActiveDraft && (
+            <Btn onClick={sendNotifyConfirm} disabled={savingNotify || !notifyDraft.trim()}>
+              {savingNotify ? "Sending…" : "Send confirmation"}
+            </Btn>
+          )}
+          {alreadyActiveDraft && (
+            <Btn variant="soft" disabled>
+              Already confirmed
+            </Btn>
+          )}
         </div>
       </Card>
 

@@ -8,6 +8,7 @@ import {
   readRawBody,
   planFromPriceId,
   subscriptionFieldsFromStripe,
+  updateProfileSubscriptionFields,
   upsertInvoice,
   syncInvoicesForCustomer,
 } from "../server/billing.js";
@@ -101,8 +102,7 @@ async function syncSubscription(admin, stripe, sub, hintPlan, { logActivity = fa
     }
   }
 
-  const clean = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
-  const { error } = await admin.from("profiles").update(clean).eq("id", profileId);
+  const { error } = await updateProfileSubscriptionFields(admin, profileId, fields);
   if (error) throw new Error(error.message);
 
   if (logActivity) {

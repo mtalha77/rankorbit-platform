@@ -244,13 +244,26 @@ export async function logBillingActivity(admin, clientId, desc) {
   }
 }
 
+/** Upsert subscription fields; retry without currentPeriodStart if column not migrated yet. */
+export async function updateProfileSubscriptionFields(admin, profileId, fields) {
+  const clean = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
+  let { error } = await admin.from("profiles").update(clean).eq("id", profileId);
+  if (error && /currentPeriodStart/i.test(error.message || "")) {
+    const { currentPeriodStart: _s, ...rest } = clean;
+    ({ error } = await admin.from("profiles").update(rest).eq("id", profileId));
+  }
+  return { error, clean };
+}
+
 export function subscriptionFieldsFromStripe(sub, planId) {
   const item = sub.items?.data?.[0];
   const priceId = item?.price?.id || null;
   const plan = planId || planFromPriceId(priceId);
   // Prefer subscription-level period; newer Stripe payloads may only set it on the item.
   const periodEndUnix = sub.current_period_end || item?.current_period_end || null;
+  const periodStartUnix = sub.current_period_start || item?.current_period_start || null;
   const periodEnd = periodEndUnix ? new Date(periodEndUnix * 1000).toISOString() : null;
+  const periodStart = periodStartUnix ? new Date(periodStartUnix * 1000).toISOString() : null;
   const cancelAtPeriodEnd = !!sub.cancel_at_period_end;
   let canceledAt = null;
   if (sub.canceled_at) {
@@ -266,6 +279,7 @@ export function subscriptionFieldsFromStripe(sub, planId) {
     subscriptionStatus: sub.status || null,
     cancelAtPeriodEnd,
     canceledAt,
+    currentPeriodStart: periodStart,
     currentPeriodEnd: periodEnd,
     status: sub.status === "active" || sub.status === "trialing" ? "active" : undefined,
   };

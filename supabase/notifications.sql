@@ -48,6 +48,7 @@ create table if not exists call_bookings (
 );
 
 alter table call_bookings add column if not exists "meetingUrl" text;
+alter table call_bookings add column if not exists kind text not null default 'regular';
 
 create index if not exists call_bookings_client on call_bookings ("clientId", "createdAt" desc);
 create index if not exists call_bookings_agent on call_bookings ("agentId", "createdAt" desc);

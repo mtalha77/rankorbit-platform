@@ -48,6 +48,48 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
   const [confirm, setConfirm] = useState(null);
   const [toast, Toasts] = useToast();
   const w = useWindowSize();
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const sp = new URLSearchParams(window.location.search);
+        const ne = sp.get("notifyEmail");
+        let addr = (sp.get("addr") || "").trim().toLowerCase();
+        if (!addr) {
+          try {
+            const raw = sessionStorage.getItem("ro_notify_email_confirmed");
+            if (raw) {
+              const j = JSON.parse(raw);
+              if (j?.email && Date.now() - (j.at || 0) < 10 * 60 * 1000) addr = String(j.email).toLowerCase();
+              sessionStorage.removeItem("ro_notify_email_confirmed");
+            }
+          } catch { /* ignore */ }
+        }
+        if (!ne && !addr) return;
+        if (ne === "confirmed" || addr) {
+          if (addr) onUserUpdate?.({ notifyEmail: addr, notifyEmailPending: null });
+          toast("Notification email confirmed. Alerts will go there.");
+          setPage("account");
+          const fresh = await api.currentUser();
+          if (!cancelled && fresh) {
+            onUserUpdate?.({
+              notifyEmail: fresh.notifyEmail || addr || null,
+              notifyEmailPending: fresh.notifyEmailPending || null,
+            });
+          }
+          await reload?.();
+        } else if (ne === "expired") toast("Confirmation link expired. Request a new one in Settings.", "info");
+        else if (ne === "invalid" || ne === "missing") toast("That confirmation link is invalid.", "info");
+        else if (ne === "error") toast("Could not confirm notification email.", "info");
+        sp.delete("notifyEmail");
+        sp.delete("addr");
+        const q = sp.toString();
+        window.history.replaceState({}, "", window.location.pathname + (q ? `?${q}` : ""));
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const isMobile = w < 820;
   const { users, listings, gmb, analytics, activity, settings } = data;
   const allClients = users.filter((u) => u.role === "client");
@@ -246,7 +288,7 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
         {page === "audit" && <AuditTrail />}
         {page === "trash" && <Trash />}
         {page === "account" && (
-          <AccountSettings user={user} toast={toast} reload={reload} onUserUpdate={onUserUpdate} isMobile={isMobile} title="My Account" sub="Update your name, photo, and password" />
+          <AccountSettings user={user} toast={toast} reload={reload} onUserUpdate={onUserUpdate} isMobile={isMobile} title="My Account" sub="Update your name, photo, password, and notification email" />
         )}
         {page === "settings" && <Settings />}
       </Shell>
