@@ -21,6 +21,7 @@ export function Settings() {
       notifySignup:true, notifyCancel:true, notifyPlanChange:true, notifyAgentEdit:true, monthlyReport:true,
       allowSignups:true,
       livePlanEssentials:true, livePlanGrowth:true, livePlanGmb:true,
+      popularPlan:"growth",
       ...(settings?.config||{})
     };
     const[c,setC]=useState(cfg0);
@@ -58,6 +59,38 @@ export function Settings() {
           <Toggle label="Essentials plan is live" k="livePlanEssentials"/>
           <Toggle label="Growth plan is live" k="livePlanGrowth"/>
           <Toggle label="GMB Pro plan is live" k="livePlanGmb" sub="Turn off to launch it later. Existing clients on a hidden plan keep it."/>
+        </div>
+        <div style={{marginTop:16}}>
+          <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:8}}>MOST POPULAR PLAN</div>
+          <div style={{fontSize:12,color:T.sub,marginBottom:10,lineHeight:1.5}}>Choose which plan shows the “Most Popular” badge on the website and client billing page.</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+            {[
+              {id:"essentials",label:"Essentials",live:c.livePlanEssentials!==false},
+              {id:"growth",label:"Growth",live:c.livePlanGrowth!==false},
+              {id:"gmb",label:"GMB Pro",live:c.livePlanGmb!==false},
+            ].map(p=>(
+              <button
+                key={p.id}
+                type="button"
+                disabled={!p.live}
+                onClick={()=>setCfg("popularPlan",p.id)}
+                style={{
+                  padding:"9px 16px",
+                  borderRadius:12,
+                  border:`1.5px solid ${(c.popularPlan||"growth")===p.id?T.brand:T.line}`,
+                  background:(c.popularPlan||"growth")===p.id?T.brandSoft:T.surface,
+                  color:(c.popularPlan||"growth")===p.id?T.brand:p.live?T.ink:T.faint,
+                  fontFamily:FONT_B,
+                  fontWeight:800,
+                  fontSize:12.5,
+                  cursor:p.live?"pointer":"not-allowed",
+                  opacity:p.live?1:.45,
+                }}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
         </div>
         <div style={{marginTop:16}}>
           <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:4}}>NOTIFICATIONS & TOGGLES</div>

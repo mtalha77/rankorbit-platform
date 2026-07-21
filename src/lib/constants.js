@@ -25,6 +25,27 @@ export const plansWithPrices=(cfg={})=>Object.fromEntries(
 export const planLive=(id,cfg={})=>{const m={essentials:"livePlanEssentials",growth:"livePlanGrowth",gmb:"livePlanGmb"};const v=cfg[m[id]];return v===undefined||v===null||v===true||v==="true";};
 export const livePlanEntries=(cfg={})=>Object.entries(plansWithPrices(cfg)).filter(([id])=>planLive(id,cfg));
 
+/** Which plan shows the “Most Popular” badge. Super-admin sets this in Control Panel. */
+export const popularPlanId=(cfg={})=>{
+  const id=cfg.popularPlan;
+  if(id&&PLANS[id])return id;
+  return"growth";
+};
+
+/** Put the popular plan in the center (e.g. [A, Popular, B]). */
+export const orderPlansPopularCenter=(entries,popularId)=>{
+  const list=Array.isArray(entries)?[...entries]:[];
+  if(list.length<2)return list;
+  const getId=(item)=>Array.isArray(item)?item[0]:item.id;
+  const popIdx=list.findIndex(item=>getId(item)===popularId);
+  if(popIdx<0)return list;
+  const [pop]=list.splice(popIdx,1);
+  // Insert at middle index so popular is visually centered
+  const mid=Math.floor(list.length/2);
+  list.splice(mid,0,pop);
+  return list;
+};
+
 export const BIZ_FIELDS=[["name","Full Name"],["businessName","Business Name"],["email","Email"],["phone","Phone"],["address","Address"],["city","City"],["state","State"],["zip","ZIP"],["website","Website"]];
 
 export const CATEGORIES=[

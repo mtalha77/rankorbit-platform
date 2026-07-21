@@ -1,120 +1,437 @@
-import { T, FONT_D, SHADOW } from "../../lib/theme";
+import { T, FONT_D } from "../../lib/theme";
 import { Reveal } from "../Reveal";
-import { Eyebrow, Ico } from "./landingShared";
+import { BrandMark } from "./BrandMark";
 
-export function LandingBento({ isMobile }) {
+function BrandChip({ name, color, size = 36, iconSize = 16, style }) {
   return (
-    <div style={{maxWidth:1400,margin:"0 auto",padding:isMobile?"48px 16px":"80px 24px",width:"100%",boxSizing:"border-box"}}>
-      <div style={{marginBottom:isMobile?28:36}}>
-        <Reveal><Eyebrow color={T.green}>Why it matters</Eyebrow></Reveal>
-        <Reveal delay={60}>
-          <h2 style={{fontFamily:FONT_D,fontSize:isMobile?30:44,fontWeight:800,letterSpacing:"-1.4px",margin:0,lineHeight:1.12,color:T.ink}}>
-            Bad business data<br/>costs real customers.
-          </h2>
-        </Reveal>
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        background: "#fff",
+        boxShadow: "0 6px 18px rgba(23,23,50,.10), 0 1px 3px rgba(23,23,50,.06)",
+        border: "1px solid rgba(23,23,50,.06)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        ...style,
+      }}
+    >
+      <BrandMark name={name} size={iconSize} color={color} />
+    </div>
+  );
+}
+
+function FeatureCard({ num, label, badge, badgeBg, badgeColor, iconBg, icon, title, body, isMobile }) {
+  return (
+    <div
+      className="lift"
+      style={{
+        background: "#fff",
+        border: `1px solid ${T.line}`,
+        borderRadius: 20,
+        padding: isMobile ? "16px 14px" : "18px 16px",
+        boxShadow: "0 2px 12px rgba(23,23,50,.05)",
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 14,
+        position: "relative",
+      }}
+    >
+      <div
+        style={{
+          width: 46,
+          height: 46,
+          borderRadius: "50%",
+          background: iconBg,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+          boxShadow: `0 6px 14px ${iconBg}55`,
+        }}
+      >
+        {icon}
+      </div>
+      <div style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
+          <div style={{ fontSize: 10.5, fontWeight: 800, color: T.faint, letterSpacing: ".5px" }}>
+            {num} - {label}
+          </div>
+          <div
+            style={{
+              padding: "4px 9px",
+              borderRadius: 20,
+              background: badgeBg,
+              color: badgeColor,
+              fontSize: 10,
+              fontWeight: 800,
+              letterSpacing: ".3px",
+              whiteSpace: "nowrap",
+              flexShrink: 0,
+            }}
+          >
+            {badge}
+          </div>
+        </div>
+        <div style={{ fontFamily: FONT_D, fontSize: isMobile ? 16 : 17, fontWeight: 800, color: T.ink, marginBottom: 4, letterSpacing: "-.3px" }}>
+          {title}
+        </div>
+        <p style={{ fontSize: 13, color: T.sub, lineHeight: 1.5, margin: 0 }}>{body}</p>
+      </div>
+    </div>
+  );
+}
+
+function MapGraphic({ isMobile }) {
+  const stage = isMobile ? 270 : 320;
+  // Positions match reference: Apple L, Yelp top, Facebook TR, Bing BR, Google BL
+  const chips = [
+    { name: "Apple", color: "#111", left: "8%", top: "28%" },
+    { name: "Yelp", color: "#FF1A1A", left: "42%", top: "4%" },
+    { name: "Facebook", color: "#1877F2", left: "78%", top: "18%" },
+    { name: "Bing", color: "#008373", left: "76%", top: "68%" },
+    { name: "Google", color: null, left: "12%", top: "72%" },
+  ];
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: stage,
+        height: stage,
+        margin: "0 auto",
+        overflow: "visible",
+      }}
+    >
+      {/* Soft ambient glow */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          inset: "18% 12% 22%",
+          background: "radial-gradient(ellipse at 50% 45%, rgba(120,160,255,.22), rgba(180,210,255,.08) 45%, transparent 72%)",
+          filter: "blur(2px)",
+          pointerEvents: "none",
+        }}
+      />
+
+      {/* Perspective map grid */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: "54%",
+          width: "88%",
+          height: "62%",
+          transform: "translate(-50%, -50%) perspective(720px) rotateX(56deg) rotateZ(-6deg)",
+          transformOrigin: "center center",
+          borderRadius: 18,
+          background: `
+            radial-gradient(ellipse at 50% 40%, rgba(140,180,255,.18), transparent 60%),
+            linear-gradient(180deg, rgba(235,242,255,.9), rgba(245,248,252,.4))
+          `,
+          boxShadow: "0 28px 50px rgba(90,120,200,.10)",
+          overflow: "hidden",
+        }}
+      >
+        <svg width="100%" height="100%" viewBox="0 0 200 140" preserveAspectRatio="none" style={{ display: "block", opacity: 0.85 }}>
+          <defs>
+            <linearGradient id="bentoGridStroke" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#8EB4FF" stopOpacity="0.55" />
+              <stop offset="100%" stopColor="#A8C4F0" stopOpacity="0.18" />
+            </linearGradient>
+          </defs>
+          {Array.from({ length: 9 }).map((_, i) => (
+            <line key={`h${i}`} x1="0" y1={10 + i * 15} x2="200" y2={10 + i * 15} stroke="url(#bentoGridStroke)" strokeWidth="0.8" />
+          ))}
+          {Array.from({ length: 11 }).map((_, i) => (
+            <line key={`v${i}`} x1={10 + i * 18} y1="0" x2={10 + i * 18} y2="140" stroke="url(#bentoGridStroke)" strokeWidth="0.8" />
+          ))}
+          {/* Soft route glow lines */}
+          <path d="M20 95 C55 70, 90 110, 130 55 S180 40, 190 70" fill="none" stroke="#7BA3FF" strokeWidth="1.6" strokeOpacity="0.35" strokeLinecap="round" />
+          <path d="M30 40 C70 50, 100 20, 150 45 S185 90, 175 110" fill="none" stroke="#9BC0FF" strokeWidth="1.2" strokeOpacity="0.28" strokeLinecap="round" />
+        </svg>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1.35fr 1fr",gap:16,alignItems:"stretch"}}>
-        {/* Card 01 — dark featured */}
-        <Reveal delay={100}>
-          <div style={{
-            background:`linear-gradient(145deg,#171732 0%,#1E1B4B 55%,#2A2460 100%)`,
-            borderRadius:24,
-            padding:isMobile?"28px 22px":"32px 32px 28px",
-            minHeight:isMobile?320:380,
-            display:"grid",
-            gridTemplateColumns:isMobile?"1fr":"1fr 1fr",
-            gap:20,
-            alignItems:"center",
-            position:"relative",
-            overflow:"hidden",
-            height:"100%",
-            boxSizing:"border-box",
-          }}>
-            <div style={{position:"relative",zIndex:2}}>
-              <div style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:36,height:28,borderRadius:8,background:"rgba(255,255,255,.1)",color:"#fff",fontSize:12,fontWeight:800,marginBottom:18,letterSpacing:".4px"}}>01</div>
-              <h3 style={{fontFamily:FONT_D,fontSize:isMobile?24:28,fontWeight:800,color:"#fff",margin:"0 0 10px",letterSpacing:"-.6px",lineHeight:1.15}}>Get listed everywhere</h3>
-              <p style={{fontSize:14.5,color:"rgba(255,255,255,.68)",lineHeight:1.6,margin:"0 0 22px",maxWidth:280}}>
-                Reach customers across maps, directories, apps and AI-powered local search.
-              </p>
-              <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"7px 14px",borderRadius:20,background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.12)",fontSize:12.5,fontWeight:700,color:"#fff"}}>
-                <span style={{width:7,height:7,borderRadius:"50%",background:T.green,boxShadow:`0 0 8px ${T.green}`}}/>
-                60+ publisher destinations
-              </div>
-            </div>
+      {/* Soft dashed orbit rings */}
+      {[0.98, 0.78, 0.58].map((scale, i) => {
+        const d = stage * scale * 0.72;
+        return (
+          <div
+            key={i}
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              left: "50%",
+              top: "48%",
+              width: d,
+              height: d,
+              marginLeft: -d / 2,
+              marginTop: -d / 2,
+              borderRadius: "50%",
+              border: "1.5px dashed rgba(140,168,220,.38)",
+              pointerEvents: "none",
+            }}
+          />
+        );
+      })}
 
-            {/* Orbit graphic */}
-            <div style={{position:"relative",width:"100%",aspectRatio:"1",maxWidth:isMobile?220:260,margin:isMobile?"0 auto":"0 0 0 auto"}}>
-              {[1,0.72,0.5].map((scale,i)=>(
-                <div key={i} aria-hidden="true" style={{
-                  position:"absolute",left:"50%",top:"50%",
-                  width:`${scale*92}%`,height:`${scale*92}%`,
-                  marginLeft:`-${scale*46}%`,marginTop:`-${scale*46}%`,
-                  borderRadius:"50%",
-                  border:`1px solid rgba(255,255,255,${0.14-i*0.03})`,
-                }}>
-                  <div style={{
-                    position:"absolute",inset:0,borderRadius:"50%",
-                    animation:`${i%2? "orbitSpinR":"orbitSpin"} ${18+i*6}s linear infinite`,
-                  }}>
-                    {[T.green,T.brand,T.blue].slice(0,i===0?2:i===1?2:1).map((c,di)=>(
-                      <span key={di} style={{
-                        position:"absolute",
-                        top:di===0?-4:"auto",
-                        bottom:di===1?-4:"auto",
-                        left:di===2?"auto":"50%",
-                        right:di===2?-4:"auto",
-                        transform:di<2?"translateX(-50%)":"none",
-                        width:8,height:8,borderRadius:"50%",
-                        background:c,boxShadow:`0 0 10px ${c}`,
-                      }}/>
-                    ))}
-                  </div>
-                </div>
-              ))}
-              <div style={{
-                position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",
-                width:44,height:44,borderRadius:"50%",
-                background:"#fff",display:"flex",alignItems:"center",justifyContent:"center",
-                boxShadow:"0 8px 24px rgba(0,0,0,.25)",zIndex:2,
-              }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.brand} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21s7-4.5 7-11a7 7 0 1 0-14 0c0 6.5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
-              </div>
+      {/* Brand chips — fixed like reference */}
+      {chips.map((b) => (
+        <div
+          key={b.name}
+          style={{
+            position: "absolute",
+            left: b.left,
+            top: b.top,
+            zIndex: 3,
+          }}
+        >
+          <div
+            style={{
+              animation: "floaty 5.5s ease-in-out infinite",
+              animationDelay:
+                b.name === "Yelp" ? "0s" : b.name === "Apple" ? ".4s" : b.name === "Facebook" ? ".8s" : b.name === "Google" ? "1.2s" : "1.6s",
+            }}
+          >
+            <BrandChip name={b.name} color={b.color} size={isMobile ? 34 : 38} iconSize={isMobile ? 15 : 17} />
+          </div>
+        </div>
+      ))}
+
+      {/* Business card */}
+      <div
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: "48%",
+          transform: "translate(-50%, -50%)",
+          zIndex: 5,
+        }}
+      >
+        <div
+          style={{
+            position: "relative",
+            background: "#fff",
+            borderRadius: 16,
+            padding: "13px 15px",
+            boxShadow: "0 18px 44px rgba(23,23,50,.14), 0 4px 12px rgba(23,23,50,.06)",
+            border: "1px solid rgba(23,23,50,.06)",
+            minWidth: isMobile ? 168 : 186,
+            animation: "floaty 6s ease-in-out infinite",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 11,
+                background: T.brandSoft,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={T.brand} strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 10.5 12 3l9 7.5" />
+                <path d="M5 9.5V21h14V9.5" />
+                <path d="M10 21v-6h4v6" />
+              </svg>
+            </div>
+            <div>
+              <div style={{ fontSize: 13.5, fontWeight: 800, color: T.ink, fontFamily: FONT_D, letterSpacing: "-.2px" }}>Your Business</div>
+              <div style={{ fontSize: 11, color: T.faint, fontWeight: 600, marginTop: 2 }}>123 Main St, City</div>
+              <div style={{ fontSize: 11, color: T.faint, fontWeight: 600 }}>(555) 123-4567</div>
             </div>
           </div>
-        </Reveal>
-
-        {/* Cards 02 + 03 stacked */}
-        <div style={{display:"flex",flexDirection:"column",gap:16}}>
-          <Reveal delay={160}>
-            <div className="lift" style={{background:T.surface,border:`1px solid ${T.line}`,borderRadius:22,padding:isMobile?22:26,boxShadow:SHADOW,flex:1}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
-                <div style={{width:44,height:44,borderRadius:14,background:T.greenSoft,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                  <Ico d={<path d="M20 6 9 17l-5-5"/>} c={T.green} s={22}/>
-                </div>
-                <div style={{display:"inline-flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:20,background:T.greenSoft,fontSize:10.5,fontWeight:800,color:T.green,letterSpacing:".3px"}}>ALL MATCHED</div>
-              </div>
-              <div style={{fontSize:12,fontWeight:800,color:T.faint,marginBottom:6,letterSpacing:".4px"}}>02 · CONSISTENCY</div>
-              <h3 style={{fontFamily:FONT_D,fontSize:20,fontWeight:800,margin:"0 0 8px",letterSpacing:"-.4px"}}>Stay correct everywhere</h3>
-              <p style={{fontSize:14,color:T.sub,lineHeight:1.6,margin:0}}>Name, address and phone stay identical across every platform so search engines trust you.</p>
-            </div>
-          </Reveal>
-          <Reveal delay={220}>
-            <div className="lift" style={{background:T.surface,border:`1px solid ${T.line}`,borderRadius:22,padding:isMobile?22:26,boxShadow:SHADOW,flex:1}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
-                <div style={{width:44,height:44,borderRadius:14,background:T.violetSoft,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                  <Ico d={<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>} c={T.violet} s={22}/>
-                </div>
-                <div style={{display:"inline-flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:20,background:T.violetSoft,fontSize:10.5,fontWeight:800,color:T.violet,letterSpacing:".3px"}}>24/7 ACTIVE</div>
-              </div>
-              <div style={{fontSize:12,fontWeight:800,color:T.faint,marginBottom:6,letterSpacing:".4px"}}>03 · PROTECTION</div>
-              <h3 style={{fontFamily:FONT_D,fontSize:20,fontWeight:800,margin:"0 0 8px",letterSpacing:"-.4px"}}>Reverse harmful edits</h3>
-              <p style={{fontSize:14,color:T.sub,lineHeight:1.6,margin:0}}>When someone changes your hours or address, we catch it and put the correct details back.</p>
-            </div>
-          </Reveal>
+          <div
+            style={{
+              position: "absolute",
+              right: -5,
+              bottom: -5,
+              width: 24,
+              height: 24,
+              borderRadius: "50%",
+              background: T.green,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 4px 12px rgba(15,164,122,.4)",
+              border: "2.5px solid #fff",
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round">
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
+          </div>
         </div>
       </div>
     </div>
+  );
+}
 
+export function LandingBento({ isMobile }) {
+  const avatars = [
+    "/trust-avatar-1.png",
+    "/trust-avatar-2.png",
+    "/trust-avatar-3.png",
+  ];
+
+  return (
+    <div style={{ maxWidth: 1400, margin: "0 auto", padding: isMobile ? "40px 16px" : "64px 24px", width: "100%", boxSizing: "border-box" }}>
+      <Reveal>
+        <div
+          style={{
+            background: "#fff",
+            border: `1px solid ${T.line}`,
+            borderRadius: isMobile ? 24 : 28,
+            padding: isMobile ? "28px 18px" : "36px 36px 32px",
+            boxShadow: "0 8px 32px rgba(23,23,50,.06)",
+          }}
+        >
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: isMobile ? "1fr" : "1.05fr 0.95fr 1.1fr",
+              gap: isMobile ? 28 : 24,
+              alignItems: "center",
+            }}
+          >
+            {/* Left copy */}
+            <div>
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  padding: "6px 12px",
+                  borderRadius: 20,
+                  background: T.violetSoft,
+                  color: T.violet,
+                  fontSize: 12,
+                  fontWeight: 800,
+                  letterSpacing: ".2px",
+                  marginBottom: 16,
+                }}
+              >
+                Why it matters
+              </div>
+              <h2
+                style={{
+                  fontFamily: FONT_D,
+                  fontSize: isMobile ? 28 : 34,
+                  fontWeight: 800,
+                  letterSpacing: "-1.1px",
+                  margin: "0 0 12px",
+                  lineHeight: 1.15,
+                  color: T.ink,
+                }}
+              >
+                Bad business data costs{" "}
+                <span style={{ color: T.brand }}>real customers.</span>
+              </h2>
+              <p
+                style={{
+                  fontSize: isMobile ? 14.5 : 15.5,
+                  color: T.sub,
+                  lineHeight: 1.6,
+                  margin: "0 0 22px",
+                  maxWidth: 340,
+                }}
+              >
+                Inaccurate or inconsistent information means missed opportunities. We help you fix that.
+              </p>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ display: "flex", alignItems: "center" }}>
+                  {avatars.map((src, i) => (
+                    <img
+                      key={src}
+                      src={src}
+                      alt=""
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: "50%",
+                        objectFit: "cover",
+                        border: "2.5px solid #fff",
+                        marginLeft: i === 0 ? 0 : -12,
+                        zIndex: avatars.length - i,
+                        boxShadow: "0 2px 8px rgba(23,23,50,.12)",
+                        display: "block",
+                        background: T.surface2,
+                      }}
+                    />
+                  ))}
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.sub }}>Trusted by 1,000+ businesses</div>
+              </div>
+            </div>
+
+            {/* Center graphic */}
+            <div style={{ order: isMobile ? 3 : 2 }}>
+              <MapGraphic isMobile={isMobile} />
+            </div>
+
+            {/* Right feature cards — circular icons like reference */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, order: isMobile ? 2 : 3 }}>
+              <FeatureCard
+                isMobile={isMobile}
+                num="01"
+                label="CONSISTENCY"
+                badge="ALL MATCHED"
+                badgeBg={T.greenSoft}
+                badgeColor={T.green}
+                iconBg={T.green}
+                icon={
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                }
+                title="Stay correct everywhere"
+                body="Name, address and phone stay identical across every platform so search engines trust you."
+              />
+              <FeatureCard
+                isMobile={isMobile}
+                num="02"
+                label="PROTECTION"
+                badge="24/7 ACTIVE"
+                badgeBg={T.violetSoft}
+                badgeColor={T.violet}
+                iconBg={T.violet}
+                icon={
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    <path d="M9 12.2l2 2 4.2-4.5" />
+                  </svg>
+                }
+                title="Reverse harmful edits"
+                body="When someone changes your hours or address, we catch it and put the correct details back."
+              />
+              <FeatureCard
+                isMobile={isMobile}
+                num="03"
+                label="VISIBILITY"
+                badge="500+ DIRECTORIES"
+                badgeBg={T.blueSoft}
+                badgeColor={T.blue}
+                iconBg={T.blue}
+                icon={
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 11l19-9-9 19-2-8-8-2z" />
+                  </svg>
+                }
+                title="Get listed everywhere"
+                body="Reach customers across maps, directories, apps and AI-powered local search."
+              />
+            </div>
+          </div>
+        </div>
+      </Reveal>
+    </div>
   );
 }

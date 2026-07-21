@@ -79,7 +79,7 @@ export function LandingFooter({ isMobile, isTab, user, nav, goDash, goLogin, goS
             </div>
             <div style={{display:"flex",flexWrap:"wrap",gap:isMobile?"10px 14px":"10px 18px"}}>
               {[
-                {t:"60+ destinations",c:T.brand},
+                {t:"500+ directories",c:T.brand},
                 {t:"One dashboard",c:T.green},
                 {t:"Cancel anytime",c:T.violet},
               ].map(x=>(

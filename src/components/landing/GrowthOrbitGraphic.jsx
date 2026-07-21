@@ -135,7 +135,7 @@ export function GrowthOrbitGraphic({ isMobile }) {
         style={{
           position: "absolute",
           right: isMobile ? 4 : 10,
-          bottom: isMobile ? "18%" : "20%",
+          bottom: isMobile ? "10%" : "12%",
           zIndex: 5,
         }}
       >
@@ -151,11 +151,12 @@ export function GrowthOrbitGraphic({ isMobile }) {
             gap: 8,
           }}
         >
-          <svg width="28" height="22" viewBox="0 0 28 22" aria-hidden>
-            <rect x="2" y="12" width="5" height="8" rx="1.5" fill={T.blue} />
-            <rect x="10" y="7" width="5" height="13" rx="1.5" fill={T.brand} />
-            <rect x="18" y="2" width="5" height="18" rx="1.5" fill={T.green} />
-            <path d="M3 14 L12 8 L20 5" fill="none" stroke={T.green} strokeWidth="1.8" strokeLinecap="round" />
+          <svg width="30" height="24" viewBox="0 0 30 24" aria-hidden>
+            <rect x="2" y="13" width="5.5" height="9" rx="1.5" fill={T.blue} />
+            <rect x="10" y="8" width="5.5" height="14" rx="1.5" fill={T.brand} />
+            <rect x="18" y="3" width="5.5" height="19" rx="1.5" fill={T.green} />
+            <path d="M4 15.5 12.5 8.5 21 4" fill="none" stroke={T.green} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M18 4h4.5v4" fill="none" stroke={T.green} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           <div>
             <div style={{ fontSize: 10, fontWeight: 800, color: T.green, letterSpacing: ".3px" }}>GROWTH</div>
@@ -175,44 +176,68 @@ export function GrowthOrbitGraphic({ isMobile }) {
 }
 
 function NodeIcon({ name, size }) {
-  const c = T.brand;
   if (name === "store") {
     return (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
-        <path d="M4 9h16l-1.2-4H5.2L4 9z" fill={`${c}22`} stroke={c} strokeWidth="1.6" strokeLinejoin="round" />
-        <path d="M5 9v10h14V9" stroke={c} strokeWidth="1.6" strokeLinejoin="round" />
-        <path d="M10 19v-6h4v6" stroke={c} strokeWidth="1.6" strokeLinejoin="round" />
+        <path d="M3.5 9.5 5 5h14l1.5 4.5" stroke={T.brand} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M4 9.5h16v2.2c0 1.1-.9 2-2 2H6c-1.1 0-2-.9-2-2V9.5z" fill={`${T.brand}18`} stroke={T.brand} strokeWidth="1.7" strokeLinejoin="round" />
+        <path d="M5.5 13.7V20h13v-6.3" stroke={T.brand} strokeWidth="1.7" strokeLinejoin="round" />
+        <path d="M10 20v-4.2h4V20" stroke={T.brand} strokeWidth="1.7" strokeLinejoin="round" />
+        <path d="M8 7.2h.01M12 7.2h.01M16 7.2h.01" stroke={T.brand} strokeWidth="2.4" strokeLinecap="round" />
       </svg>
     );
   }
   if (name === "pin") {
     return (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
-        <path d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11z" fill={`${T.green}22`} stroke={T.green} strokeWidth="1.6" />
-        <circle cx="12" cy="10" r="2.4" fill={T.green} />
+        <path
+          d="M12 21.5s6.5-5.2 6.5-11.2a6.5 6.5 0 1 0-13 0c0 6 6.5 11.2 6.5 11.2z"
+          fill={`${T.green}20`}
+          stroke={T.green}
+          strokeWidth="1.8"
+          strokeLinejoin="round"
+        />
+        <circle cx="12" cy="10.2" r="2.6" fill={T.green} />
+        <circle cx="12" cy="10.2" r="1.1" fill="#fff" />
       </svg>
     );
   }
   if (name === "ai") {
     return (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
-        <rect x="3" y="5" width="18" height="12" rx="4" fill={`${T.violet}18`} stroke={T.violet} strokeWidth="1.6" />
-        <path d="M8 17l2 3h4l2-3" stroke={T.violet} strokeWidth="1.6" strokeLinejoin="round" />
-        <text x="12" y="13.2" textAnchor="middle" fontSize="6.5" fontWeight="800" fill={T.violet} fontFamily="system-ui,sans-serif">AI</text>
+        <rect x="5" y="4.5" width="14" height="12.5" rx="3.5" fill={`${T.violet}18`} stroke={T.violet} strokeWidth="1.7" />
+        <path d="M12 4.5V2.8" stroke={T.violet} strokeWidth="1.7" strokeLinecap="round" />
+        <circle cx="12" cy="2.2" r="1" fill={T.violet} />
+        <circle cx="9" cy="10" r="1.35" fill={T.violet} />
+        <circle cx="15" cy="10" r="1.35" fill={T.violet} />
+        <path d="M9.2 13.2c.8.7 1.9 1.1 2.8 1.1s2-.4 2.8-1.1" stroke={T.violet} strokeWidth="1.6" strokeLinecap="round" />
+        <path d="M8.5 17.2 12 20.2l3.5-3" stroke={T.violet} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     );
   }
   if (name === "star") {
     return (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
-        <path d="M12 3.5l2.4 5 5.4.7-4 3.7 1.1 5.3L12 15.7 7.1 18.2 8.2 13 4.2 9.2l5.4-.7L12 3.5z" fill={`${T.amber}33`} stroke={T.amber} strokeWidth="1.4" strokeLinejoin="round" />
+        <path
+          d="M12 3.2l2.55 5.17 5.7.83-4.12 4.02.97 5.67L12 16.2l-5.1 2.69.97-5.67-4.12-4.02 5.7-.83L12 3.2z"
+          fill="#F5B942"
+          stroke="#E8A020"
+          strokeWidth="1.2"
+          strokeLinejoin="round"
+        />
       </svg>
     );
   }
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M12 3l8 3.5v5.2c0 4.5-3.1 7.8-8 9.3-4.9-1.5-8-4.8-8-9.3V6.5L12 3z" fill={`${T.green}22`} stroke={T.green} strokeWidth="1.6" strokeLinejoin="round" />
-      <path d="M9 11.5l2 2 4-4" stroke={T.green} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M12 2.8 19.2 6v5.4c0 4.7-3.2 8.2-7.2 9.8-4-1.6-7.2-5.1-7.2-9.8V6L12 2.8z"
+        fill={`${T.green}22`}
+        stroke={T.green}
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <path d="M8.8 11.6l2.2 2.2 4.3-4.4" stroke={T.green} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

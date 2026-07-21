@@ -1,194 +1,386 @@
 import { T, FONT_D, SHADOW, SHADOW_LG } from "../../lib/theme";
 import { Reveal } from "../Reveal";
+import { BrandMark } from "./BrandMark";
+
+function SearchBar({ isMobile }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        background: "#fff",
+        border: `1px solid ${T.line}`,
+        borderRadius: 999,
+        padding: isMobile ? "12px 14px" : "14px 18px",
+        boxShadow: SHADOW_LG,
+        marginBottom: isMobile ? 16 : 20,
+        maxWidth: "100%",
+      }}
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.faint} strokeWidth="2.2" strokeLinecap="round">
+        <circle cx="11" cy="11" r="7" />
+        <path d="M20 20l-3.5-3.5" />
+      </svg>
+      <div style={{ flex: 1, fontSize: isMobile ? 13.5 : 15, fontWeight: 600, color: T.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        best roofing company near me
+      </div>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.green} strokeWidth="2" strokeLinecap="round">
+        <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+    </div>
+  );
+}
+
+function DetailIcon({ type }) {
+  const common = { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: T.faint, strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" };
+  if (type === "phone") return <svg {...common}><path d="M22 16.9v2a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h2a2 2 0 0 1 2 1.7c.1.8.3 1.6.6 2.3a2 2 0 0 1-.5 2.1L7.1 9.2a16 16 0 0 0 6 6l1.1-1.1a2 2 0 0 1 2.1-.5c.7.3 1.5.5 2.3.6A2 2 0 0 1 22 16.9z"/></svg>;
+  if (type === "clock") return <svg {...common}><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>;
+  return <svg {...common}><path d="M12 21s7-4.5 7-11a7 7 0 1 0-14 0c0 6.5 7 11 7 11z"/><circle cx="12" cy="10" r="2.2"/></svg>;
+}
+
+function GoogleListingCard({ isMobile }) {
+  const thumbs = ["/ai-listing-1.png", "/ai-listing-2.png", "/ai-listing-3.png"];
+  return (
+    <div
+      style={{
+        background: "#fff",
+        borderRadius: 18,
+        border: `1px solid ${T.line}`,
+        boxShadow: "0 8px 28px rgba(23,23,50,.10)",
+        padding: isMobile ? 14 : 18,
+        width: isMobile ? "100%" : "auto",
+        flex: isMobile ? "none" : 1,
+        minWidth: 0,
+        position: "relative",
+        zIndex: 1,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <BrandMark name="Google" size={22} color="#4285F4" />
+        <div
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 5,
+            padding: "5px 9px",
+            borderRadius: 8,
+            background: T.greenSoft,
+            fontSize: 10.5,
+            fontWeight: 800,
+            color: T.green,
+          }}
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={T.green} strokeWidth="3" strokeLinecap="round">
+            <path d="M20 6 9 17l-5-5" />
+          </svg>
+          Google Guaranteed
+        </div>
+      </div>
+
+      <div style={{ fontFamily: FONT_D, fontSize: isMobile ? 17 : 18, fontWeight: 800, color: T.ink, marginBottom: 5 }}>
+        Summit Peak Roofing
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 12, fontSize: 12.5, fontWeight: 700, color: T.sub }}>
+        <span style={{ color: "#F4B400", letterSpacing: 1 }}>★★★★★</span>
+        <span>4.9</span>
+        <span style={{ color: T.faint, fontWeight: 600 }}>(128)</span>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 7, marginBottom: 14 }}>
+        {thumbs.map((src, i) => (
+          <img
+            key={src}
+            src={src}
+            alt=""
+            style={{
+              height: isMobile ? 52 : 62,
+              width: "100%",
+              borderRadius: 10,
+              objectFit: "cover",
+              display: "block",
+              background: T.surface2,
+            }}
+          />
+        ))}
+      </div>
+
+      <div style={{ display: "flex", gap: 7, marginBottom: 14, flexWrap: "wrap" }}>
+        {["Website", "Directions", "Call"].map((a) => (
+          <div
+            key={a}
+            style={{
+              padding: "7px 12px",
+              borderRadius: 9,
+              background: "#EAF1FB",
+              fontSize: 11.5,
+              fontWeight: 700,
+              color: T.blue,
+            }}
+          >
+            {a}
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {[
+          { type: "phone", t: "(555) 214-8900" },
+          { type: "clock", t: "Open · Closes 6 PM" },
+          { type: "pin", t: "1420 Ridgeway Ave" },
+        ].map((row) => (
+          <div key={row.t} style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 12, color: T.sub, fontWeight: 600 }}>
+            <DetailIcon type={row.type} />
+            {row.t}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AiAnswerCard({ isMobile }) {
+  return (
+    <div
+      style={{
+        background: "#fff",
+        borderRadius: 18,
+        border: `1px solid ${T.line}`,
+        boxShadow: "0 8px 28px rgba(23,23,50,.10)",
+        padding: isMobile ? 14 : 18,
+        width: isMobile ? "100%" : "auto",
+        flex: isMobile ? "none" : 1,
+        minWidth: 0,
+        position: "relative",
+        zIndex: 1,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <div
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: "50%",
+            background: T.green,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round">
+            <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" />
+            <circle cx="12" cy="12" r="2.8" />
+          </svg>
+        </div>
+        <div style={{ fontSize: 13.5, fontWeight: 800, color: T.ink, fontFamily: FONT_D }}>AI Answer</div>
+        <span style={{ fontSize: 12, fontWeight: 800, color: T.green }}>+</span>
+      </div>
+
+      <p style={{ fontSize: 12, color: T.sub, lineHeight: 1.5, margin: "0 0 12px", fontWeight: 500 }}>
+        Here are top-rated roofing companies near you based on reviews and local listing data:
+      </p>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <div
+          style={{
+            width: 22,
+            height: 22,
+            borderRadius: "50%",
+            background: T.greenSoft,
+            color: T.green,
+            fontSize: 11,
+            fontWeight: 800,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+            marginTop: 2,
+          }}
+        >
+          1
+        </div>
+        <div>
+          <div style={{ fontSize: 12.5, fontWeight: 800, color: T.ink, marginBottom: 2 }}>
+            Summit Peak Roofing{" "}
+            <span style={{ fontSize: 10, fontWeight: 800, color: T.green, background: T.greenSoft, padding: "2px 6px", borderRadius: 4, marginLeft: 4 }}>
+              Top pick
+            </span>
+          </div>
+          <div style={{ fontSize: 11, color: "#F4B400", fontWeight: 700, marginBottom: 4 }}>★★★★★ 4.9</div>
+          <div style={{ fontSize: 11.5, color: T.sub, lineHeight: 1.45, fontWeight: 500 }}>
+            Highly rated local roofer with consistent NAP data across Google and directories.
+          </div>
+        </div>
+      </div>
+
+      {[2, 3].map((n) => (
+        <div key={n} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
+          <div
+            style={{
+              width: 22,
+              height: 22,
+              borderRadius: "50%",
+              background: T.surface2,
+              color: T.faint,
+              fontSize: 11,
+              fontWeight: 800,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            {n}
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ height: 8, width: "72%", background: T.surface2, borderRadius: 4, marginBottom: 5 }} />
+            <div style={{ height: 7, width: "48%", background: T.surface2, borderRadius: 4 }} />
+          </div>
+        </div>
+      ))}
+
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, fontSize: 11, fontWeight: 600, color: T.faint }}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={T.green} strokeWidth="2.5" strokeLinecap="round">
+          <path d="M20 6 9 17l-5-5" />
+        </svg>
+        Recommendations are AI-generated.
+      </div>
+    </div>
+  );
+}
 
 export function LandingAiDiscovery({ isMobile }) {
+  const platforms = [
+    { name: "GoogleMaps", label: "Google Maps", color: "#EA4335" },
+    { name: "AppleMaps", label: "Apple Maps", color: "#007AFF" },
+    { name: "ChatGPT", label: "ChatGPT", color: "#10A37F" },
+    { name: "Gemini", label: "Gemini", color: T.violet },
+  ];
+
   return (
-    <div style={{maxWidth:1400,margin:"0 auto",padding:isMobile?"40px 12px":"64px 16px",width:"100%",boxSizing:"border-box"}}>
-      <Reveal>
-        <div style={{
-          background:`linear-gradient(135deg,#F4F2FA 0%,#EEF0F8 48%,#F7F5FC 100%)`,
-          border:`1px solid ${T.line}`,
-          borderRadius:isMobile?24:36,
-          padding:isMobile?"32px 22px":"48px 52px",
-          display:"grid",
-          gridTemplateColumns:isMobile?"1fr":"1.05fr 1fr",
-          gap:isMobile?36:48,
-          alignItems:"center",
-          overflow:"visible",
-          position:"relative",
-        }}>
-          {/* Left copy */}
-          <div>
-            <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"6px 14px",background:"rgba(91,91,214,.08)",border:`1px solid rgba(91,91,214,.18)`,borderRadius:30,fontSize:11.5,fontWeight:800,color:T.brand,letterSpacing:".6px",marginBottom:18}}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.brand} strokeWidth="2.2" strokeLinecap="round"><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1l2.1-2.1M17 7l2.1-2.1"/></svg>
-              AI DISCOVERY
+    <div
+      style={{
+        background: "#fff",
+        padding: isMobile ? "48px 16px" : "72px 24px",
+        width: "100%",
+        boxSizing: "border-box",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 1400,
+          margin: "0 auto",
+          display: "grid",
+          gridTemplateColumns: isMobile ? "1fr" : "1.1fr 0.9fr",
+          gap: isMobile ? 36 : 56,
+          alignItems: "center",
+        }}
+      >
+        {/* Left visual — side by side, no overlap */}
+        <Reveal>
+          <div style={{ position: "relative", width: "100%" }}>
+            <SearchBar isMobile={isMobile} />
+            <div
+              style={{
+                display: "flex",
+                flexDirection: isMobile ? "column" : "row",
+                alignItems: "stretch",
+                gap: isMobile ? 14 : 16,
+              }}
+            >
+              <GoogleListingCard isMobile={isMobile} />
+              <AiAnswerCard isMobile={isMobile} />
             </div>
-            <h2 style={{fontFamily:FONT_D,fontSize:isMobile?28:40,fontWeight:800,letterSpacing:"-1.3px",margin:"0 0 14px",lineHeight:1.12,color:T.ink}}>
-              Customers ask AI.<br/>Make sure it finds <span style={{color:T.brand}}>you.</span>
+          </div>
+        </Reveal>
+
+        {/* Right copy */}
+        <Reveal delay={100}>
+          <div>
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 800,
+                letterSpacing: "1.2px",
+                color: T.green,
+                marginBottom: 14,
+                textTransform: "uppercase",
+              }}
+            >
+              AI Listings Management
+            </div>
+            <h2
+              style={{
+                fontFamily: FONT_D,
+                fontSize: isMobile ? 28 : 40,
+                fontWeight: 800,
+                letterSpacing: "-1.2px",
+                margin: "0 0 16px",
+                lineHeight: 1.15,
+                color: T.ink,
+              }}
+            >
+              Structure listings for Google, Apple Maps, ChatGPT, and Gemini
             </h2>
-            <p style={{fontSize:isMobile?15:16.5,color:T.sub,lineHeight:1.65,margin:"0 0 22px",maxWidth:460}}>
-              NAP Orbit keeps your business details accurate across the trusted sources AI assistants use to recommend local businesses.
+            <p
+              style={{
+                fontSize: isMobile ? 15 : 16.5,
+                color: T.sub,
+                lineHeight: 1.65,
+                margin: "0 0 28px",
+                maxWidth: 460,
+              }}
+            >
+              NAP Orbit keeps your business details accurate across the trusted sources AI assistants use to recommend local businesses — so when customers ask, your listing is ready.
             </p>
-            <div style={{display:"flex",flexWrap:"wrap",gap:isMobile?"12px 18px":"14px 22px",marginBottom:22}}>
-              {[
-                {t:"Accurate",c:T.green},
-                {t:"AI trusted",c:T.brand},
-                {t:"Local discovery",c:T.blue},
-              ].map(x=>(
-                <div key={x.t} style={{display:"flex",alignItems:"center",gap:8,fontSize:14,fontWeight:700,color:T.ink}}>
-                  <span style={{width:20,height:20,borderRadius:"50%",background:`${x.c}18`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={x.c} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-                  </span>
-                  {x.t}
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(4, 1fr)",
+                gap: isMobile ? 8 : 12,
+              }}
+            >
+              {platforms.map((p) => (
+                <div
+                  key={p.label}
+                  style={{
+                    background: "#fff",
+                    border: `1px solid ${T.line}`,
+                    borderRadius: 14,
+                    padding: isMobile ? "12px 6px" : "14px 10px",
+                    boxShadow: SHADOW,
+                    textAlign: "center",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: isMobile ? 36 : 40,
+                      height: isMobile ? 36 : 40,
+                      borderRadius: 12,
+                      background: T.surface2,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <BrandMark name={p.name} size={isMobile ? 18 : 20} color={p.color} />
+                  </div>
+                  <div style={{ fontSize: isMobile ? 10 : 11.5, fontWeight: 700, color: T.ink, lineHeight: 1.2 }}>
+                    {p.label}
+                  </div>
                 </div>
               ))}
             </div>
-            <div style={{borderTop:`1px solid ${T.line}`,paddingTop:16,fontSize:13.5,color:T.faint,fontWeight:600}}>
-              One consistent business profile. More ways to be found.
-            </div>
           </div>
-
-          {/* Right: AI orbit graphic */}
-          <div style={{position:"relative",width:"100%",maxWidth:isMobile?360:450,height:isMobile?360:450,margin:isMobile?"0 auto":"0 0 0 auto"}}>
-            {/* Dashed orbits + 2 evenly spaced rotating dots per ring */}
-            {[
-              {scale:1,colors:[T.green,T.brand],dur:"32s",dir:"orbitSpinR",delay:"0s"},
-              {scale:0.8,colors:[T.blue,"#B8B8FF"],dur:"26s",dir:"orbitSpin",delay:"-4s"},
-              {scale:0.62,colors:[T.brand,T.green],dur:"20s",dir:"orbitSpinR",delay:"-7s"},
-              {scale:0.44,colors:[T.blue,T.brand],dur:"14s",dir:"orbitSpin",delay:"-2s"},
-            ].map((ring,i)=>(
-              <div
-                key={i}
-                aria-hidden="true"
-                style={{
-                  position:"absolute",
-                  left:"50%",top:"50%",
-                  width:`${ring.scale*100}%`,
-                  height:`${ring.scale*100}%`,
-                  marginLeft:`-${ring.scale*50}%`,
-                  marginTop:`-${ring.scale*50}%`,
-                  borderRadius:"50%",
-                  border:`1.5px dashed rgba(91,91,214,${0.24-i*0.035})`,
-                  pointerEvents:"none",
-                }}
-              >
-                <div style={{
-                  position:"absolute",
-                  inset:0,
-                  borderRadius:"50%",
-                  animation:`${ring.dir} ${ring.dur} linear infinite`,
-                  animationDelay:ring.delay,
-                }}>
-                  {/* 2 dots opposite each other — same spacing */}
-                  {ring.colors.map((c,di)=>(
-                    <span
-                      key={di}
-                      style={{
-                        position:"absolute",
-                        top:di===0?-5:"auto",
-                        bottom:di===1?-5:"auto",
-                        left:"50%",
-                        transform:"translateX(-50%)",
-                        width:9,
-                        height:9,
-                        borderRadius:"50%",
-                        background:c,
-                        boxShadow:`0 0 12px ${c}`,
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-            ))}
-
-            {/* Center AI sun */}
-            <div style={{
-              position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",
-              width:isMobile?72:88,height:isMobile?72:88,borderRadius:"50%",
-              background:`linear-gradient(135deg,${T.brand},${T.brandDark})`,
-              color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",
-              fontFamily:FONT_D,fontWeight:800,fontSize:isMobile?22:26,letterSpacing:"-0.5px",
-              boxShadow:`0 10px 32px ${T.brandGlow}`,zIndex:5,
-            }}>
-              AI
-              <div aria-hidden="true" style={{position:"absolute",inset:-14,borderRadius:"50%",background:`radial-gradient(circle,transparent 55%,${T.brand}22 56%,transparent 70%)`,pointerEvents:"none"}}/>
-            </div>
-
-            {/* Orbiting labels — Your Business alone on outermost ring */}
-            {[
-              {label:"Your Business",dot:T.green,scale:1,dur:"32s",dir:"orbitSpinR",delay:"-6s",business:true},
-              {label:"ChatGPT answers",dot:T.green,scale:0.8,dur:"26s",dir:"orbitSpin",delay:"0s"},
-              {label:"Google AI",dot:T.blue,scale:0.62,dur:"20s",dir:"orbitSpinR",delay:"-8s"},
-              {label:"Gemini",dot:T.brand,scale:0.44,dur:"14s",dir:"orbitSpin",delay:"-4s"},
-            ].map((card)=>{
-              const reverse=card.dir==="orbitSpin"?"orbitSpinR":"orbitSpin";
-              return(
-                <div
-                  key={card.label}
-                  aria-hidden={!card.business}
-                  style={{
-                    position:"absolute",
-                    left:"50%",top:"50%",
-                    width:`${card.scale*100}%`,
-                    height:`${card.scale*100}%`,
-                    marginLeft:`-${card.scale*50}%`,
-                    marginTop:`-${card.scale*50}%`,
-                    animation:`${card.dir} ${card.dur} linear infinite`,
-                    animationDelay:card.delay,
-                    zIndex:4,
-                    pointerEvents:"none",
-                  }}
-                >
-                  <div style={{
-                    position:"absolute",
-                    top:0,
-                    left:"50%",
-                    transform:"translate(-50%,-50%)",
-                    animation:`${reverse} ${card.dur} linear infinite`,
-                    animationDelay:card.delay,
-                  }}>
-                    {card.business?(
-                      <div style={{
-                        background:"#fff",
-                        borderRadius:16,
-                        padding:"10px 14px",
-                        boxShadow:SHADOW_LG,
-                        border:`1px solid ${T.line}`,
-                        minWidth:isMobile?150:170,
-                        pointerEvents:"auto",
-                      }}>
-                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
-                          <div style={{width:28,height:28,borderRadius:9,background:T.brandSoft,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.brand} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21s7-4.5 7-11a7 7 0 1 0-14 0c0 6.5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
-                          </div>
-                          <div style={{fontSize:13.5,fontWeight:800,color:T.ink,fontFamily:FONT_D}}>Your Business</div>
-                        </div>
-                        <div style={{fontSize:11.5,fontWeight:700,color:T.green,paddingLeft:36}}>✓ Verified and consistent</div>
-                      </div>
-                    ):(
-                      <div style={{
-                        background:"#fff",
-                        borderRadius:14,
-                        padding:"9px 13px",
-                        boxShadow:SHADOW,
-                        border:`1px solid ${T.line}`,
-                        display:"flex",alignItems:"center",gap:8,
-                        fontSize:12.5,fontWeight:700,color:T.ink,
-                        whiteSpace:"nowrap",
-                        pointerEvents:"auto",
-                      }}>
-                        <span style={{width:8,height:8,borderRadius:"50%",background:card.dot,boxShadow:`0 0 8px ${card.dot}`,flexShrink:0}}/>
-                        {card.label}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </Reveal>
+        </Reveal>
+      </div>
     </div>
-
   );
 }
