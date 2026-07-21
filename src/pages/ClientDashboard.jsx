@@ -57,9 +57,20 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
       return false;
     }
   };
-  // Always use the freshest copy of the profile (data.users is refreshed by reload()).
-  // Safe fallbacks — never crash if a field is briefly missing during load.
-  const user = (data?.users || []).find((u) => u.id === userProp?.id) || userProp || {};
+  // Prefer data.users (reload), then overlay userProp for optimistic patches (e.g. reportEmail).
+  const fromData = (data?.users || []).find((u) => u.id === userProp?.id);
+  const user = fromData
+    ? {
+        ...fromData,
+        ...(userProp?.reportEmail != null && userProp.reportEmail !== ""
+          ? { reportEmail: userProp.reportEmail }
+          : {}),
+        ...(userProp?.notifyEmail !== undefined ? { notifyEmail: userProp.notifyEmail } : {}),
+        ...(userProp?.notifyEmailPending !== undefined
+          ? { notifyEmailPending: userProp.notifyEmailPending }
+          : {}),
+      }
+    : userProp || {};
   const userId = user.id || userProp?.id || null;
   // Confirm alternate notification email redirect (?notifyEmail=confirmed).
   useEffect(() => {
