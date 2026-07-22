@@ -43,11 +43,11 @@ export function AssignModal({ agent, onClose }) {
         else if (!now && was) await api.assignClient(c.id, null, { kind });
       }
       await api.patchProfile(agent.id, { perms });
-      await audit("agent.assign", {
+      await audit(kind === "agent" ? "agent.assign" : "bdm.assign", {
         targetType: "staff",
         targetId: agent.id,
         targetName: agent.name,
-        detail: `${sel.size} clients (${roleLabel})`,
+        detail: `${sel.size} clients`,
       });
       await reload();
       toast(`Saved: ${sel.size} clients`);

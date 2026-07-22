@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { T, FONT_B } from "../../../lib/theme";
 import { api } from "../../../lib/api";
+import { staffRoleLabel } from "../../../lib/helpers";
 import { Modal, Input, Select, Btn } from "../../atoms";
 import { useAdmin } from "../AdminContext";
 
@@ -29,7 +30,7 @@ export function TeamModal({ onClose }) {
         toast(r.error, "info");
         return;
       }
-      await audit("staff.create", { targetType: "staff", targetName: f.name, detail: f.role });
+      await audit("staff.create", { targetType: "staff", targetName: f.name, detail: staffRoleLabel(f.role) });
       await reload();
       toast(`Invite sent to ${f.email}. They set a password from the email link.`);
       onClose();

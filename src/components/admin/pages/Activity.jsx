@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { T, FONT_B } from "../../../lib/theme";
-import { actIcon } from "../../../lib/helpers";
+import { actIcon, auditActionLabel, staffRoleLabel } from "../../../lib/helpers";
 import { Card, Empty, ListToolbar, PageHead, Badge } from "../../atoms";
 import { useAdmin } from "../AdminContext";
 
@@ -119,17 +119,20 @@ function StaffAudit() {
   let filtered = auditRows;
   if (actionF !== "all") filtered = filtered.filter((a) => a.action === actionF);
   if (search) {
+    const q = search.toLowerCase();
     filtered = filtered.filter((a) =>
-      `${a.actorName} ${a.action} ${a.targetName} ${a.detail}`.toLowerCase().includes(search.toLowerCase())
+      `${a.actorName} ${auditRowLabel(a)} ${staffRoleLabel(a.actorRole)} ${a.targetName} ${formatAuditDetail(a)}`
+        .toLowerCase()
+        .includes(q)
     );
   }
   const cols = [
     { key: "createdAt", label: "When", get: (a) => new Date(a.createdAt).toLocaleString() },
     { key: "actorName", label: "Staff" },
-    { key: "actorRole", label: "Role" },
-    { key: "action", label: "Action" },
+    { key: "actorRole", label: "Role", get: (a) => staffRoleLabel(a.actorRole) },
+    { key: "action", label: "Action", get: (a) => auditRowLabel(a) },
     { key: "targetName", label: "Target" },
-    { key: "detail", label: "Detail" },
+    { key: "detail", label: "Detail", get: (a) => formatAuditDetail(a) },
   ];
   return (
     <>
@@ -141,7 +144,7 @@ function StaffAudit() {
           {
             value: actionF,
             set: setActionF,
-            options: [{ value: "all", label: "All actions" }, ...actions.map((a) => ({ value: a, label: a }))],
+            options: [{ value: "all", label: "All actions" }, ...actions.map((a) => ({ value: a, label: auditActionLabel(a) }))],
           },
         ]}
         rows={filtered}
@@ -184,19 +187,19 @@ function StaffAudit() {
                   <td style={{ padding: "10px 12px", fontSize: 12.5, borderBottom: `1px solid ${T.line}` }}>
                     <b>{a.actorName}</b>
                     <br />
-                    <span style={{ fontSize: 10.5, color: T.faint }}>{a.actorRole}</span>
+                    <span style={{ fontSize: 10.5, color: T.faint }}>{staffRoleLabel(a.actorRole)}</span>
                   </td>
                   <td style={{ padding: "10px 12px", borderBottom: `1px solid ${T.line}` }}>
                     <Badge
-                      type={a.action.includes("delete") ? "rejected" : a.action.includes("suspend") ? "pending" : "submitted"}
-                      label={a.action}
+                      type={a.action.includes("delete") || a.action.includes("purge") ? "rejected" : a.action.includes("suspend") ? "pending" : "submitted"}
+                      label={auditRowLabel(a)}
                     />
                   </td>
                   <td style={{ padding: "10px 12px", fontSize: 12.5, fontWeight: 600, borderBottom: `1px solid ${T.line}` }}>
                     {a.targetName || "–"}
                   </td>
                   <td style={{ padding: "10px 12px", fontSize: 12, color: T.sub, borderBottom: `1px solid ${T.line}` }}>
-                    {a.detail || "–"}
+                    {formatAuditDetail(a)}
                   </td>
                 </tr>
               ))}
@@ -206,6 +209,23 @@ function StaffAudit() {
       </Card>
     </>
   );
+}
+
+function auditRowLabel(a) {
+  // Legacy bulk-assign rows used agent.assign for BDMs too.
+  if (a?.action === "agent.assign" && /\bBDM\b/i.test(a.detail || "")) return "Assign BDM";
+  return auditActionLabel(a?.action);
+}
+
+function formatAuditDetail(a) {
+  if (!a?.detail) return "–";
+  const d = String(a.detail);
+  if (a.action === "staff.create") return staffRoleLabel(d);
+  if (a.action === "settings.update") {
+    if (d === "control panel") return "Control panel";
+    if (d === "notification routing") return "Notification routing";
+  }
+  return d.replace(/\s*\((BDM|Agent)\)\s*$/i, "").trim() || d;
 }
 
 export function Activity() {

@@ -288,6 +288,35 @@ export const staffRoleLabel=(role)=>{
   if(role==="agent")return"Agent";
   return role||"Staff";
 };
+/** Human-readable labels for audit trail action codes. */
+export const auditActionLabel=(action)=>{
+  const map={
+    "agent.assign":"Assign clients (Agent)",
+    "bdm.assign":"Assign BDM",
+    "staff.create":"Invite team member",
+    "staff.perms":"Update permissions",
+    "staff.delete":"Remove team member",
+    "grant.impersonate":"Account view access",
+    "settings.update":"Update settings",
+    "client.impersonate":"View client account",
+    "client.suspend":"Suspend client",
+    "client.reactivate":"Reactivate client",
+    "client.delete":"Delete client",
+    "client.restore":"Restore client",
+    "client.purge":"Permanently delete client",
+    "listing.edit":"Update listing",
+    "listing.delete":"Delete listing",
+    "listing.restore":"Restore listing",
+    "listing.purge":"Permanently delete listing",
+    "nap.update":"Update NAP score",
+    "edit.revert":"Log unauthorized edit",
+    "report.sent":"Mark GMB report sent",
+  };
+  if(map[action])return map[action];
+  if(!action)return"–";
+  // Fallback: "foo.bar" → "Foo bar"
+  return String(action).replace(/[._]/g," ").replace(/\b\w/g,c=>c.toUpperCase());
+};
 // Master switch: flip to false at go-live to hide all demo quick-fill buttons.
 export const SHOW_DEMOS=(import.meta.env.VITE_SHOW_DEMOS!=="false");
 
