@@ -260,9 +260,11 @@ export default function App(){
           }
         }catch{/* ignore */}
       }
-      // Backfill business fields from Auth metadata when profile row is still empty
-      // (email-confirm signup often has no session to write profiles at register time).
+      // Backfill business fields from signup stash / Auth metadata / API.
       if(prof.role==="client"){
+        try{
+          prof=await api.ensureSignupProfileFields(prof)||prof;
+        }catch{/* best-effort */}
         const m=session.user.user_metadata||{};
         const patch={};
         const metaBiz=String(m.businessName||"").trim();

@@ -138,6 +138,22 @@ export const api={
     const issues=passwordIssues(password);
     if(issues.length)return{error:"Password needs "+issues.join(", ")+"."};
     if(supa){
+      const biz=String(businessName||"").trim();
+      const tel=String(phone||"").trim();
+      const nm=String(name||"").trim();
+      // Survive email-confirm (no session) + production deploy lag: restore on first login.
+      try{
+        const payload={
+          email:String(email||"").trim().toLowerCase(),
+          name:nm,
+          businessName:biz,
+          phone:tel,
+          emailNotifications:!!emailNotifications,
+          at:Date.now(),
+        };
+        localStorage.setItem("ro_signup_profile",JSON.stringify(payload));
+        if(payload.email)localStorage.setItem(`ro_signup_profile_${payload.email}`,JSON.stringify(payload));
+      }catch{/* ignore */}
       // role is NEVER accepted from the client, the DB trigger hardcodes 'client'.
       // businessName/phone go in user_metadata so handle_new_user can copy them even when
       // email-confirm leaves no session (RLS would block a client-side profiles update).
@@ -146,9 +162,9 @@ export const api={
         password,
         options:{
           data:{
-            name,
-            businessName:String(businessName||"").trim(),
-            phone:String(phone||"").trim(),
+            name:nm,
+            businessName:biz,
+            phone:tel,
             emailNotifications:!!emailNotifications,
           },
           emailRedirectTo:window.location.origin+"/login"+(typeof window!=="undefined"?window.location.search:""),
@@ -164,12 +180,20 @@ export const api={
       // Best-effort when a session exists (confirm-email-off). Metadata+trigger covers the rest.
       if(data.user&&data.session){
         await supa.from("profiles").update({
-          name,
-          businessName:String(businessName||"").trim()||null,
-          phone:String(phone||"").trim()||null,
-          avatar:(name||email)[0].toUpperCase(),
+          name:nm,
+          businessName:biz||null,
+          phone:tel||null,
+          avatar:(nm||email)[0].toUpperCase(),
           emailNotifications:!!emailNotifications,
         }).eq("id",data.user.id);
+        try{
+          const token=data.session.access_token;
+          await fetch("/api/apply-signup-profile",{
+            method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({token,businessName:biz,phone:tel,name:nm,emailNotifications:!!emailNotifications}),
+          });
+        }catch{/* optional on local vite without API */}
       }
       // Fire-and-forget welcome. Mark localStorage only after success so a failed
       // request can still be retried on first login via ensureWelcomeNotify.
@@ -253,6 +277,79 @@ export const api={
     if(!profile||profile.role!=="client")return;
     this.ensureWelcomeNotify();
     if(profile.plan)this.ensurePlanSubscribedNotify();
+  },
+  /**
+   * Apply businessName/phone saved at signup (localStorage + Auth metadata + API).
+   * Call after login/confirm when the profile row is still empty.
+   */
+  async ensureSignupProfileFields(profile){
+    if(!supa||!profile||profile.role!=="client")return profile||null;
+    let stored=null;
+    try{
+      const email=String(profile.email||"").trim().toLowerCase();
+      const raw=
+        (email&&localStorage.getItem(`ro_signup_profile_${email}`))||
+        localStorage.getItem("ro_signup_profile");
+      if(raw){
+        const j=JSON.parse(raw);
+        // Accept stash up to 14 days; prefer matching email.
+        if(j&&(!j.email||!email||j.email===email)&&Date.now()-(j.at||0)<14*86400000){
+          stored=j;
+        }
+      }
+    }catch{/* ignore */}
+
+    const needsBiz=!String(profile.businessName||"").trim();
+    const needsPhone=!String(profile.phone||"").trim();
+    if(!needsBiz&&!needsPhone&&!stored)return profile;
+
+    const token=await this._accessToken();
+    const body={
+      token,
+      businessName:stored?.businessName||"",
+      phone:stored?.phone||"",
+      name:stored?.name||"",
+      emailNotifications:typeof stored?.emailNotifications==="boolean"?stored.emailNotifications:undefined,
+    };
+
+    // Prefer service-role API (production). Fall back to direct patch (local / RLS self-update).
+    if(token){
+      try{
+        const r=await fetch("/api/apply-signup-profile",{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify(body),
+        });
+        if(r.ok){
+          const j=await r.json().catch(()=>({}));
+          const next={...profile,...(j.profile||{})};
+          try{
+            localStorage.removeItem("ro_signup_profile");
+            if(profile.email)localStorage.removeItem(`ro_signup_profile_${String(profile.email).toLowerCase()}`);
+          }catch{/* ignore */}
+          return next;
+        }
+      }catch{/* local vite has no /api */}
+    }
+
+    const patch={};
+    if(needsBiz&&stored?.businessName)patch.businessName=String(stored.businessName).trim();
+    if(needsPhone&&stored?.phone)patch.phone=String(stored.phone).trim();
+    if(!String(profile.name||"").trim()&&stored?.name){
+      patch.name=String(stored.name).trim();
+      patch.avatar=(patch.name[0]||"U").toUpperCase();
+    }
+    if(Object.keys(patch).length){
+      try{
+        await this.patchProfile(profile.id,patch);
+        try{
+          localStorage.removeItem("ro_signup_profile");
+          if(profile.email)localStorage.removeItem(`ro_signup_profile_${String(profile.email).toLowerCase()}`);
+        }catch{/* ignore */}
+        return{...profile,...patch};
+      }catch{/* best-effort */}
+    }
+    return profile;
   },
   async googleLogin(){
     if(!supa)return{error:"Google sign-in needs the live database. It's disabled in demo mode."};

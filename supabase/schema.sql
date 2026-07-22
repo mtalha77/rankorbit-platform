@@ -37,20 +37,35 @@ create table profiles (
 -- Auto-create a profile whenever anyone signs up (email or Google).
 -- Copies businessName/phone from signup metadata (works without a session).
 create or replace function handle_new_user() returns trigger as $$
+declare
+  v_name text;
+  v_biz text;
+  v_phone text;
 begin
-  insert into profiles (id,email,name,avatar,role,status,"businessName",phone,"emailNotifications")
+  v_name := coalesce(nullif(trim(coalesce(new.raw_user_meta_data->>'name','')), ''), split_part(new.email, '@', 1));
+  v_biz := nullif(trim(coalesce(new.raw_user_meta_data->>'businessName', '')), '');
+  v_phone := nullif(trim(coalesce(new.raw_user_meta_data->>'phone', '')), '');
+
+  insert into profiles (id, email, name, avatar, role, status, "businessName", phone, "emailNotifications")
   values (
     new.id,
     new.email,
-    coalesce(new.raw_user_meta_data->>'name', split_part(new.email,'@',1)),
-    upper(left(coalesce(new.raw_user_meta_data->>'name', new.email),1)),
+    v_name,
+    upper(left(v_name, 1)),
     'client',
     'active',
-    nullif(trim(coalesce(new.raw_user_meta_data->>'businessName','')),''),
-    nullif(trim(coalesce(new.raw_user_meta_data->>'phone','')),''),
+    v_biz,
+    v_phone,
     coalesce((new.raw_user_meta_data->>'emailNotifications')::boolean, true)
   )
-  on conflict (id) do nothing;
+  on conflict (id) do update set
+    "businessName" = coalesce(profiles."businessName", excluded."businessName"),
+    phone = coalesce(profiles.phone, excluded.phone),
+    name = case
+      when nullif(trim(coalesce(profiles.name, '')), '') is null then excluded.name
+      else profiles.name
+    end;
+
   return new;
 end;$$ language plpgsql security definer;
 
