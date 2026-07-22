@@ -200,7 +200,15 @@ export function Billing() {
           <Btn variant="ghost" size="sm" disabled={impersonating} onClick={cancelPending}>Cancel scheduled change</Btn>
         </div>
       )}
-      {!profileComplete && !user.plan && !impersonating && <ProfileGate user={user} onSaved={reload} toast={toast} isMobile={isMobile} />}
+      {!profileComplete && !user.plan && !impersonating && (
+        <ProfileGate
+          key={`pg-${user.id}`}
+          user={user}
+          onSaved={reload}
+          toast={toast}
+          isMobile={isMobile}
+        />
+      )}
       {(profileComplete || user.plan) && (
         <>
           {user.plan && (

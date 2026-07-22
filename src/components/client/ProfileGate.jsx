@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { T } from "../../lib/theme";
 import { api } from "../../lib/api";
 import { CATEGORIES, US_CA_STATES } from "../../lib/constants";
@@ -17,16 +17,63 @@ function formFromUser(user) {
   };
 }
 
+function hasBizFields(user) {
+  return !!(user?.businessName || user?.phone || user?.address || user?.city || user?.state);
+}
+
 export function ProfileGate({ user, onSaved, toast, isMobile }) {
   const [f, setF] = useState(() => formFromUser(user));
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [tried, setTried] = useState(false);
+  const [loading, setLoading] = useState(() => !hasBizFields(user));
+  const dirtyRef = useRef(false);
+  dirtyRef.current = dirty;
 
-  // Prefill from database when profile loads / reloads; don't clobber in-progress edits.
+  // Always hydrate from DB — context user can mount empty before loadAll finishes.
   useEffect(() => {
-    if (dirty) return;
-    setF(formFromUser(user));
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      // Instant paint from whatever context already has.
+      if (!dirtyRef.current && hasBizFields(user)) {
+        setF(formFromUser(user));
+        setLoading(false);
+      }
+      try {
+        const prof = await api.getProfile(user.id);
+        if (cancelled || dirtyRef.current) return;
+        if (prof) {
+          setF(formFromUser({ ...user, ...prof }));
+        } else if (hasBizFields(user)) {
+          setF(formFromUser(user));
+        }
+      } catch {
+        if (!cancelled && !dirtyRef.current && hasBizFields(user)) setF(formFromUser(user));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  // When parent user gains signup fields later, fill empty inputs (don't clobber edits).
+  useEffect(() => {
+    if (dirty || !user?.id) return;
+    setF((prev) => {
+      const next = formFromUser(user);
+      const out = { ...prev };
+      let changed = false;
+      for (const k of Object.keys(next)) {
+        if (!String(prev[k] || "").trim() && String(next[k] || "").trim()) {
+          out[k] = next[k];
+          changed = true;
+        }
+      }
+      return changed ? out : prev;
+    });
   }, [
     dirty,
     user?.id,
@@ -67,6 +114,9 @@ export function ProfileGate({ user, onSaved, toast, isMobile }) {
       <SectionTitle sub="Tell us about your business so we can list it correctly everywhere. Takes one minute, then choose your plan.">
         First, complete your business profile
       </SectionTitle>
+      {loading && (
+        <div style={{ fontSize: 12.5, color: T.sub, fontWeight: 600, marginBottom: 12 }}>Loading your signup details…</div>
+      )}
       <Input
         label="Business Name"
         value={f.businessName}
@@ -125,7 +175,7 @@ export function ProfileGate({ user, onSaved, toast, isMobile }) {
           placeholder="Paste your GMB link"
         />
       </div>
-      <Btn style={{ marginTop: 6 }} onClick={save} disabled={saving}>
+      <Btn style={{ marginTop: 6 }} onClick={save} disabled={saving || loading}>
         {saving ? "Saving…" : "Save & continue to plans →"}
       </Btn>
       {tried && !ok && (

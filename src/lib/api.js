@@ -893,6 +893,16 @@ export const api={
     if(supa){const{error}=await supa.from("profiles").update(fields).eq("id",id);if(error){console.error("patchProfile:",error.message);throw error;}return;}
     const us=LS("ro3_users")||[];const i=us.findIndex(x=>x.id===id);if(i>=0){us[i]={...us[i],...fields};LSet("ro3_users",us);}
   },
+  /** Fresh profile row (used by ProfileGate so signup fields aren't lost to a stale UI mount). */
+  async getProfile(id){
+    if(!id)return null;
+    if(supa){
+      const{data,error}=await supa.from("profiles").select("*").eq("id",id).maybeSingle();
+      if(error){console.warn("getProfile:",error.message);return null;}
+      return data||null;
+    }
+    return(LS("ro3_users")||[]).find(x=>x.id===id)||null;
+  },
   /** Request confirmation email for alternate notification address (or clear). */
   async setNotifyEmail({email,clear}={}){
     const token=await this._accessToken();

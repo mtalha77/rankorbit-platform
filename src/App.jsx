@@ -217,7 +217,7 @@ export default function App(){
     loadedForRef.current.id=prof.id;
     setCurrentUser(prev=>{
       if(!prev||prev.id!==prof.id)return prof;
-      const keys=["plan","role","name","email","avatar","subscriptionStatus","currentPeriodStart","currentPeriodEnd","cancelAtPeriodEnd","assignedAgentId","assignedBdmId","status","businessName","napScore","canImpersonate","pendingPlanId","pendingPlanEffectiveAt","paymentFailedAt","paymentGraceEndsAt","notifyEmail","notifyEmailPending","reportEmail","reportSentMonth"];
+      const keys=["plan","role","name","email","avatar","subscriptionStatus","currentPeriodStart","currentPeriodEnd","cancelAtPeriodEnd","assignedAgentId","assignedBdmId","status","businessName","phone","address","city","state","category","website","gbpId","napScore","canImpersonate","pendingPlanId","pendingPlanEffectiveAt","paymentFailedAt","paymentGraceEndsAt","notifyEmail","notifyEmailPending","reportEmail","reportSentMonth"];
       if(keys.every(k=>prev[k]===prof[k]))return prev;
       return prof;
     });
