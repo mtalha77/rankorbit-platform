@@ -2,8 +2,8 @@
  * Supabase Auth → Send Email Hook.
  *
  * Replaces built-in Auth mailer when enabled in the dashboard.
- * - Blocks "invite" emails unless user_metadata.role is staff (super_admin|manager|agent)
- * - Sends confirm / recovery / staff-invite / etc. via Resend (branded HTML)
+ * - Skips ALL "invite" emails (staff invites are sent only by /api/create-staff via Resend)
+ * - Sends confirm / recovery / magiclink / etc. via Resend (branded HTML)
  *
  * Env:
  *   SEND_EMAIL_HOOK_SECRET   (from Supabase Auth Hooks UI, form v1,whsec_...)
@@ -15,6 +15,7 @@
  * Setup: Supabase → Authentication → Hooks → Send Email → HTTPS endpoint
  *   https://nap.rankorbit.com/api/auth-send-email-hook
  * Then disable Custom SMTP (hook owns delivery).
+ * Until this hook is enabled, Auth still sends default invite mail from mail.app.supabase.io.
  */
 
 import { Webhook } from "standardwebhooks";
@@ -83,8 +84,8 @@ export default async function handler(req, res) {
     const action = emailData.email_action_type || "";
     const role = user.user_metadata?.role || user.app_metadata?.role || "";
 
-    const copy = authEmailCopy(action, { role, token: emailData.token });
-    // Intentionally skip (e.g. client invite) — return 200 so Auth does not retry.
+    const copy = authEmailCopy(action, { token: emailData.token });
+    // Intentionally skip (all invites, unknown types) — return 200 so Auth does not retry.
     if (!copy) {
       console.info("[auth-email-hook] skipped", action, "role=", role || "(none)", "to=", user.email);
       res.statusCode = 200;

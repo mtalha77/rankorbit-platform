@@ -122,7 +122,7 @@ export function Settings() {
           <Toggle label="Email on plan change" k="notifyPlanChange"/>
           <Toggle label="Alert managers when a BDM edits/deletes a listing" k="notifyAgentEdit"/>
           <Toggle label="Send monthly finance report" k="monthlyReport" sub="Signups, revenue, cancellations to report recipients"/>
-          <Toggle label="Allow public client signups" k="allowSignups" sub="Turn off to hide signup CTAs. Never use Supabase Dashboard → Invite for clients — that sends the unwanted invite email. Clients must sign up themselves; staff invites go from Team → Invite only."/>
+          <Toggle label="Allow public client signups" k="allowSignups" sub="Turn off to hide signup CTAs. Never use Supabase Dashboard → Invite — Auth invite mail is blocked by the Send Email hook when enabled. Clients must sign up themselves; staff invites go from Team → Invite only (Resend)."/>
         </div>
         <Btn style={{marginTop:16}} onClick={()=>R(()=>saveConfig("control panel"),"Control panel saved")}>Save Control Panel</Btn>
       </Card>

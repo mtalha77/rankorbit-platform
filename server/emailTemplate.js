@@ -132,12 +132,6 @@ export function buildNotifyEmail({ subject, body, ctaUrl = null, ctaLabel = "Ope
   return { html, text };
 }
 
-const STAFF_ROLES = new Set(["super_admin", "manager", "bdm", "agent"]);
-
-export function isStaffInviteRole(role) {
-  return STAFF_ROLES.has(String(role || "").toLowerCase());
-}
-
 /** Build Supabase Auth verify URL from send-email hook payload. */
 export function authVerifyUrl(emailData, projectUrl) {
   const base = String(projectUrl || "").replace(/\/$/, "");
@@ -151,18 +145,14 @@ export function authVerifyUrl(emailData, projectUrl) {
 
 /**
  * Map Supabase auth email_action_type → subject/body/CTA for branded Resend mail.
- * Returns null to intentionally skip sending (e.g. client invite blocked).
+ * Returns null to intentionally skip sending.
+ * Invite is always skipped — staff invites are sent only by /api/create-staff (Resend).
  */
-export function authEmailCopy(emailActionType, { role, token } = {}) {
+export function authEmailCopy(emailActionType, { token } = {}) {
   const type = String(emailActionType || "");
-  if (type === "invite") {
-    if (!isStaffInviteRole(role)) return null; // block client / unknown invites
-    return {
-      subject: "You're invited to NAP Orbit (staff)",
-      body: "You've been invited to join the NAP Orbit staff team. Click below to accept and set your password.",
-      ctaLabel: "Accept invitation",
-    };
-  }
+  // Never send Auth invite mail (Dashboard invite / inviteUserByEmail / generateLink hook).
+  // Staff invites: create-staff.js → Resend only.
+  if (type === "invite") return null;
   const map = {
     signup: {
       subject: "Confirm your email address",
