@@ -111,6 +111,7 @@ export default function AccountSettings({
   isMobile = false,
   title = "Settings",
   sub = "Update your name, photo, and password",
+  readOnly = false,
 }) {
   const fileRef = useRef(null);
   const [name, setName] = useState(user?.name || "");
@@ -160,6 +161,10 @@ export default function AccountSettings({
   };
 
   const saveProfile = async () => {
+    if (readOnly) {
+      toast?.("Subscribe to a plan to update your account", "info");
+      return;
+    }
     if (!trimmedName) {
       toast?.("Name is required", "info");
       return;
@@ -191,6 +196,10 @@ export default function AccountSettings({
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
+    if (readOnly) {
+      toast?.("Subscribe to a plan to update your account", "info");
+      return;
+    }
     if (!/^image\/(jpeg|png|webp|gif)$/i.test(file.type)) {
       toast?.("Use a JPG, PNG, or WebP image", "info");
       return;
@@ -228,6 +237,10 @@ export default function AccountSettings({
   };
 
   const removePhoto = async () => {
+    if (readOnly) {
+      toast?.("Subscribe to a plan to update your account", "info");
+      return;
+    }
     const letter = (name.trim() || user?.name || user?.email || "?")[0].toUpperCase();
     setUploading(true);
     try {
@@ -244,6 +257,10 @@ export default function AccountSettings({
   };
 
   const sendNotifyConfirm = async () => {
+    if (readOnly) {
+      toast?.("Subscribe to a plan to update your account", "info");
+      return;
+    }
     const email = notifyDraft.trim().toLowerCase();
     if (!email) {
       toast?.("Enter an email, or clear to use your login email", "info");
@@ -284,6 +301,10 @@ export default function AccountSettings({
   };
 
   const clearNotifyEmail = async () => {
+    if (readOnly) {
+      toast?.("Subscribe to a plan to update your account", "info");
+      return;
+    }
     setSavingNotify(true);
     try {
       const r = await api.setNotifyEmail({ clear: true });
@@ -304,6 +325,10 @@ export default function AccountSettings({
   };
 
   const savePassword = async () => {
+    if (readOnly) {
+      toast?.("Subscribe to a plan to update your account", "info");
+      return;
+    }
     const issues = passwordIssues(pw.next);
     if (issues.length) {
       toast?.("Password needs " + issues.join(", ") + ".", "info");
@@ -330,6 +355,23 @@ export default function AccountSettings({
   return (
     <div>
       <PageHead isMobile={isMobile} title={title} sub={sub} />
+      {readOnly && (
+        <div
+          style={{
+            padding: "12px 14px",
+            marginBottom: 14,
+            borderRadius: 12,
+            background: T.amberSoft,
+            border: `1px solid ${T.amber}33`,
+            fontSize: 12.5,
+            color: T.amber,
+            fontWeight: 700,
+            lineHeight: 1.45,
+          }}
+        >
+          View-only — subscribe to a plan to change your profile, notification email, or password.
+        </div>
+      )}
 
       <Card style={{ marginBottom: 16 }}>
         <SectionTitle sub="Shown across the app for your teammates and clients">Profile</SectionTitle>
@@ -339,23 +381,23 @@ export default function AccountSettings({
             <div style={{ fontFamily: FONT_D, fontSize: 18, fontWeight: 800 }}>{name.trim() || user?.name || "Your name"}</div>
             <div style={{ fontSize: 13, color: T.sub, marginTop: 2 }}>{user?.email}</div>
             <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-              <Btn size="sm" variant="soft" disabled={uploading} onClick={() => fileRef.current?.click()}>
+              <Btn size="sm" variant="soft" disabled={uploading || readOnly} onClick={() => fileRef.current?.click()}>
                 {uploading ? "Uploading…" : isAvatarUrl(displayUser?.avatar) ? "Change photo" : "Upload photo"}
               </Btn>
               {isAvatarUrl(displayUser?.avatar) && (
-                <Btn size="sm" variant="ghost" disabled={uploading} onClick={removePhoto}>
+                <Btn size="sm" variant="ghost" disabled={uploading || readOnly} onClick={removePhoto}>
                   Remove
                 </Btn>
               )}
             </div>
-            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onChange={onPickPhoto} />
+            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onChange={onPickPhoto} disabled={readOnly} />
             <div style={{ fontSize: 11.5, color: T.faint, marginTop: 8 }}>JPG, PNG or WebP · max 8 MB</div>
           </div>
         </div>
-        <Input label="Full name" value={name} onChange={setName} placeholder="Your name" />
+        <Input label="Full name" value={name} onChange={readOnly ? () => {} : setName} placeholder="Your name" />
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
-          <Btn onClick={saveProfile} disabled={savingProfile || !profileDirty}>
-            {savingProfile ? "Saving…" : "Save profile"}
+          <Btn onClick={saveProfile} disabled={savingProfile || !profileDirty || readOnly}>
+            {readOnly ? "View-only" : savingProfile ? "Saving…" : "Save profile"}
           </Btn>
         </div>
       </Card>
@@ -370,7 +412,7 @@ export default function AccountSettings({
         <Input
           label="Notification email"
           value={notifyDraft}
-          onChange={setNotifyDraft}
+          onChange={readOnly ? () => {} : setNotifyDraft}
           placeholder="notifications@gmail.com"
           validate="email"
         />
@@ -398,13 +440,13 @@ export default function AccountSettings({
         )}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
           {(verifiedNotify || pendingNotify) && (
-            <Btn variant="ghost" onClick={clearNotifyEmail} disabled={savingNotify}>
+            <Btn variant="ghost" onClick={clearNotifyEmail} disabled={savingNotify || readOnly}>
               Use login email
             </Btn>
           )}
           {!alreadyActiveDraft && (
-            <Btn onClick={sendNotifyConfirm} disabled={savingNotify || !notifyDraft.trim()}>
-              {savingNotify ? "Sending…" : pendingMatchesDraft ? "Resend confirmation" : "Send confirmation"}
+            <Btn onClick={sendNotifyConfirm} disabled={savingNotify || !notifyDraft.trim() || readOnly}>
+              {readOnly ? "View-only" : savingNotify ? "Sending…" : pendingMatchesDraft ? "Resend confirmation" : "Send confirmation"}
             </Btn>
           )}
           {alreadyActiveDraft && (
@@ -420,20 +462,20 @@ export default function AccountSettings({
         <PasswordField
           label="New password"
           value={pw.next}
-          onChange={(v) => setPw((p) => ({ ...p, next: v }))}
+          onChange={readOnly ? () => {} : (v) => setPw((p) => ({ ...p, next: v }))}
           show={showPw.next}
           onToggle={() => setShowPw((s) => ({ ...s, next: !s.next }))}
         />
         <PasswordField
           label="Confirm new password"
           value={pw.confirm}
-          onChange={(v) => setPw((p) => ({ ...p, confirm: v }))}
+          onChange={readOnly ? () => {} : (v) => setPw((p) => ({ ...p, confirm: v }))}
           show={showPw.confirm}
           onToggle={() => setShowPw((s) => ({ ...s, confirm: !s.confirm }))}
         />
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
-          <Btn onClick={savePassword} disabled={savingPw || !pw.next || !pw.confirm}>
-            {savingPw ? "Updating…" : "Update password"}
+          <Btn onClick={savePassword} disabled={savingPw || !pw.next || !pw.confirm || readOnly}>
+            {readOnly ? "View-only" : savingPw ? "Updating…" : "Update password"}
           </Btn>
         </div>
       </Card>

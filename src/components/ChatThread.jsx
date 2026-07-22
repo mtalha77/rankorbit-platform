@@ -220,7 +220,7 @@ function ChatThreadInner({
 
   const send = async () => {
     if (readOnly) {
-      toast?.("Read-only view — changes are disabled", "info");
+      toast?.("View-only — messaging is disabled", "info");
       return;
     }
     const text = draft.trim();
@@ -427,7 +427,7 @@ function ChatThreadInner({
           value={draft}
           onChange={(e) => setDraft(e.target.value.slice(0, 4000))}
           onKeyDown={onKeyDown}
-          placeholder={readOnly ? "Read-only view — messaging disabled" : composerBlocked ? "Chat opens once a team member is available…" : "Type a message… (Enter to send)"}
+          placeholder={readOnly ? "View-only — messaging disabled" : composerBlocked ? "Chat opens once a team member is available…" : "Type a message… (Enter to send)"}
           rows={1}
           disabled={composerBlocked}
           style={{

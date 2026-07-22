@@ -45,7 +45,7 @@ export function LandingPricing({ isMobile, isTab, w, user, cfg, lprice, goPlan, 
           </Reveal>
           {billingFlag==="cancel"&&<div style={{marginTop:14,fontSize:13,color:T.amber,fontWeight:700}}>Checkout canceled — pick a plan whenever you're ready.</div>}
           {planErr&&<div style={{marginTop:14,fontSize:13,color:T.red,fontWeight:700}}>{planErr}</div>}
-          {user&&!user.plan&&<div style={{marginTop:14,fontSize:13,color:T.brand,fontWeight:700}}>Subscribe to a plan to unlock your dashboard.</div>}
+          {user&&!user.plan&&<div style={{marginTop:14,fontSize:13,color:T.brand,fontWeight:700}}>Open your dashboard to choose a plan and unlock listings, messages, and more.</div>}
         </div>
 
         {(()=>{

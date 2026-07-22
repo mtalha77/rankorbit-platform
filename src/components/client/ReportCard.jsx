@@ -25,7 +25,7 @@ export function ReportCard({ user, reload, toast, readOnly = false }) {
 
   const save = async () => {
     if (readOnly) {
-      toast("Read-only view — changes are disabled", "info");
+      toast("View-only — changes are disabled", "info");
       return;
     }
     if (invalid) {
@@ -98,7 +98,7 @@ export function ReportCard({ user, reload, toast, readOnly = false }) {
           </Btn>
         ) : (
           <Btn onClick={save} disabled={saving || readOnly || invalid} style={{ marginBottom: 14 }}>
-            {readOnly ? "Read-only" : saving ? "Saving…" : "Save email"}
+            {readOnly ? "View-only" : saving ? "Saving…" : "Save email"}
           </Btn>
         )}
       </div>

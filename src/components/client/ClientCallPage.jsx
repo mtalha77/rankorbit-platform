@@ -5,7 +5,10 @@ import { getPlanEntitlements, planAllowsMessaging } from "../../lib/constants";
 import { isBookingPast, CALL_SLOT_TIMES, isSlotBookable, slotKey } from "../../lib/helpers";
 import { Card, Btn, Confirm, Empty, PageHead, SectionTitle } from "../atoms";
 
-export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOnly=false,initialKind="regular",onInitialKindConsumed}){
+export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOnly=false,needsPlan=false,initialKind="regular",onInitialKindConsumed}){
+  const lockMsg = needsPlan
+    ? "Subscribe to a plan to book or change meetings"
+    : "Read-only view — changes are disabled";
   const now=new Date();
   const nowY=now.getFullYear();
   const nowM=now.getMonth();
@@ -115,7 +118,7 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOn
     });
   };
   const confirmBooking=async()=>{
-    if(readOnly){toast("Read-only view — changes are disabled","info");return;}
+    if(readOnly){toast(lockMsg,"info");return;}
     if(!selDay||!selTime)return;
     if(kindBlocked){toast("No meetings left for this type in your billing period.","info");return;}
     setBusy(true);
@@ -141,7 +144,7 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOn
     await reload();
   };
   const cancelMeeting=async()=>{
-    if(readOnly){toast("Read-only view — changes are disabled","info");return;}
+    if(readOnly){toast(lockMsg,"info");return;}
     if(!activeBooking?.id)return;
     setBusy(true);
     const r=await api.cancelCall({bookingId:activeBooking.id});
@@ -154,7 +157,7 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOn
     await reload();
   };
   const startReschedule=()=>{
-    if(readOnly){toast("Read-only view — changes are disabled","info");return;}
+    if(readOnly){toast(lockMsg,"info");return;}
     if(!activeBooking?.id)return;
     setRescheduleId(activeBooking.id);
     setMeetingKind(activeBooking.kind==="guidance"?"guidance":"regular");
@@ -169,7 +172,9 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOn
     <PageHead isMobile={isMobile} title="Book a Call" sub={bdm?`30 minutes with ${supportPeer?(bdm.name||"our team"):(bdm.name||"your BDM")}`:"30 minutes with your dedicated Business Development Manager"}/>
     {readOnly&&(
       <div style={{padding:"10px 14px",background:T.amberSoft,borderRadius:11,marginBottom:14,fontSize:12.5,color:T.amber,fontWeight:700}}>
-        Read-only view — booking and cancel are disabled.
+        {needsPlan
+          ? "View-only — subscribe to a plan to book, reschedule, or cancel meetings."
+          : "Read-only view — booking and cancel are disabled."}
       </div>
     )}
     {loadingCall&&(
@@ -399,7 +404,15 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOn
       </Card>
     </div>)}
     {readOnly&&!loadingCall&&!activeBooking&&(
-      <Card><Empty icon="👁️" title="Read-only view" sub="Booking calendar is hidden while viewing as staff. Exit view to make changes as the client."/></Card>
+      <Card>
+        <Empty
+          icon="👁️"
+          title={needsPlan ? "View-only until you subscribe" : "Read-only view"}
+          sub={needsPlan
+            ? "You can browse this page. Choose a plan under Billing to unlock the booking calendar."
+            : "Booking calendar is hidden while viewing as staff. Exit view to make changes as the client."}
+        />
+      </Card>
     )}
     {confirm&&<Confirm data={confirm} onClose={()=>setConfirm(null)}/>}
   </div>);

@@ -32,26 +32,21 @@ export default function LandingPage({ user = null, focusPricing = false, billing
   const scrollPricing = () => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth", block: "start" });
   const goLogin = () => nav("/login");
   const goSignup = () => nav("/signup");
-  // Staff → admin. Clients with a plan → dashboard. Clients without → pricing.
+  // Staff → admin. Logged-in clients → dashboard (billing unlocks after they pay).
   const goDash = () => {
     if (isStaff) { nav("/admin"); return; }
-    if (user?.plan) nav("/dashboard");
+    if (user) nav("/dashboard");
     else scrollPricing();
   };
-  // Logged-in + no plan → Stripe checkout from landing. Guest → signup with plan intent.
+  // Guest → signup with plan intent. Logged-in (no/other plan) → dashboard billing.
   // Staff never buy plans from the marketing site.
   const goPlan = async (planId) => {
     setPlanErr("");
     if (isStaff) { nav("/admin"); return; }
-    if (user?.plan === planId) return;
-    if (user?.plan) { nav("/dashboard"); return; }
+    if (user?.plan === planId) { nav("/dashboard"); return; }
     try { sessionStorage.setItem("ro_pending_plan", planId); } catch {}
     if (!user) { nav(`/signup?plan=${encodeURIComponent(planId)}`); return; }
-    setPlanBusy(planId);
-    const r = await api.createCheckout(planId);
-    setPlanBusy(null);
-    if (r.error) { setPlanErr(r.error); scrollPricing(); return; }
-    if (r.url) window.location.href = r.url;
+    nav("/dashboard");
   };
   useEffect(() => {
     if (isStaff) nav("/admin", { replace: true });

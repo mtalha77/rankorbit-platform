@@ -23,7 +23,6 @@ const Loading=({label="Loading platform…"})=>(
   </div>
 );
 
-const hasClientPlan=(user)=>!!(user&&user.plan&&!STAFF_ROLES.includes(user.role));
 const urlLooksLikeRecovery=()=>{
   if(typeof window==="undefined")return false;
   const hash=window.location.hash||"";
@@ -90,7 +89,7 @@ function ClientAuth({mode="login",user,onLogin,passwordRecovery}){
   }}/>;
 }
 
-// /dashboard — clients with an active plan only. No plan → pricing on landing.
+// /dashboard — any signed-in client. No plan → stay in dashboard (billing locked until paid).
 // After Stripe success, briefly poll until webhook writes the plan.
 function ClientDashboardRoute({user,data,reload,onLogin,onLogout,passwordRecovery,onUserUpdate}){
   const[params]=useSearchParams();
@@ -121,7 +120,6 @@ function ClientDashboardRoute({user,data,reload,onLogin,onLogout,passwordRecover
   if(user&&STAFF_ROLES.includes(user.role))return <Navigate to="/admin" replace/>;
   if(!user)return <Navigate to="/login" replace/>;
   if(awaitingPlan&&!waitDone)return <Loading label="Activating your plan…"/>;
-  if(!hasClientPlan(user))return <Navigate to="/?focus=pricing" replace/>;
   if(!viewData)return <Loading label="Loading your dashboard…"/>;
   return <ClientDashboard user={user} data={viewData} reload={reload} onLogout={handleLogout} onUserUpdate={onUserUpdate}/>;
 }

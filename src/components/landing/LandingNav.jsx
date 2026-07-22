@@ -2,7 +2,7 @@ import { T, FONT_D, FONT_B } from "../../lib/theme";
 import { Btn } from "../atoms";
 
 export function LandingNav({ isMobile, navSolid, user, isStaff = false, avatarLetter, displayName, goDash, goLogin, goSignup }) {
-  const dashLabel = isStaff || user?.plan ? "Dashboard" : "Choose a plan";
+  const dashLabel = "Dashboard";
   return (
     <div style={{position:"fixed",top:0,left:0,right:0,zIndex:100,background:navSolid?"rgba(255,255,255,.86)":"transparent",backdropFilter:navSolid?"blur(12px)":"none",borderBottom:navSolid?`1px solid ${T.line}`:"1px solid transparent",transition:"background .22s ease,border-color .22s ease,backdrop-filter .22s ease"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:isMobile?"13px 8px":"15px 8px",maxWidth:1400,margin:"0 auto",width:"100%",boxSizing:"border-box"}}>

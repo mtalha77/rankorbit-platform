@@ -25,6 +25,7 @@ import {
 } from "../components/client";
 
 export default function ClientDashboard({ user: userProp, data, reload, onLogout, impersonating = false, onUserUpdate }) {
+  // No plan → still enter dashboard (browse all pages); actions stay locked until they pay.
   const [page, setPage] = useState("home");
   const [toast, Toasts] = useToast();
   const [showManual, setShowManual] = useState(false);
@@ -40,23 +41,6 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
   const notifSig = useRef("");
   const w = useWindowSize();
   const isMobile = w < 820;
-  // Async action runner: run fn, optionally toast, then refresh data. Used by billing actions.
-  // Returns true on success, false on failure (and toasts the error).
-  const R = async (fn, msg) => {
-    if (impersonating) {
-      toast("Read-only view — changes are disabled", "info");
-      return false;
-    }
-    try {
-      await fn();
-      if (msg) toast(msg);
-      await reload();
-      return true;
-    } catch (e) {
-      toast(e.message || "Something went wrong", "info");
-      return false;
-    }
-  };
   // Prefer data.users (reload), then overlay userProp for optimistic patches (e.g. reportEmail).
   const fromData = (data?.users || []).find((u) => u.id === userProp?.id);
   const user = fromData
@@ -72,6 +56,31 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
       }
     : userProp || {};
   const userId = user.id || userProp?.id || null;
+  // True when client has no plan (staff impersonation uses its own read-only path).
+  // Use live `user.plan` so webhook/reload unlocks actions without a full remount.
+  const needsPlan = !user?.plan && !impersonating;
+  // Async action runner: run fn, optionally toast, then refresh data. Used by billing actions.
+  // Returns true on success, false on failure (and toasts the error).
+  // Note: first-time Stripe Checkout does not go through R — Subscribe stays available.
+  const R = async (fn, msg) => {
+    if (impersonating) {
+      toast("Read-only view — changes are disabled", "info");
+      return false;
+    }
+    if (!user?.plan) {
+      toast("Subscribe to a plan to use this feature", "info");
+      return false;
+    }
+    try {
+      await fn();
+      if (msg) toast(msg);
+      await reload();
+      return true;
+    } catch (e) {
+      toast(e.message || "Something went wrong", "info");
+      return false;
+    }
+  };
   // Confirm alternate notification email redirect (?notifyEmail=confirmed).
   useEffect(() => {
     if (impersonating) return;
@@ -322,16 +331,19 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
   const plan = PLANSALL[user.plan] || PLANSALL.essentials;
   const hour = new Date().getHours();
   const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  // Browse every area even without a plan; GMB/Messages stay visible as locked previews.
   const nav = [
     { id: "home", icon: "🏠", label: "Home" },
     { id: "notifications", icon: "🔔", label: "Notifications" },
-    ...(canMessage ? [{ id: "messages", icon: "💬", label: "Messages" }] : []),
+    ...(canMessage || needsPlan ? [{ id: "messages", icon: "💬", label: "Messages" }] : []),
     { id: "listings", icon: "📋", label: "Listings" },
     { id: "analytics", icon: "📈", label: "Analytics" },
-    ...(user.plan === "gmb" ? [{ id: "gmb", icon: "📍", label: "GMB" }] : []),
+    ...(user.plan === "gmb" || needsPlan ? [{ id: "gmb", icon: "📍", label: "GMB" }] : []),
     { id: "billing", icon: "💳", label: "Plan & Billing" },
     { id: "call", icon: "📞", label: "Book a Call" },
   ];
+  // Product actions locked until plan (and while staff is impersonating).
+  const viewOnly = needsPlan || impersonating;
   const growthData = buildLiveGrowthSeries(my, 5);
   const liveMomTrend = growthMomTrend(growthData);
   const planBadge = user.plan ? (
@@ -453,7 +465,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
     }[t] || "🔔");
   const grace = paymentGraceState(user);
   const graceAllowed = new Set(["billing", "settings", "messages", "notifications", "legal", "help"]);
-  // After grace expires, keep user on billing (no effect — avoids hooks-after-return).
+  // Grace expired → billing only. No-plan clients may browse every page (actions locked).
   const viewPage = grace.expired && !graceAllowed.has(page) ? "billing" : page;
   const goPage = (p) => {
     if (grace.expired && !graceAllowed.has(p)) {
@@ -471,7 +483,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
   };
 
   const clientCtx = {
-    user, userId, data, reload, onLogout, impersonating, onUserUpdate,
+    user, userId, data, reload, onLogout, impersonating, needsPlan, viewOnly, onUserUpdate,
     page: viewPage, setPage: goPage, toast, showManual, setShowManual, confirm, setConfirm,
     stripeConfigured, invoices, setInvoices, sysNotifs, setSysNotifs, notifOpen, setNotifOpen,
     chatUnread, setChatUnread, isMobile, R,
@@ -516,9 +528,14 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
     ) : null;
   const homeHeaderRight = (
     <>
-      {viewPage === "home" && (
+      {viewPage === "home" && !viewOnly && (
         <Btn variant="soft" size="sm" onClick={() => goPage("call")} style={{ whiteSpace: "nowrap" }}>
           📞 Talk to your BDM
+        </Btn>
+      )}
+      {viewPage === "home" && needsPlan && (
+        <Btn size="sm" onClick={() => goPage("billing")} style={{ whiteSpace: "nowrap" }}>
+          Choose a plan →
         </Btn>
       )}
       <NotifBell />
@@ -551,6 +568,32 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
               : null
         }
       >
+        {needsPlan && (
+          <div
+            style={{
+              padding: "14px 16px",
+              marginBottom: 14,
+              borderRadius: 14,
+              background: `linear-gradient(135deg,${T.amberSoft},#fff)`,
+              border: `1px solid ${T.amber}44`,
+              display: "flex",
+              gap: 12,
+              alignItems: "center",
+              flexWrap: "wrap",
+              justifyContent: "space-between",
+            }}
+          >
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: T.amber, fontFamily: FONT_D }}>
+                View-only until you subscribe
+              </div>
+              <div style={{ fontSize: 12.5, color: T.sub, marginTop: 4, lineHeight: 1.45 }}>
+                You can browse every page. Booking calls, messaging, and other actions unlock after you pay for a plan.
+              </div>
+            </div>
+            <Btn size="sm" onClick={() => goPage("billing")}>Choose a plan →</Btn>
+          </div>
+        )}
         {showSetupBanner && (
           <div
             style={{
@@ -607,7 +650,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
         )}
         {viewPage === "home" && <Home />}
         {viewPage === "notifications" && <NotificationsPage />}
-        {viewPage === "messages" && canMessage && (
+        {viewPage === "messages" && (canMessage || needsPlan) && (
           <div
             style={{
               height: isMobile ? "calc(100dvh - 140px)" : "calc(100vh - 100px)",
@@ -625,16 +668,16 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
               <ChatThread
                 myId={userId}
                 clientId={impersonating ? userId : undefined}
-                readOnly={impersonating}
+                readOnly={viewOnly}
                 toast={toast}
-                onUnreadChange={impersonating ? undefined : setChatUnread}
+                onUnreadChange={viewOnly ? undefined : setChatUnread}
                 onOpenCall={() => goPage("call")}
                 fill
               />
             </div>
           </div>
         )}
-        {viewPage === "messages" && !canMessage && (
+        {viewPage === "messages" && !canMessage && !needsPlan && (
           <div>
             <PageHead isMobile={isMobile} title="Messages" sub="Chat with your Business Development Manager" />
             <div
@@ -670,13 +713,21 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
             toast={toast}
             reload={reload}
             onOpenMessages={() => goPage("messages")}
-            readOnly={impersonating}
+            readOnly={viewOnly}
+            needsPlan={needsPlan}
             initialKind={callKindPref || "regular"}
             onInitialKindConsumed={() => setCallKindPref(null)}
           />
         )}
         {viewPage === "settings" && !impersonating && (
-          <AccountSettings user={user} toast={toast} reload={reload} onUserUpdate={onUserUpdate} isMobile={isMobile} />
+          <AccountSettings
+            user={user}
+            toast={toast}
+            reload={reload}
+            onUserUpdate={onUserUpdate}
+            isMobile={isMobile}
+            readOnly={needsPlan}
+          />
         )}
         {viewPage === "legal" && <ClientLegalPage isMobile={isMobile} />}
       </Shell>
