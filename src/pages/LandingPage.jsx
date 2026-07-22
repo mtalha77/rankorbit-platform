@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { T, FONT_B } from "../lib/theme";
 import { api } from "../lib/api";
-import { PLANS } from "../lib/constants";
+import { planPrice } from "../lib/constants";
 import { STAFF_ROLES } from "../lib/helpers";
 import { useWindowSize } from "../hooks";
 import {
@@ -66,9 +66,34 @@ export default function LandingPage({ user = null, focusPricing = false, billing
   }, [focusPricing, billingFlag, user, isStaff]);
   const displayName = (user?.name || user?.email || "Account").split(" ")[0];
   const avatarLetter = (user?.avatar || displayName?.[0] || "U").toString().slice(0, 1).toUpperCase();
-  // Load which plans are live + any price overrides (set by super-admin control panel).
+  // Load which plans are live + price overrides from Control Panel (settings.config in DB).
   const [cfg, setCfg] = useState({});
-  useEffect(() => { (async () => { try { const s = await api.getSettings?.(); if (s?.config) setCfg(s.config); } catch {} })(); }, []);
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const s = await api.getSettings();
+        if (cancelled) return;
+        // Prefer nested config; fall back if an older save flattened price keys.
+        const next = s?.config && typeof s.config === "object" ? s.config : {};
+        const merged = { ...next };
+        for (const k of ["priceEssentials", "priceGrowth", "priceGmb", "livePlanEssentials", "livePlanGrowth", "livePlanGmb", "popularPlan"]) {
+          if (merged[k] == null && s?.[k] != null) merged[k] = s[k];
+        }
+        setCfg(merged);
+      } catch (e) {
+        console.warn("landing settings:", e?.message || e);
+      }
+    };
+    load();
+    // Re-fetch when returning from admin so price edits show without a hard refresh.
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", onFocus);
+    };
+  }, []);
   const [navSolid, setNavSolid] = useState(false);
   useEffect(() => {
     const onScroll = () => setNavSolid(window.scrollY > 40);
@@ -76,11 +101,7 @@ export default function LandingPage({ user = null, focusPricing = false, billing
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
-  const lprice = (id) => {
-    const m = { essentials: "priceEssentials", growth: "priceGrowth", gmb: "priceGmb" };
-    const v = cfg[m[id]];
-    return v != null && v !== "" ? Number(v) : PLANS[id]?.price;
-  };
+  const lprice = (id) => planPrice(id, cfg);
 
   // Don't flash marketing / plan CTAs while bouncing staff to /admin.
   if (isStaff) return null;

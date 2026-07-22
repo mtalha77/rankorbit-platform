@@ -1092,7 +1092,17 @@ export const api={
   },
   // Public read of settings (used by the landing page to know which plans are live).
   async getSettings(){
-    if(supa){const{data}=await supa.from("settings").select("data").eq("id",1).maybeSingle();return data?.data||{};}
+    if(supa){
+      const{data,error}=await supa.from("settings").select("data").eq("id",1).maybeSingle();
+      if(error){
+        console.warn("getSettings:",error.message);
+        return{};
+      }
+      // Row shape: { data: { stripe, config, ... } }
+      const blob=data?.data;
+      if(blob&&typeof blob==="object")return blob;
+      return{};
+    }
     return LS("ro3_settings")||{};
   },
 };
