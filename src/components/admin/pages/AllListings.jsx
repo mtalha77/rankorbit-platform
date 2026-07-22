@@ -4,13 +4,13 @@ import { Badge, Card, Btn, Empty, ListToolbar, PageHead } from "../../atoms";
 import { useAdmin } from "../AdminContext";
 
 export function AllListings() {
-  const { isMobile, isAgent, clients, flat, labelForClientId, setSelClient, setPage } = useAdmin();
+  const { isMobile, isAgent, isBdm, clients, flat, labelForClientId, setSelClient, setPage } = useAdmin();
 
     const[filter,setFilter]=useState("all");
     const[search,setSearch]=useState("");
-    // Agents only see listings for clients assigned to them; staff see all.
+    // BDM / Agent only see listings for their assigned clients; managers/SA see all.
     const scopedIds=new Set(clients.map(c=>String(c.id)));
-    const scopedFlat=isAgent?flat.filter(l=>scopedIds.has(String(l.clientId))):flat;
+    const scopedFlat=(isAgent||isBdm)?flat.filter(l=>scopedIds.has(String(l.clientId))):flat;
     const withNames=scopedFlat.map(l=>({...l,_name:labelForClientId(l.clientId)}));
     let filtered=filter==="all"?withNames:filter==="action"?withNames.filter(l=>l.actionNeeded):withNames.filter(l=>l.status===filter);
     if(search)filtered=filtered.filter(l=>`${l._name} ${l.directory} ${l.status}`.toLowerCase().includes(search.toLowerCase()));

@@ -672,21 +672,29 @@ export const api={
     const allU=LS("ro3_users")||[];
     return{users:allU.filter(x=>!x.deletedAt),trashedUsers:allU.filter(x=>x.deletedAt),listings,trashedListings:flatAll.filter(x=>x.deletedAt),gmb:LS("ro3_gmb")||{},analytics:LS("ro3_analytics")||{},activity:LS("ro3_activity")||[],audit:LS("ro3_audit")||[],settings:LS("ro3_settings")||SEED.settings};
   },
-  // Assign a client to an agent (notifies agent + super admins via API).
-  async assignClient(clientId,agentId){
+  /**
+   * Assign a client to a BDM or Agent.
+   * kind: "bdm" (default) → assignedBdmId; "agent" → assignedAgentId
+   */
+  async assignClient(clientId,staffId,{kind="bdm"}={}){
     if(supa){
       const token=await this._accessToken();
       if(!token)throw new Error("Not signed in");
       const r=await fetch("/api/assign-client",{
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({token,clientId,agentId:agentId||null}),
+        body:JSON.stringify({token,clientId,staffId:staffId||null,kind}),
       });
       const j=await r.json().catch(()=>({}));
       if(!r.ok)throw new Error(j.error||"Could not assign client");
       return j;
     }
-    const us=LS("ro3_users")||[];const i=us.findIndex(x=>x.id===clientId);if(i>=0){us[i].assignedAgentId=agentId||null;LSet("ro3_users",us);}
+    const us=LS("ro3_users")||[];const i=us.findIndex(x=>x.id===clientId);
+    if(i>=0){
+      if(kind==="agent")us[i].assignedAgentId=staffId||null;
+      else us[i].assignedBdmId=staffId||null;
+      LSet("ro3_users",us);
+    }
   },
   // Grant/revoke a manager's ability to open (read-only) client accounts.
   // Create a staff login (manager/agent) via the serverless admin function.

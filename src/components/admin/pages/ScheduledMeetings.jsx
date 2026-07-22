@@ -6,7 +6,7 @@ import { Badge, Card, Btn, Empty, PageHead, StatCard } from "../../atoms";
 import { useAdmin } from "../AdminContext";
 
 export function ScheduledMeetings() {
-  const { isMobile, isAdmin, isAgent, toast, setSelClient, setPage, labelForClientId } = useAdmin();
+  const { isMobile, isAdmin, isBdm, toast, setSelClient, setPage, labelForClientId } = useAdmin();
   const [meetings, setMeetings] = useState([]);
   const [counts, setCounts] = useState({ total: 0, pending: 0, confirmed: 0 });
   const [loading, setLoading] = useState(true);
@@ -89,7 +89,7 @@ export function ScheduledMeetings() {
         isMobile={isMobile}
         title="Scheduled Meetings"
         sub={
-          isAgent
+          isBdm
             ? "Upcoming calls booked with you — confirm pending requests and share Zoom links"
             : "Upcoming client ↔ BDM meetings across the team"
         }
@@ -207,7 +207,7 @@ export function ScheduledMeetings() {
                     </div>
                     <div style={{ fontSize: 12, color: T.faint, marginTop: 3 }}>
                       {m.client?.email || ""}
-                      {!isAgent && m.agent?.name ? ` · BDM: ${m.agent.name}` : ""}
+                      {!isBdm && m.agent?.name ? ` · BDM: ${m.agent.name}` : ""}
                       {m.note ? ` · Note: ${m.note}` : ""}
                     </div>
                   </div>

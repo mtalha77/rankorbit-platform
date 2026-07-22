@@ -49,13 +49,16 @@ export default async function handler(req, res) {
 
     const { data: clientRow } = await admin
       .from("profiles")
-      .select("id,role,assignedAgentId")
+      .select("id,role,assignedBdmId,assignedAgentId")
       .eq("id", targetClientId)
       .maybeSingle();
     if (!clientRow || clientRow.role !== "client") {
       return res.status(404).json({ error: "Client not found" });
     }
-    if ((sender.role === "bdm" || sender.role === "agent") && clientRow.assignedAgentId !== sender.id) {
+    if (sender.role === "agent") {
+      return res.status(403).json({ error: "Agents do not access client chat" });
+    }
+    if (sender.role === "bdm" && clientRow.assignedBdmId !== sender.id) {
       return res.status(403).json({ error: "This client is not assigned to you" });
     }
   } else {

@@ -46,6 +46,7 @@ export function TeamModal({ onClose }) {
         { value: "super_admin", label: "Super Admin" },
         { value: "manager", label: "Manager" },
         { value: "bdm", label: "BDM" },
+        { value: "agent", label: "Agent" },
       ]
     : [{ value: "bdm", label: "BDM" }];
 

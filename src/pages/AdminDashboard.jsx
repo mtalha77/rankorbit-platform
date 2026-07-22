@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { T, FONT_B, SHADOW } from "../lib/theme";
 import { api } from "../lib/api";
 import { livePlanEntries, planPrice, plansWithPrices } from "../lib/constants";
-import { todayFull, uid, isBdmRole, staffRoleLabel } from "../lib/helpers";
+import { todayFull, uid, isBdmRole, isAgentRole, staffRoleLabel } from "../lib/helpers";
 import { Confirm } from "../components/atoms";
 import Shell from "../components/Shell";
 import AccountSettings from "../components/AccountSettings";
@@ -36,7 +36,6 @@ import {
   Team,
   Activity,
   Finance,
-  AuditTrail,
   Trash,
   Settings,
   ScheduledMeetings,
@@ -97,8 +96,13 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
   const staff = users.filter((u) => u.role !== "client");
   const isAdmin = user.role === "super_admin";
   const isStaffMgr = user.role === "super_admin" || user.role === "manager";
-  const isAgent = isBdmRole(user.role);
-  const clients = isAgent ? allClients.filter((c) => c.assignedAgentId === user.id) : allClients;
+  const isBdm = isBdmRole(user.role);
+  const isAgent = isAgentRole(user.role);
+  const clients = isBdm
+    ? allClients.filter((c) => c.assignedBdmId === user.id)
+    : isAgent
+      ? allClients.filter((c) => c.assignedAgentId === user.id)
+      : allClients;
   const labelForClientId = (id) => {
     if (!id) return "Unknown client";
     const pool = [...users, ...(data.trashedUsers || [])];
@@ -126,13 +130,13 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
     await api.logAudit({ actor: user, action, targetType, targetId, targetName, detail });
   };
   const notifyManagersIfAgent = async (action, listing) => {
-    if (!isBdmRole(user.role)) return;
+    if (!isAgent && !isBdm) return;
     const clientName = clients.find((c) => c.id === listing.clientId)?.businessName || "a client";
     await api.addActivity({ id: uid(), clientId: listing.clientId, type: "edit_blocked_internal", desc: `Manager review: ${user.name} ${action} "${listing.directory}" for ${clientName}`, date: todayFull(), by: "System" });
     api.notifyClient({
       clientId: listing.clientId,
       type: "agent_edit",
-      title: `BDM ${action} a listing`,
+      title: `${isAgent ? "Agent" : "BDM"} ${action} a listing`,
       body: `${user.name} ${action} "${listing.directory}" for ${clientName}. Review in the admin dashboard.`,
       meta: { directory: listing.directory, action },
     });
@@ -196,7 +200,7 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
     const pull = async () => {
       if (pageRef.current === "messages") return;
       const [cr, sr] = await Promise.all([
-        isAdmin ? Promise.resolve({ unreadTotal: 0 }) : api.listChatThreads(),
+        isAdmin || isAgent ? Promise.resolve({ unreadTotal: 0 }) : api.listChatThreads(),
         api.listStaffThreads(),
       ]);
       if (cancelled) return;
@@ -215,15 +219,14 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
   const nav = [
     { id: "overview", icon: "📊", label: "Overview", roles: ["super_admin", "manager", "bdm", "agent"] },
     { id: "notifications", icon: "🔔", label: "Notifications", roles: ["super_admin", "manager", "bdm", "agent"] },
-    { id: "meetings", icon: "📅", label: "Scheduled Meetings", roles: ["super_admin", "manager", "bdm", "agent"] },
-    { id: "messages", icon: "💬", label: "Messages", roles: ["super_admin", "manager", "bdm", "agent"] },
+    { id: "meetings", icon: "📅", label: "Scheduled Meetings", roles: ["super_admin", "manager", "bdm"] },
+    { id: "messages", icon: "💬", label: "Messages", roles: ["super_admin", "manager", "bdm"] },
     { id: "clients", icon: "👥", label: "Clients", roles: ["super_admin", "manager", "bdm", "agent"], match: ["clientDetail"] },
     { id: "listings", icon: "📋", label: "All Listings", roles: ["super_admin", "manager", "bdm", "agent"] },
-    { id: "gmb", icon: "📍", label: "GMB", roles: ["super_admin", "manager"] },
+    { id: "gmb", icon: "📍", label: "GMB", roles: ["super_admin", "manager", "agent", "bdm"] },
     { id: "team", icon: "👥", label: "Team", roles: ["super_admin", "manager"] },
-    { id: "activity", icon: "📜", label: "Activity Log", roles: ["super_admin", "manager"] },
+    { id: "activity", icon: "📜", label: "Activity Logs", roles: ["super_admin", "manager"] },
     { id: "finance", icon: "💰", label: "Finance", roles: ["super_admin"] },
-    { id: "audit", icon: "🛡️", label: "Audit Trail", roles: ["super_admin"] },
     { id: "trash", icon: "🗑️", label: "Trash", roles: ["super_admin"] },
     { id: "settings", icon: "🛠️", label: "Control Panel", roles: ["super_admin"] },
   ].filter((n) => n.roles.includes(user.role));
@@ -241,7 +244,7 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
     user, data, reload, onLogout, onUserUpdate,
     page, setPage, selClient, setSelClient, modal, setModal, confirm, setConfirm,
     toast, isMobile, users, listings, gmb, analytics, activity, settings,
-    allClients, staff, isAdmin, isStaffMgr, isAgent, clients, labelForClientId,
+    allClients, staff, isAdmin, isStaffMgr, isBdm, isAgent, clients, labelForClientId,
     canImpersonate, viewAs, setViewAs, acfg, livePlans, PLANSV, revenue, flat,
     totalLive, totalPending, totalFlagged, actionNeeded,
     addActivity, audit, notifyManagersIfAgent, R,
@@ -286,9 +289,8 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
         {page === "listings" && <AllListings />}
         {page === "gmb" && <GmbAdmin />}
         {page === "team" && <Team />}
-        {page === "activity" && <Activity />}
+        {(page === "activity" || page === "audit") && <Activity />}
         {page === "finance" && <Finance />}
-        {page === "audit" && <AuditTrail />}
         {page === "trash" && <Trash />}
         {page === "account" && (
           <AccountSettings user={user} toast={toast} reload={reload} onUserUpdate={onUserUpdate} isMobile={isMobile} title="My Account" sub="Update your name, photo, password, and notification email" />

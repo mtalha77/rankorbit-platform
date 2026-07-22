@@ -17,7 +17,8 @@ create table profiles (
   "notifyEmail" text, "notifyEmailPending" text, "notifyEmailToken" text, "notifyEmailTokenExpiresAt" timestamptz,
   "pendingPlanId" text, "pendingPlanEffectiveAt" timestamptz,
   "paymentFailedAt" timestamptz, "paymentGraceEndsAt" timestamptz,
-  -- Staff / ops (also in profile-ops.sql for existing DBs)
+  -- Staff / ops (also in profile-ops.sql / bdm-agent-split.sql for existing DBs)
+  "assignedBdmId" uuid references profiles(id) on delete set null,
   "assignedAgentId" uuid references profiles(id) on delete set null,
   "canImpersonate" boolean default false,
   perms jsonb default '{}'::jsonb,
@@ -184,6 +185,7 @@ begin
   new.perms := old.perms;
   new."canImpersonate" := old."canImpersonate";
   new."assignedAgentId" := old."assignedAgentId";
+  new."assignedBdmId" := old."assignedBdmId";
   new."deletedAt" := old."deletedAt";
   new."suspendedAt" := old."suspendedAt";
   new."suspendReason" := old."suspendReason";

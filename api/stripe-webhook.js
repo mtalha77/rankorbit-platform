@@ -216,12 +216,12 @@ export default async function handler(req, res) {
             try {
               const { data: buyer } = await admin
                 .from("profiles")
-                .select("id,email,name,businessName,plan,assignedAgentId")
+                .select("id,email,name,businessName,plan,assignedBdmId")
                 .eq("id", profileId)
                 .maybeSingle();
               const who = buyer?.businessName || buyer?.name || buyer?.email || "A client";
               const planName = planLabel(planId || buyer?.plan);
-              if (!buyer?.assignedAgentId) {
+              if (!buyer?.assignedBdmId) {
                 await notifySuperAdminsInApp(admin, {
                   clientId: profileId,
                   type: "needs_bdm",

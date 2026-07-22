@@ -565,7 +565,7 @@ export async function syncClientGbp(admin, clientId) {
 export async function assertCanManageGbp(admin, staff, clientId) {
   const { data: client, error } = await admin
     .from("profiles")
-    .select("id,role,assignedAgentId,businessName,name,plan")
+    .select("id,role,assignedAgentId,assignedBdmId,businessName,name,plan")
     .eq("id", clientId)
     .maybeSingle();
   if (error) return { error: error.message, status: 500 };
@@ -575,12 +575,22 @@ export async function assertCanManageGbp(admin, staff, clientId) {
   if (staff.role === "super_admin" || staff.role === "manager") {
     return { client };
   }
-  if (staff.role === "bdm" || staff.role === "agent") {
+  if (staff.role === "agent") {
     if (client.assignedAgentId !== staff.id) {
       return { error: "Client not assigned to you", status: 403 };
     }
     const perms = staff.perms || {};
     if (perms.gmb === false) {
+      return { error: "GMB permission required", status: 403 };
+    }
+    return { client };
+  }
+  if (staff.role === "bdm") {
+    if (client.assignedBdmId !== staff.id) {
+      return { error: "Client not assigned to you", status: 403 };
+    }
+    const perms = staff.perms || {};
+    if (perms.gmb !== true) {
       return { error: "GMB permission required", status: 403 };
     }
     return { client };

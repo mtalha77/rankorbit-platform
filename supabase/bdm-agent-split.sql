@@ -1,11 +1,33 @@
--- Plan switch (pending) + payment-failed 5-day grace. Safe to re-run.
+-- Split BDM vs Agent assignment.
+-- assignedBdmId  = client-facing BDM (chat / calls / meetings)
+-- assignedAgentId = backend Agent (listings / GMB / reports scope)
+-- Safe to re-run.
 
-alter table profiles add column if not exists "pendingPlanId" text;
-alter table profiles add column if not exists "pendingPlanEffectiveAt" timestamptz;
-alter table profiles add column if not exists "paymentFailedAt" timestamptz;
-alter table profiles add column if not exists "paymentGraceEndsAt" timestamptz;
+alter table profiles
+  add column if not exists "assignedBdmId" uuid references profiles(id) on delete set null;
 
--- Keep client freeze in sync (same function as profile-security / stripe-billing).
+create index if not exists profiles_assigned_bdm_idx on profiles ("assignedBdmId");
+create index if not exists profiles_assigned_agent_idx on profiles ("assignedAgentId");
+
+-- Existing links were BDM-facing (after earlier agent→bdm rename). Move them.
+update profiles
+set
+  "assignedBdmId" = coalesce("assignedBdmId", "assignedAgentId"),
+  "assignedAgentId" = null
+where "assignedAgentId" is not null
+  and (
+    "assignedBdmId" is null
+    or "assignedBdmId" = "assignedAgentId"
+  );
+
+create or replace function is_staff() returns boolean as $$
+  select exists(
+    select 1 from profiles
+    where id = auth.uid()
+      and role in ('super_admin', 'manager', 'bdm', 'agent')
+  );
+$$ language sql security definer stable;
+
 create or replace function protect_profile_billing() returns trigger as $$
 begin
   if auth.uid() is null then
@@ -59,3 +81,8 @@ begin
   return new;
 end;
 $$ language plpgsql security definer;
+
+drop trigger if exists trg_protect_profile_billing on profiles;
+create trigger trg_protect_profile_billing
+  before update on profiles
+  for each row execute function protect_profile_billing();

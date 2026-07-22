@@ -1,7 +1,8 @@
 import { getAdmin, readJson, requireStaff } from "../server/billing.js";
+import { isBdmRole } from "../server/roles.js";
 
 /**
- * List chat threads for staff (agent: assigned clients; manager/sa: all with messages).
+ * List chat threads for staff (BDM: assigned clients, current-agent thread only).
  * Body: { token }
  */
 export default async function handler(req, res) {
@@ -12,30 +13,32 @@ export default async function handler(req, res) {
 
   const { token } = await readJson(req);
   const auth = await requireStaff(admin, token, {
-    roles: ["super_admin", "manager", "bdm", "agent"],
+    roles: ["super_admin", "manager", "bdm"],
   });
   if (auth.error) return res.status(auth.status).json({ error: auth.error });
 
   try {
+    const mineOnly = isBdmRole(auth.profile.role);
     let clientIds = null;
-    if (auth.profile.role === "bdm" || auth.profile.role === "agent") {
+    if (mineOnly) {
       const { data: clients, error } = await admin
         .from("profiles")
         .select("id")
         .eq("role", "client")
-        .eq("assignedAgentId", auth.profile.id);
+        .eq("assignedBdmId", auth.profile.id);
       if (error) return res.status(500).json({ error: error.message });
       clientIds = (clients || []).map((c) => c.id);
       if (!clientIds.length) return res.status(200).json({ ok: true, threads: [], unreadTotal: 0 });
     }
 
-    // Recent messages — then collapse to last per client
+    // Recent messages for the current BDM thread only (not prior assignees).
     let q = admin
       .from("messages")
       .select("id,clientId,agentId,senderId,body,createdAt,readAt")
       .order("createdAt", { ascending: false })
       .limit(400);
     if (clientIds) q = q.in("clientId", clientIds);
+    if (mineOnly) q = q.eq("agentId", auth.profile.id);
 
     const { data: rows, error } = await q;
     if (error) {
@@ -47,8 +50,25 @@ export default async function handler(req, res) {
       });
     }
 
+    // For managers: only surface each client's current-assignee thread (skip old BDM history).
+    let allowed = rows || [];
+    if (!mineOnly && allowed.length) {
+      const cids = [...new Set(allowed.map((m) => m.clientId))];
+      const { data: clients } = await admin
+        .from("profiles")
+        .select("id,assignedBdmId")
+        .in("id", cids);
+      const assigned = Object.fromEntries((clients || []).map((c) => [c.id, c.assignedBdmId || null]));
+      allowed = allowed.filter((m) => {
+        const cur = assigned[m.clientId];
+        // No BDM yet → allow support/manager peer threads.
+        if (!cur) return true;
+        return m.agentId === cur;
+      });
+    }
+
     const byClient = new Map();
-    for (const m of rows || []) {
+    for (const m of allowed) {
       if (byClient.has(m.clientId)) continue;
       byClient.set(m.clientId, m);
     }
@@ -58,21 +78,26 @@ export default async function handler(req, res) {
 
     const { data: profiles } = await admin
       .from("profiles")
-      .select("id,name,businessName,email,assignedAgentId")
+      .select("id,name,businessName,email,assignedBdmId")
       .in("id", ids);
 
     const profileMap = Object.fromEntries((profiles || []).map((p) => [p.id, p]));
 
-    // Unread counts per client (messages not from me, unread)
-    const { data: unreadRows } = await admin
+    // Unread counts — current BDM thread only
+    let unreadQ = admin
       .from("messages")
-      .select("clientId")
+      .select("clientId,agentId")
       .in("clientId", ids)
       .is("readAt", null)
       .neq("senderId", auth.profile.id);
+    if (mineOnly) unreadQ = unreadQ.eq("agentId", auth.profile.id);
+
+    const { data: unreadRows } = await unreadQ;
 
     const unreadMap = {};
     for (const r of unreadRows || []) {
+      const cur = profileMap[r.clientId]?.assignedBdmId || null;
+      if (!mineOnly && cur && r.agentId !== cur) continue;
       unreadMap[r.clientId] = (unreadMap[r.clientId] || 0) + 1;
     }
 

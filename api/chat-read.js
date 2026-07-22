@@ -1,7 +1,9 @@
 import { getAdmin, readJson, requireClient, requireStaff } from "../server/billing.js";
+import { resolveClientChatPeer } from "../server/assign.js";
+import { isBdmRole } from "../server/roles.js";
 
 /**
- * Mark peer messages as read in a thread.
+ * Mark peer messages as read in the current client↔BDM thread only.
  * Body: { token, clientId? }
  */
 export default async function handler(req, res) {
@@ -24,13 +26,16 @@ export default async function handler(req, res) {
     if (!clientId) return res.status(400).json({ error: "clientId required" });
     targetClientId = clientId;
 
-    if (staff.profile.role === "bdm" || staff.profile.role === "agent") {
+    if (staff.profile.role === "agent") {
+      return res.status(403).json({ error: "Agents do not access client chat" });
+    }
+    if (isBdmRole(staff.profile.role)) {
       const { data: client } = await admin
         .from("profiles")
-        .select("assignedAgentId,role")
+        .select("assignedBdmId,role")
         .eq("id", targetClientId)
         .maybeSingle();
-      if (!client || client.role !== "client" || client.assignedAgentId !== myId) {
+      if (!client || client.role !== "client" || client.assignedBdmId !== myId) {
         return res.status(403).json({ error: "This client is not assigned to you" });
       }
     }
@@ -44,12 +49,18 @@ export default async function handler(req, res) {
   }
 
   try {
+    const { peer } = await resolveClientChatPeer(admin, targetClientId);
+    if (!peer?.id) {
+      return res.status(200).json({ ok: true, marked: 0 });
+    }
+
     const now = new Date().toISOString();
-    // Mark messages I didn't send as read
+    // Mark unread messages in the current BDM thread only (never prior assignees).
     const { data, error } = await admin
       .from("messages")
       .update({ readAt: now })
       .eq("clientId", targetClientId)
+      .eq("agentId", peer.id)
       .is("readAt", null)
       .neq("senderId", myId)
       .select("id");

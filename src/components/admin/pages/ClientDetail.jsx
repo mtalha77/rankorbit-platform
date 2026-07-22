@@ -1,19 +1,20 @@
 import { useState, useEffect } from "react";
 import { T, FONT_D, FONT_B } from "../../../lib/theme";
 import { api } from "../../../lib/api";
-import { actIcon, isBdmRole } from "../../../lib/helpers";
+import { actIcon, isBdmRole, isAgentRole } from "../../../lib/helpers";
 import { Badge, Card, Btn, Empty, SectionTitle } from "../../atoms";
 import ChatThread from "../../ChatThread";
 import { useAdmin } from "../AdminContext";
 import { clientPaymentBadge } from "../adminUtils";
 
 export function ClientDetail() {
-  const { selClient, clients, staff, listings, gmb, analytics, activity, isMobile, isStaffMgr, isAdmin, isAgent, user, canImpersonate, setViewAs, setPage, setSelClient, setModal, setConfirm, R, audit, toast, addActivity, PLANSV, reload } = useAdmin();
+  const { selClient, clients, staff, listings, gmb, analytics, activity, isMobile, isStaffMgr, isAdmin, isAgent, isBdm, user, canImpersonate, setViewAs, setPage, setSelClient, setModal, setConfirm, R, audit, toast, addActivity, PLANSV, reload } = useAdmin();
 
     const c=clients.find(x=>x.id===selClient);
     const[nap,setNap]=useState(0);
     const[chatOpen,setChatOpen]=useState(false);
     const[assigningBdm,setAssigningBdm]=useState(false);
+    const[assigningAgent,setAssigningAgent]=useState(false);
     useEffect(()=>{
       if(c)setNap(c.napScore||0);
     },[c?.id,c?.napScore]);
@@ -27,28 +28,50 @@ export function ClientDetail() {
       </Card>
     );
     const cl=listings[c.id]||[];
-    // Agents reach ClientDetail only for clients assigned to them (clients list is pre-scoped),
-    // so if an agent can open this client, they're allowed to edit it.
-    const canEdit=isStaffMgr||(isAgent&&c.assignedAgentId===user.id);
-    // Per-action permissions. Staff/managers have all; agents limited by their granted perms.
     const ap=user.perms||{listings:true,nap:true,logEdit:true,gmb:true};
-    const can=(action)=>isStaffMgr||(isAgent&&c.assignedAgentId===user.id&&ap[action]!==false);
+    // Agent: ops on assigned clients. BDM: ops only when Super Admin granted perms.
+    const mineAsAgent=isAgent&&c.assignedAgentId===user.id;
+    const mineAsBdm=isBdm&&c.assignedBdmId===user.id;
+    const canEdit=isStaffMgr||mineAsAgent||mineAsBdm;
+    const can=(action)=>{
+      if(isStaffMgr)return true;
+      if(mineAsAgent&&ap[action]!==false)return true;
+      if(mineAsBdm&&ap[action]===true)return true;
+      return false;
+    };
     const fmtDT=(d)=>d?new Date(d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"}):"";
     const bdms=staff.filter(m=>isBdmRole(m.role)&&!m.deletedAt&&m.status!=="suspended");
-    const assignedBdm=bdms.find(m=>m.id===c.assignedAgentId)||staff.find(m=>m.id===c.assignedAgentId);
-    const assignBdm=async(agentId)=>{
-      const next=agentId||null;
-      if((c.assignedAgentId||null)===(next||null))return;
+    const agents=staff.filter(m=>isAgentRole(m.role)&&!m.deletedAt&&m.status!=="suspended");
+    const assignedBdm=bdms.find(m=>m.id===c.assignedBdmId)||staff.find(m=>m.id===c.assignedBdmId);
+    const assignedAgent=agents.find(m=>m.id===c.assignedAgentId)||staff.find(m=>m.id===c.assignedAgentId);
+    const assignBdm=async(staffId)=>{
+      const next=staffId||null;
+      if((c.assignedBdmId||null)===(next||null))return;
       setAssigningBdm(true);
       try{
-        await api.assignClient(c.id,next);
-        await audit("agent.assign",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name,detail:next?`BDM ${bdms.find(b=>b.id===next)?.name||next}`:"unassigned"});
+        await api.assignClient(c.id,next,{kind:"bdm"});
+        await audit("bdm.assign",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name,detail:next?`BDM ${bdms.find(b=>b.id===next)?.name||next}`:"unassigned"});
         await reload();
         toast(next?"BDM assigned":"BDM unassigned");
       }catch(e){
         toast(e.message||"Could not assign BDM","info");
       }finally{
         setAssigningBdm(false);
+      }
+    };
+    const assignAgent=async(staffId)=>{
+      const next=staffId||null;
+      if((c.assignedAgentId||null)===(next||null))return;
+      setAssigningAgent(true);
+      try{
+        await api.assignClient(c.id,next,{kind:"agent"});
+        await audit("agent.assign",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name,detail:next?`Agent ${agents.find(b=>b.id===next)?.name||next}`:"unassigned"});
+        await reload();
+        toast(next?"Agent assigned":"Agent unassigned");
+      }catch(e){
+        toast(e.message||"Could not assign Agent","info");
+      }finally{
+        setAssigningAgent(false);
       }
     };
     return(<div>
@@ -80,8 +103,9 @@ export function ClientDetail() {
         {c.plan&&PLANSV?.[c.plan]&&<Badge type="submitted" label={`${PLANSV[c.plan].name} $${PLANSV[c.plan].price}/mo`}/>}
         {(()=>{const b=clientPaymentBadge(c);return b?<Badge type={b.type} label={b.label}/>:null;})()}
       </div>
-      {(canEdit||can("gmb")||can("nap")||can("logEdit")||can("listings"))&&<div style={{display:"flex",gap:8,marginBottom:18,flexWrap:"wrap"}}>
-        <Btn variant={chatOpen?"soft":"ghost"} size="sm" onClick={()=>setChatOpen(o=>!o)}>{chatOpen?"Hide chat":"💬 Open chat"}</Btn>
+      {(canEdit||can("gmb")||can("nap")||can("logEdit")||can("listings")||isStaffMgr||isBdm)&&(
+      <div style={{display:"flex",gap:8,marginBottom:18,flexWrap:"wrap"}}>
+        {(isStaffMgr||isBdm)&&<Btn variant={chatOpen?"soft":"ghost"} size="sm" onClick={()=>setChatOpen(o=>!o)}>{chatOpen?"Hide chat":"💬 Open chat"}</Btn>}
         {isStaffMgr&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"clientForm",client:c})}>✏️ Edit Info</Btn>}
         {canImpersonate&&<Btn variant="soft" size="sm" onClick={()=>{audit("client.impersonate",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name});setViewAs(c.id);}}>👁️ Open Account (read-only)</Btn>}
         {(isStaffMgr||can("gmb"))&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"integrations",client:c})}>🔗 Integrations</Btn>}
@@ -94,13 +118,8 @@ export function ClientDetail() {
           <Btn variant="green" size="sm" onClick={()=>R(async()=>{await api.patchProfile(c.id,{status:"active",suspendedAt:null,suspendReason:null,suspendedBy:null});await audit("client.reactivate",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name});},"Client reactivated")}>▶ Reactivate</Btn>)}
         {isAdmin&&!c.protected&&<Btn variant="danger" size="sm" onClick={()=>setConfirm({title:"Delete client?",msg:`Move ${c.businessName||c.name} to Trash? Recoverable for 30 days, then permanently removed with all their listings.`,danger:true,yes:"Delete",onYes:()=>R(async()=>{await api.deleteUser(c.id);await audit("client.delete",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name});},"Client moved to Trash").then(()=>{setPage("clients");setSelClient(null);})})}>🗑 Delete</Btn>}
         {c.protected&&<span style={{fontSize:11,color:T.faint,alignSelf:"center"}}>🔒 Demo account (protected)</span>}
-      </div>}
-      {!(canEdit||can("gmb")||can("nap")||can("logEdit")||can("listings"))&&(
-        <div style={{display:"flex",gap:8,marginBottom:18}}>
-          <Btn variant={chatOpen?"soft":"ghost"} size="sm" onClick={()=>setChatOpen(o=>!o)}>{chatOpen?"Hide chat":"💬 Open chat"}</Btn>
-        </div>
-      )}
-      {chatOpen&&(
+      </div>)}
+      {chatOpen&&(isStaffMgr||isBdm)&&(
         <div style={{marginBottom:18}}>
           <ChatThread
             clientId={c.id}
@@ -112,24 +131,45 @@ export function ClientDetail() {
         </div>
       )}
       {isStaffMgr&&(
-        <Card style={{marginBottom:16,border:!c.assignedAgentId&&c.plan?`1.5px solid ${T.amber}`:undefined,background:!c.assignedAgentId&&c.plan?T.amberSoft:undefined}}>
-          <SectionTitle sub="Assigned after plan purchase — not automatic">Assigned BDM</SectionTitle>
-          <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-            <select
-              value={c.assignedAgentId||""}
-              disabled={assigningBdm||bdms.length===0}
-              onChange={e=>assignBdm(e.target.value)}
-              style={{flex:"1 1 220px",padding:"10px 12px",borderRadius:10,border:`1.5px solid ${T.line}`,background:T.surface,fontFamily:FONT_B,fontSize:13,fontWeight:700,color:T.ink}}
-            >
-              <option value="">{bdms.length? "— Unassigned —" : "No BDMs on the team yet"}</option>
-              {bdms.map(b=>(
-                <option key={b.id} value={b.id}>{b.name||b.email}</option>
-              ))}
-            </select>
-            {assignedBdm&&<span style={{fontSize:12.5,color:T.sub}}>{assignedBdm.email}</span>}
-            {!c.assignedAgentId&&c.plan&&<Badge type="pending" label="Needs BDM"/>}
-          </div>
-        </Card>
+        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16,marginBottom:16}}>
+          <Card style={{border:!c.assignedBdmId&&c.plan?`1.5px solid ${T.amber}`:undefined,background:!c.assignedBdmId&&c.plan?T.amberSoft:undefined}}>
+            <SectionTitle sub="Client-facing — chat, calls, meetings">Assigned BDM</SectionTitle>
+            <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+              <select
+                value={c.assignedBdmId||""}
+                disabled={assigningBdm||bdms.length===0}
+                onChange={e=>assignBdm(e.target.value)}
+                style={{flex:"1 1 180px",padding:"10px 12px",borderRadius:10,border:`1.5px solid ${T.line}`,background:T.surface,fontFamily:FONT_B,fontSize:13,fontWeight:700,color:T.ink}}
+              >
+                <option value="">{bdms.length? "— Unassigned —" : "No BDMs yet"}</option>
+                {bdms.map(b=>(
+                  <option key={b.id} value={b.id}>{b.name||b.email}</option>
+                ))}
+              </select>
+              {assignedBdm&&<span style={{fontSize:12.5,color:T.sub}}>{assignedBdm.email}</span>}
+              {!c.assignedBdmId&&c.plan&&<Badge type="pending" label="Needs BDM"/>}
+            </div>
+          </Card>
+          {isAdmin&&(
+            <Card>
+              <SectionTitle sub="Backend ops — listings, GMB, reports">Assigned Agent</SectionTitle>
+              <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+                <select
+                  value={c.assignedAgentId||""}
+                  disabled={assigningAgent||agents.length===0}
+                  onChange={e=>assignAgent(e.target.value)}
+                  style={{flex:"1 1 180px",padding:"10px 12px",borderRadius:10,border:`1.5px solid ${T.line}`,background:T.surface,fontFamily:FONT_B,fontSize:13,fontWeight:700,color:T.ink}}
+                >
+                  <option value="">{agents.length? "— Unassigned —" : "No Agents yet"}</option>
+                  {agents.map(a=>(
+                    <option key={a.id} value={a.id}>{a.name||a.email}</option>
+                  ))}
+                </select>
+                {assignedAgent&&<span style={{fontSize:12.5,color:T.sub}}>{assignedAgent.email}</span>}
+              </div>
+            </Card>
+          )}
+        </div>
       )}
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16,marginBottom:18}}>
         <Card><SectionTitle>Business Info</SectionTitle>

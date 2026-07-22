@@ -20,20 +20,20 @@ export async function pickLeastLoadedAgent(admin) {
   const { data: agents, error } = await admin
     .from("profiles")
     .select("id,email,name,createdAt,status,deletedAt,role")
-    .in("role", ["bdm", "agent"]);
+    .eq("role", "bdm");
   if (error) throw new Error(error.message);
   const activeAgents = (agents || []).filter((a) => !a.deletedAt && a.status !== "suspended" && isBdmRole(a.role));
   if (!activeAgents.length) return null;
 
   const { data: clients } = await admin
     .from("profiles")
-    .select("id,assignedAgentId,deletedAt,role")
+    .select("id,assignedBdmId,deletedAt,role")
     .eq("role", "client");
 
   const counts = Object.fromEntries(activeAgents.map((a) => [a.id, 0]));
   for (const c of clients || []) {
     if (c.deletedAt) continue;
-    if (c.assignedAgentId && counts[c.assignedAgentId] != null) counts[c.assignedAgentId]++;
+    if (c.assignedBdmId && counts[c.assignedBdmId] != null) counts[c.assignedBdmId]++;
   }
 
   const sorted = [...activeAgents].sort((a, b) => {
@@ -45,8 +45,8 @@ export async function pickLeastLoadedAgent(admin) {
 }
 
 /**
- * Assign client to least-loaded agent if they don't already have one.
- * Notifies the agent (in-app + optional email).
+ * Assign client to least-loaded BDM if they don't already have one.
+ * Kept for optional tooling — checkout no longer auto-assigns.
  * @returns {{ agent, assigned: boolean, skipped?: string } | null}
  */
 export async function autoAssignLeastLoadedAgent(admin, clientId, opts = {}) {
@@ -54,35 +54,35 @@ export async function autoAssignLeastLoadedAgent(admin, clientId, opts = {}) {
 
   const { data: client, error } = await admin
     .from("profiles")
-    .select("id,email,name,businessName,plan,assignedAgentId")
+    .select("id,email,name,businessName,plan,assignedBdmId")
     .eq("id", clientId)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!client) return null;
 
-  if (client.assignedAgentId && !opts.force) {
+  if (client.assignedBdmId && !opts.force) {
     const { data: existing } = await admin
       .from("profiles")
       .select("id,email,name")
-      .eq("id", client.assignedAgentId)
+      .eq("id", client.assignedBdmId)
       .maybeSingle();
     return { agent: existing, assigned: false, skipped: "already_assigned" };
   }
 
   const agent = await pickLeastLoadedAgent(admin);
   if (!agent) {
-    console.warn("autoAssign: no agents available");
+    console.warn("autoAssign: no BDMs available");
     return { agent: null, assigned: false, skipped: "no_agents" };
   }
 
   const { error: upErr } = await admin
     .from("profiles")
-    .update({ assignedAgentId: agent.id })
+    .update({ assignedBdmId: agent.id })
     .eq("id", clientId);
   if (upErr) throw new Error(upErr.message);
 
   const business = client.businessName || client.name || client.email || "A client";
-  const assignBody = `${business} subscribed${client.plan ? ` (${client.plan})` : ""} and was assigned to ${agent.name || agent.email || "an agent"}.`;
+  const assignBody = `${business} subscribed${client.plan ? ` (${client.plan})` : ""} and was assigned to ${agent.name || agent.email || "a BDM"}.`;
   await notifyBdm(admin, {
     agentId: agent.id,
     clientId,
@@ -94,7 +94,7 @@ export async function autoAssignLeastLoadedAgent(admin, clientId, opts = {}) {
   await notifySuperAdmins(admin, {
     clientId,
     type: "client_assigned",
-    title: "Client assigned to agent",
+    title: "Client assigned to BDM",
     body: assignBody,
     meta: { agentId: agent.id, agentName: agent.name || agent.email || null, source: "auto" },
   });
@@ -128,16 +128,16 @@ export async function autoAssignLeastLoadedAgent(admin, clientId, opts = {}) {
 export async function resolveClientAgent(admin, clientId) {
   const { data: client } = await admin
     .from("profiles")
-    .select("id,assignedAgentId,email,name,businessName,plan")
+    .select("id,assignedBdmId,assignedAgentId,email,name,businessName,plan")
     .eq("id", clientId)
     .maybeSingle();
   if (!client) return { client: null, agent: null };
 
-  if (client.assignedAgentId) {
+  if (client.assignedBdmId) {
     const { data: agent } = await admin
       .from("profiles")
       .select("id,email,name,role")
-      .eq("id", client.assignedAgentId)
+      .eq("id", client.assignedBdmId)
       .maybeSingle();
     return { client, agent: agent || null };
   }
@@ -174,18 +174,18 @@ export async function pickLeastLoadedManager(admin) {
 
 /**
  * Staff peer for client chat / Book a Call: assigned BDM, else a manager (support).
- * Does not set assignedAgentId — super admin assigns a BDM manually after plan purchase.
+ * Uses assignedBdmId only — Agents are backend ops and never the chat peer.
  */
 export async function resolveClientChatPeer(admin, clientId) {
   const { client, agent } = await resolveClientAgent(admin, clientId);
   if (!client) return { client: null, peer: null, kind: "none", needsBdm: true };
 
-  if (agent) {
+  if (agent && isBdmRole(agent.role)) {
     return {
       client,
       peer: agent,
-      kind: isBdmRole(agent.role) ? "bdm" : agent.role === "manager" ? "support" : "bdm",
-      needsBdm: !isBdmRole(agent.role),
+      kind: "bdm",
+      needsBdm: false,
     };
   }
 

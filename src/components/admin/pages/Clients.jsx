@@ -38,7 +38,8 @@ export function Clients() {
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         {filtered.map((c,idx)=>{
           const cl=listings[c.id]||[];const lv=cl.filter(l=>l.status==="live").length;const pd=cl.filter(l=>l.status==="pending").length;const fl=cl.filter(l=>l.status==="flagged"||l.status==="rejected").length;const an=cl.filter(l=>l.actionNeeded).length;
-          const bdm=c.assignedAgentId?staff.find(s=>s.id===c.assignedAgentId):null;
+          const bdm=c.assignedBdmId?staff.find(s=>s.id===c.assignedBdmId):null;
+          const agent=c.assignedAgentId?staff.find(s=>s.id===c.assignedAgentId):null;
           return(<Card key={c.id} hover style={{cursor:"pointer"}}>
             <div onClick={()=>{setSelClient(c.id);setPage("clientDetail");}} style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
               <div style={{display:"flex",gap:14,alignItems:"center"}}>
@@ -48,9 +49,9 @@ export function Clients() {
                     {c.businessName||c.name}
                     {c.status==="suspended"&&<Badge type="suspended"/>}
                     {(()=>{const b=clientPaymentBadge(c);return b?<Badge type={b.type} label={b.label}/>:null;})()}
-                    {isStaffMgr&&c.plan&&!c.assignedAgentId&&<Badge type="pending" label="Needs BDM"/>}
+                    {isStaffMgr&&c.plan&&!c.assignedBdmId&&<Badge type="pending" label="Needs BDM"/>}
                   </div>
-                  <div style={{fontSize:12,color:T.sub}}>{c.name} · {c.city||"–"}{c.state?", "+c.state:""} · {c.category||"–"}{isStaffMgr?` · BDM: ${bdm?.name||"Unassigned"}`:""}</div>
+                  <div style={{fontSize:12,color:T.sub}}>{c.name} · {c.city||"–"}{c.state?", "+c.state:""} · {c.category||"–"}{isStaffMgr?` · BDM: ${bdm?.name||"Unassigned"} · Agent: ${agent?.name||"Unassigned"}`:""}</div>
                 </div>
               </div>
               <div style={{display:"flex",gap:isMobile?12:18,alignItems:"center",flexWrap:"wrap"}}>

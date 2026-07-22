@@ -81,7 +81,7 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOn
       setLoadingCall(false);
     })();
     return()=>{cancelled=true;};
-  },[user.id,user.assignedAgentId,user.plan]);
+  },[user.id,user.assignedBdmId,user.plan]);
   const upcomingBookings=bookings.filter(b=>!isBookingPast(b.slotDate,b.slotTime));
   const activeBooking=upcomingBookings.find(b=>b.status==="confirmed")||upcomingBookings.find(b=>b.status==="pending")||null;
   const showCalendar=!loadingCall&&(showScheduler||!activeBooking);

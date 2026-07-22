@@ -4,7 +4,8 @@ import { isBdmRole } from "../server/roles.js";
 
 /**
  * Staff list of scheduled call bookings.
- * BDM/agent → only their meetings. Manager/super_admin → all upcoming.
+ * BDM → only their meetings. Manager/super_admin → all upcoming.
+ * Agents have no client-facing meetings.
  * Body: { token, includePast?: boolean }
  */
 export default async function handler(req, res) {
@@ -15,7 +16,7 @@ export default async function handler(req, res) {
 
   const { token, includePast } = await readJson(req);
   const auth = await requireStaff(admin, token, {
-    roles: ["super_admin", "manager", "bdm", "agent"],
+    roles: ["super_admin", "manager", "bdm"],
   });
   if (auth.error) return res.status(auth.status).json({ error: auth.error });
 

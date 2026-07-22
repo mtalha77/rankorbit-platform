@@ -30,14 +30,18 @@ export default async function handler(req, res) {
 
     const { data: client, error } = await admin
       .from("profiles")
-      .select("id,role,assignedAgentId,name,businessName,email")
+      .select("id,role,assignedBdmId,assignedAgentId,name,businessName,email")
       .eq("id", targetClientId)
       .maybeSingle();
     if (error) return res.status(500).json({ error: error.message });
     if (!client || client.role !== "client") {
       return res.status(404).json({ error: "Client not found" });
     }
-    if ((profile.role === "bdm" || profile.role === "agent") && client.assignedAgentId !== profile.id) {
+    // Agents do not use client chat. BDMs only see their assigned clients.
+    if (profile.role === "agent") {
+      return res.status(403).json({ error: "Agents do not access client chat" });
+    }
+    if (profile.role === "bdm" && client.assignedBdmId !== profile.id) {
       return res.status(403).json({ error: "This client is not assigned to you" });
     }
   } else {
@@ -50,10 +54,37 @@ export default async function handler(req, res) {
   }
 
   try {
+    const { client, peer, kind, needsBdm } = await resolveClientChatPeer(admin, targetClientId);
+
+    // Thread is per client + current BDM/support peer.
+    // After reassignment, old BDM chats must not appear for the new BDM (or client).
+    const threadAgentId = peer?.id || null;
+    if (!threadAgentId) {
+      return res.status(200).json({
+        ok: true,
+        messages: [],
+        unread: 0,
+        agent: null,
+        kind: kind || "none",
+        needsBdm: true,
+        support: false,
+        client: client
+          ? {
+              id: client.id,
+              name: client.name,
+              businessName: client.businessName,
+              email: client.email,
+            }
+          : null,
+        isStaff,
+      });
+    }
+
     let q = admin
       .from("messages")
       .select("id,clientId,agentId,senderId,body,createdAt,readAt")
       .eq("clientId", targetClientId)
+      .eq("agentId", threadAgentId)
       .order("createdAt", { ascending: true })
       .limit(limit);
 
@@ -69,7 +100,6 @@ export default async function handler(req, res) {
       });
     }
 
-    const { client, peer, kind, needsBdm } = await resolveClientChatPeer(admin, targetClientId);
     const myId = profile.id;
     const unread = (data || []).filter((m) => !m.readAt && m.senderId !== myId).length;
 

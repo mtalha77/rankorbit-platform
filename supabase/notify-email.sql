@@ -58,6 +58,7 @@ begin
   new.perms := old.perms;
   new."canImpersonate" := old."canImpersonate";
   new."assignedAgentId" := old."assignedAgentId";
+  new."assignedBdmId" := old."assignedBdmId";
   new."deletedAt" := old."deletedAt";
   new."suspendedAt" := old."suspendedAt";
   new."suspendReason" := old."suspendReason";
