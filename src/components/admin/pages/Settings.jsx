@@ -1,29 +1,55 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { T, FONT_B } from "../../../lib/theme";
 import { api } from "../../../lib/api";
 import { PLANS } from "../../../lib/constants";
 import { Card, Btn, Input, PageHead, SectionTitle } from "../../atoms";
 import { useAdmin } from "../AdminContext";
 
+function buildConfig(settings) {
+  return {
+    notifyEmail: "sales@naporbit.com",
+    reportEmails: "sales@naporbit.com, onboarding@naporbit.com",
+    priceEssentials: PLANS.essentials.price,
+    priceGrowth: PLANS.growth.price,
+    priceGmb: PLANS.gmb.price,
+    notifySignup: true,
+    notifyCancel: true,
+    notifyPlanChange: true,
+    notifyAgentEdit: true,
+    monthlyReport: true,
+    allowSignups: true,
+    livePlanEssentials: true,
+    livePlanGrowth: true,
+    livePlanGmb: true,
+    popularPlan: "growth",
+    ...(settings?.config || {}),
+  };
+}
+
 export function Settings() {
   const { isMobile, settings, R, audit } = useAdmin();
-    // Control-panel config: notification emails, report recipients, prices, toggles. UI-editable, DB-stored.
-    const cfg0={
-      notifyEmail:"sales@naporbit.com",
-      reportEmails:"sales@naporbit.com, onboarding@naporbit.com",
-      priceEssentials:PLANS.essentials.price, priceGrowth:PLANS.growth.price, priceGmb:PLANS.gmb.price,
-      notifySignup:true, notifyCancel:true, notifyPlanChange:true, notifyAgentEdit:true, monthlyReport:true,
-      allowSignups:true,
-      livePlanEssentials:true, livePlanGrowth:true, livePlanGmb:true,
-      popularPlan:"growth",
-      ...(settings?.config||{})
+  // Control-panel config: notification emails, report recipients, prices, toggles. UI-editable, DB-stored.
+  const [c, setC] = useState(() => buildConfig(settings));
+  // Keep form in sync after reload / when DB values change.
+  useEffect(() => {
+    setC(buildConfig(settings));
+  }, [settings]);
+  const setCfg = (k, v) => setC((x) => ({ ...x, [k]: v }));
+  const saveConfig = async (detail) => {
+    const config = {
+      ...c,
+      priceEssentials: Number(c.priceEssentials),
+      priceGrowth: Number(c.priceGrowth),
+      priceGmb: Number(c.priceGmb),
     };
-    const[c,setC]=useState(cfg0);
-    const setCfg=(k,v)=>setC(x=>({...x,[k]:v}));
-    const saveConfig=async(detail)=>{
-      await api.saveSettings({...settings,stripe:settings?.stripe||{},config:c});
-      await audit("settings.update",{targetType:"settings",detail});
-    };
+    const saved = await api.saveSettings({
+      ...settings,
+      stripe: settings?.stripe || {},
+      config,
+    });
+    if (!saved) throw new Error("Control panel did not save to the database");
+    await audit("settings.update", { targetType: "settings", detail });
+  };
     const Toggle=({label,k,sub})=>(
       <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"11px 0",borderBottom:`1px solid ${T.line}`,cursor:"pointer"}}>
         <div><div style={{fontSize:13,fontWeight:600,color:T.ink}}>{label}</div>{sub&&<div style={{fontSize:11,color:T.faint,marginTop:2}}>{sub}</div>}</div>

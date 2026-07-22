@@ -1057,8 +1057,38 @@ export const api={
     LSet("ro3_activity",[a,...(LS("ro3_activity")||[])]);
   },
   async saveSettings(data){
-    if(supa){await supa.from("settings").update({data}).eq("id",1);return;}
+    if(supa){
+      const token=await this._accessToken();
+      if(!token)throw new Error("Not signed in");
+      // Prefer service-role API so Control Panel always persists (client RLS update was silent-failing).
+      let apiAttempted=false;
+      try{
+        const r=await fetch("/api/save-settings",{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({token,settings:data}),
+        });
+        apiAttempted=true;
+        const j=await r.json().catch(()=>({}));
+        if(r.ok)return j.settings||data;
+        // Local vite has no /api — fall through to direct write.
+        if(r.status!==404&&r.status!==502&&r.status!==504){
+          throw new Error(j.error||"Could not save control panel");
+        }
+      }catch(e){
+        if(apiAttempted&&e.message&&!/Failed to fetch|NetworkError|fetch/i.test(e.message))throw e;
+        // else: local/dev without serverless API → direct Supabase write below
+      }
+      const{data:row,error}=await supa.from("settings").upsert({id:1,data},{onConflict:"id"}).select("data").maybeSingle();
+      if(error){
+        console.error("saveSettings:",error.message);
+        throw new Error(error.message||"Could not save settings to database");
+      }
+      if(!row)throw new Error("Settings row was not saved. Check Supabase RLS on settings.");
+      return row.data||data;
+    }
     LSet("ro3_settings",data);
+    return data;
   },
   // Public read of settings (used by the landing page to know which plans are live).
   async getSettings(){
