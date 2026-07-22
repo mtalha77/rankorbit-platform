@@ -260,6 +260,27 @@ export default function App(){
           }
         }catch{/* ignore */}
       }
+      // Backfill business fields from Auth metadata when profile row is still empty
+      // (email-confirm signup often has no session to write profiles at register time).
+      if(prof.role==="client"){
+        const m=session.user.user_metadata||{};
+        const patch={};
+        const metaBiz=String(m.businessName||"").trim();
+        const metaPhone=String(m.phone||"").trim();
+        const metaName=String(m.name||m.full_name||"").trim();
+        if(!String(prof.businessName||"").trim()&&metaBiz)patch.businessName=metaBiz;
+        if(!String(prof.phone||"").trim()&&metaPhone)patch.phone=metaPhone;
+        if(!String(prof.name||"").trim()&&metaName){
+          patch.name=metaName;
+          patch.avatar=(metaName[0]||"U").toUpperCase();
+        }
+        if(Object.keys(patch).length){
+          try{
+            await api.patchProfile(prof.id,patch);
+            prof={...prof,...patch};
+          }catch{/* best-effort */}
+        }
+      }
       await applyUser(prof,{forceReload});
       api.ensureClientLifecycleNotifs(prof);
       if(typeof window!=="undefined"){

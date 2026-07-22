@@ -43,9 +43,22 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
   const isMobile = w < 820;
   // Prefer data.users (reload), then overlay userProp for optimistic patches (e.g. reportEmail).
   const fromData = (data?.users || []).find((u) => u.id === userProp?.id);
+  // Prefer reload payload, but keep fresher signup/hydrate fields from userProp when present.
   const user = fromData
     ? {
         ...fromData,
+        ...(["businessName", "phone", "address", "city", "state", "category", "website", "gbpId", "name"].reduce(
+          (acc, k) => {
+            const from = fromData?.[k];
+            const prop = userProp?.[k];
+            // Fill gaps from hydrate/signup only — never overwrite fresher reload data.
+            if ((!from || String(from).trim() === "") && prop != null && String(prop).trim() !== "") {
+              acc[k] = prop;
+            }
+            return acc;
+          },
+          {}
+        )),
         ...(userProp?.reportEmail != null && userProp.reportEmail !== ""
           ? { reportEmail: userProp.reportEmail }
           : {}),

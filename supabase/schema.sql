@@ -34,14 +34,22 @@ create table profiles (
   "createdAt" timestamptz default now()
 );
 
--- Auto-create a profile whenever anyone signs up (email or Google)
+-- Auto-create a profile whenever anyone signs up (email or Google).
+-- Copies businessName/phone from signup metadata (works without a session).
 create or replace function handle_new_user() returns trigger as $$
 begin
-  insert into profiles (id,email,name,avatar,role,status)
-  values (new.id, new.email,
+  insert into profiles (id,email,name,avatar,role,status,"businessName",phone,"emailNotifications")
+  values (
+    new.id,
+    new.email,
     coalesce(new.raw_user_meta_data->>'name', split_part(new.email,'@',1)),
     upper(left(coalesce(new.raw_user_meta_data->>'name', new.email),1)),
-    'client','active')
+    'client',
+    'active',
+    nullif(trim(coalesce(new.raw_user_meta_data->>'businessName','')),''),
+    nullif(trim(coalesce(new.raw_user_meta_data->>'phone','')),''),
+    coalesce((new.raw_user_meta_data->>'emailNotifications')::boolean, true)
+  )
   on conflict (id) do nothing;
   return new;
 end;$$ language plpgsql security definer;

@@ -139,7 +139,21 @@ export const api={
     if(issues.length)return{error:"Password needs "+issues.join(", ")+"."};
     if(supa){
       // role is NEVER accepted from the client, the DB trigger hardcodes 'client'.
-      const{data,error}=await supa.auth.signUp({email,password,options:{data:{name},emailRedirectTo:window.location.origin+"/login"+(typeof window!=="undefined"?window.location.search:"")}});
+      // businessName/phone go in user_metadata so handle_new_user can copy them even when
+      // email-confirm leaves no session (RLS would block a client-side profiles update).
+      const{data,error}=await supa.auth.signUp({
+        email,
+        password,
+        options:{
+          data:{
+            name,
+            businessName:String(businessName||"").trim(),
+            phone:String(phone||"").trim(),
+            emailNotifications:!!emailNotifications,
+          },
+          emailRedirectTo:window.location.origin+"/login"+(typeof window!=="undefined"?window.location.search:""),
+        },
+      });
       if(error){
         const msg=String(error.message||"");
         if(error.status===429||/rate limit|too many/i.test(msg)){
@@ -147,11 +161,12 @@ export const api={
         }
         return{error:msg};
       }
-      if(data.user){
+      // Best-effort when a session exists (confirm-email-off). Metadata+trigger covers the rest.
+      if(data.user&&data.session){
         await supa.from("profiles").update({
           name,
-          businessName,
-          phone,
+          businessName:String(businessName||"").trim()||null,
+          phone:String(phone||"").trim()||null,
           avatar:(name||email)[0].toUpperCase(),
           emailNotifications:!!emailNotifications,
         }).eq("id",data.user.id);
