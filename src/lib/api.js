@@ -140,7 +140,13 @@ export const api={
     if(supa){
       // role is NEVER accepted from the client, the DB trigger hardcodes 'client'.
       const{data,error}=await supa.auth.signUp({email,password,options:{data:{name},emailRedirectTo:window.location.origin+"/login"+(typeof window!=="undefined"?window.location.search:"")}});
-      if(error)return{error:error.message};
+      if(error){
+        const msg=String(error.message||"");
+        if(error.status===429||/rate limit|too many/i.test(msg)){
+          return{error:"Too many signup emails sent. Please wait a few minutes, then try again — or use Continue with Google."};
+        }
+        return{error:msg};
+      }
       if(data.user){
         await supa.from("profiles").update({
           name,
