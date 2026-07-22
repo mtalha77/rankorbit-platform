@@ -41,13 +41,18 @@ function consumeAuthUrlError(){
   const hash=window.location.hash||"";
   const search=window.location.search||"";
   const fromHash=hash.startsWith("#")?hash.slice(1):hash;
-  const params=new URLSearchParams(fromHash.includes("error")?fromHash:search);
-  const err=params.get("error")||"";
-  const code=params.get("error_code")||"";
-  const desc=decodeURIComponent((params.get("error_description")||"").replace(/\+/g," "));
+  const fromSearch=search.startsWith("?")?search.slice(1):search;
+  // Parse hash + search separately — never use includes("error") on the whole
+  // string (OAuth access_token JWTs can contain that substring and wipe the hash).
+  const hashParams=new URLSearchParams(fromHash);
+  const searchParams=new URLSearchParams(fromSearch);
+  const err=hashParams.get("error")||searchParams.get("error")||"";
+  const code=hashParams.get("error_code")||searchParams.get("error_code")||"";
+  const rawDesc=hashParams.get("error_description")||searchParams.get("error_description")||"";
+  const desc=decodeURIComponent(String(rawDesc).replace(/\+/g," "));
   if(!err&&!code)return null;
 
-  // Always clear ugly auth error from the address bar.
+  // Clear auth error from the address bar (keep hash tokens alone — not an error).
   const keepSearch=search&&!/[?&]error=/.test(search)?search:"";
   window.history.replaceState(null,"",window.location.pathname+keepSearch);
 
@@ -171,6 +176,8 @@ export default function App(){
   // True while the cold-start boot effect is loading session/data.
   // Auth listener must not start a second loadAll during this window (prevents refresh double-render).
   const bootingRef=useRef(true);
+  // Google/OAuth SIGNED_IN during boot — apply after boot so we don't drop the session.
+  const pendingAuthSessionRef=useRef(null);
   // After login, ignore brief spurious SIGNED_OUT from concurrent token refresh.
   const ignoreSignOutUntilRef=useRef(0);
 
@@ -219,6 +226,48 @@ export default function App(){
     if(!sameId||forceReload)await reload();
   },[reload]);
 
+  /** Load / create profile for an auth session (Google OAuth, magic link, etc.). */
+  const hydrateFromSession=useCallback(async(session,{forceReload=false}={})=>{
+    if(!supa||!session?.user)return null;
+    try{
+      let{data:prof}=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
+      if(!prof){
+        const m=session.user.user_metadata||{};
+        const name=m.full_name||m.name||session.user.email?.split("@")[0]||"there";
+        const metaRole=m.role;
+        const role=STAFF_ROLES.includes(metaRole)?metaRole:"client";
+        await supa.from("profiles").upsert({
+          id:session.user.id,
+          email:session.user.email,
+          role,
+          name,
+          avatar:(name[0]||"U").toUpperCase(),
+          status:"active",
+        },{onConflict:"id"});
+        const r=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
+        prof=r.data;
+      }
+      if(!prof)return null;
+      await applyUser(prof,{forceReload});
+      api.ensureClientLifecycleNotifs(prof);
+      if(typeof window!=="undefined"){
+        const path=window.location.pathname||"/";
+        if(STAFF_ROLES.includes(prof.role)){
+          if(path==="/"||path==="/login"||path==="/signup"||path==="/dashboard"){
+            window.history.replaceState(null,"","/admin");
+          }
+        }else if(path==="/login"||path==="/signup"){
+          // ClientAuth Navigate needs React state; also bump URL for refresh-safe landing.
+          window.history.replaceState(null,"","/dashboard"+window.location.search);
+        }
+      }
+      return prof;
+    }catch(e){
+      console.error("auth hydrate failed:",e);
+      return null;
+    }
+  },[applyUser]);
+
   const enterRecovery=useCallback(()=>{
     markPasswordRecovery();
     setPasswordRecovery(true);
@@ -236,6 +285,14 @@ export default function App(){
     bootingRef.current=true;
     try{
       await api.init();
+      // Give detectSessionInUrl a beat to parse OAuth hash/code before first read.
+      if(supa&&typeof window!=="undefined"){
+        const h=window.location.hash||"";
+        const q=window.location.search||"";
+        if(h.includes("access_token")||/[?&]code=/.test(q)){
+          try{await supa.auth.getSession();}catch{/* ignore */}
+        }
+      }
       const existing=await api.currentUser();
       if(existing){
         await applyUser(existing,{forceReload:true});
@@ -245,19 +302,19 @@ export default function App(){
     }catch(e){
       console.error("boot failed:",e);
     }finally{
-      // If auth SIGNED_IN was skipped while booting and getSession was briefly empty, recover once.
+      // OAuth SIGNED_IN often fires during boot — apply queued session, or catch up from storage.
       if(!loadedForRef.current.id&&supa){
         try{
-          const{data:{session}}=await supa.auth.getSession();
-          if(session?.user){
-            let{data:prof}=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
-            if(prof){
-              await applyUser(prof,{forceReload:true});
-              api.ensureClientLifecycleNotifs(prof);
-            }
+          let session=pendingAuthSessionRef.current;
+          pendingAuthSessionRef.current=null;
+          if(!session?.user){
+            const r=await supa.auth.getSession();
+            session=r?.data?.session||null;
           }
+          if(session?.user)await hydrateFromSession(session,{forceReload:true});
         }catch(e){console.warn("boot session catch-up:",e.message);}
       }
+      pendingAuthSessionRef.current=null;
       bootingRef.current=false;
       setReady(true);
     }
@@ -265,19 +322,24 @@ export default function App(){
 
   useEffect(()=>{
     if(!supa)return;
+    const scrubAuthHash=(event)=>{
+      if(typeof window==="undefined")return;
+      const h=window.location.hash||"";
+      if(!h.includes("access_token")&&!/[&#]error=/.test(h))return;
+      const path=(isPasswordRecovery()||urlLooksLikeRecovery()||event==="PASSWORD_RECOVERY")
+        ?"/reset-password"
+        :(window.location.pathname+window.location.search);
+      window.history.replaceState(null,"",path);
+    };
     const{data:{subscription}}=supa.auth.onAuthStateChange(async(event,session)=>{
       if(event==="PASSWORD_RECOVERY")enterRecovery();
       // Token refresh must not remount admin/client dashboards.
       if(event==="TOKEN_REFRESHED")return;
 
-      // Cold start: boot() already loads session + data once.
-      // Ignoring INITIAL_SESSION (and SIGNED_IN during boot) stops the refresh double-paint.
+      // Cold start: boot() loads session. Keep hash until boot catch-up can read it.
       if(event==="INITIAL_SESSION"){
-        if(typeof window!=="undefined"&&window.location.hash.includes("access_token")){
-          const path=(isPasswordRecovery()||urlLooksLikeRecovery())
-            ?"/reset-password"
-            :(window.location.pathname+window.location.search);
-          window.history.replaceState(null,"",path);
+        if(session?.user&&!loadedForRef.current.id){
+          pendingAuthSessionRef.current=session;
         }
         return;
       }
@@ -285,55 +347,19 @@ export default function App(){
       if((event==="SIGNED_IN"||event==="PASSWORD_RECOVERY")&&session){
         if(event==="SIGNED_IN"&&(urlLooksLikeRecovery()||isPasswordRecovery()))enterRecovery();
 
-        const scrubHash=()=>{
-          if(typeof window==="undefined")return;
-          const h=window.location.hash||"";
-          if(!h.includes("access_token")&&!h.includes("error="))return;
-          const path=(isPasswordRecovery()||urlLooksLikeRecovery()||event==="PASSWORD_RECOVERY")
-            ?"/reset-password"
-            :window.location.pathname;
-          window.history.replaceState(null,"",path);
-        };
-
         // Same session already hydrated (boot or prior login) — do not reload again.
         if(loadedForRef.current.id===session.user.id){
-          scrubHash();
+          scrubAuthHash(event);
           return;
         }
-        // Boot still in progress and will pick up this session — skip duplicate fetch.
+        // Boot still in progress — queue for finally{} so Google OAuth is not dropped.
         if(bootingRef.current){
-          scrubHash();
+          pendingAuthSessionRef.current=session;
           return;
         }
 
-        try{
-          let{data:prof}=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
-          if(!prof){
-            const m=session.user.user_metadata||{};
-            const name=m.full_name||m.name||session.user.email?.split("@")[0]||"there";
-            // Staff invites carry role in metadata — never default those to client.
-            const metaRole=m.role;
-            const role=STAFF_ROLES.includes(metaRole)?metaRole:"client";
-            await supa.from("profiles").upsert({id:session.user.id,email:session.user.email,role,name,avatar:(name[0]||"U").toUpperCase(),status:"active"},{onConflict:"id"});
-            const r=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
-            prof=r.data;
-          }
-          if(prof){
-            await applyUser(prof,{forceReload:false});
-            // Email-confirm / OAuth land here — not only explicit onLogin.
-            api.ensureClientLifecycleNotifs(prof);
-            // Invite/magic links often land on Site URL (/) — send staff to admin immediately.
-            if(STAFF_ROLES.includes(prof.role)&&typeof window!=="undefined"){
-              const path=window.location.pathname||"/";
-              if(path==="/"||path==="/login"||path==="/signup"||path==="/dashboard"){
-                window.history.replaceState(null,"","/admin");
-              }
-            }
-          }
-        }catch(e){
-          console.error("auth hydrate failed:",e);
-        }
-        scrubHash();
+        await hydrateFromSession(session,{forceReload:false});
+        scrubAuthHash(event);
       }
       if(event==="SIGNED_OUT"){
         // Concurrent refreshSession races can emit SIGNED_OUT while the session

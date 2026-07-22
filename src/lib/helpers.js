@@ -106,6 +106,163 @@ export function paymentGraceState(user){
   return{pastDue:true,inGrace:false,expired:true,endsAt:validEnds,daysLeft:0,label};
 }
 
+function startOfLocalDay(d=new Date()){
+  const x=new Date(d);
+  x.setHours(0,0,0,0);
+  return x;
+}
+
+/** Whole days from today until date (0 if today/past). */
+export function daysUntil(date){
+  if(date==null||date==="")return null;
+  const end=date instanceof Date?date:new Date(date);
+  if(Number.isNaN(end.getTime()))return null;
+  const a=startOfLocalDay();
+  const b=startOfLocalDay(end);
+  return Math.max(0,Math.round((b-a)/86400000));
+}
+
+/** Whole days since date until today (0 if today/future). */
+export function daysSince(date){
+  if(date==null||date==="")return null;
+  const start=date instanceof Date?date:new Date(date);
+  if(Number.isNaN(start.getTime()))return null;
+  const a=startOfLocalDay(start);
+  const b=startOfLocalDay();
+  return Math.max(0,Math.round((b-a)/86400000));
+}
+
+/**
+ * Parse loose listing/UI dates: ISO, "Mar 1", "Mar 1, 2025", "July 15, 2026".
+ * Yearless short dates assume current year (rollover if >31 days in future).
+ */
+export function parseLooseDate(str){
+  if(str==null||str===""||str==="–"||str==="-")return null;
+  if(str instanceof Date)return Number.isNaN(str.getTime())?null:str;
+  const raw=String(str).trim();
+  if(!raw)return null;
+  const iso=new Date(raw);
+  if(!Number.isNaN(iso.getTime())&&(/^\d{4}-\d{2}-\d{2}/.test(raw)||raw.includes("T")))return iso;
+  const withYear=new Date(raw);
+  if(!Number.isNaN(withYear.getTime())&&/\d{4}/.test(raw))return withYear;
+  // "Mar 1" / "Mar 1, 2025" without relying on year in string
+  const y=new Date().getFullYear();
+  let d=new Date(`${raw}, ${y}`);
+  if(Number.isNaN(d.getTime()))d=new Date(raw);
+  if(Number.isNaN(d.getTime()))return null;
+  if(!/\d{4}/.test(raw)){
+    const ahead=(startOfLocalDay(d)-startOfLocalDay())/86400000;
+    if(ahead>31)d=new Date(`${raw}, ${y-1}`);
+  }
+  return Number.isNaN(d.getTime())?null:d;
+}
+
+/**
+ * Admin Clients list: plan renew, grace, oldest pending listing age, Needs-BDM wait.
+ * urgencyDays = most pressing (lower = more urgent). Grace expired sorts first.
+ */
+export function clientDaysMetrics(client,listings=[]){
+  const empty={
+    planDaysLeft:null,
+    graceDaysLeft:null,
+    graceExpired:false,
+    listingPendingDays:null,
+    bdmWaitDays:null,
+    urgencyDays:null,
+    urgencyKind:null,
+    urgencyLabel:null,
+    chips:[],
+  };
+  if(!client)return empty;
+
+  const planDaysLeft=client.plan&&client.currentPeriodEnd?daysUntil(client.currentPeriodEnd):null;
+  const grace=paymentGraceState(client);
+  const graceExpired=!!grace.expired;
+  const graceDaysLeft=grace.pastDue?(graceExpired?0:grace.daysLeft):null;
+
+  let listingPendingDays=null;
+  for(const l of listings||[]){
+    if(!l||(l.status!=="pending"&&l.status!=="submitted"))continue;
+    const age=daysSince(parseLooseDate(l.submitted));
+    if(age==null)continue;
+    if(listingPendingDays==null||age>listingPendingDays)listingPendingDays=age;
+  }
+
+  const needsBdm=!!(client.plan&&!client.assignedBdmId);
+  const bdmWaitDays=needsBdm
+    ?daysSince(client.currentPeriodStart||client.createdAt)
+    :null;
+
+  // sortKey: lower = more urgent. Plan/grace = days left; listing/BDM wait = -days (longer wait first).
+  const chips=[];
+  if(graceExpired)chips.push({kind:"grace",days:0,label:"Grace over",sortKey:-1000});
+  else if(graceDaysLeft!=null)chips.push({kind:"grace",days:graceDaysLeft,label:`${graceDaysLeft}d grace`,sortKey:graceDaysLeft});
+  if(planDaysLeft!=null)chips.push({kind:"plan",days:planDaysLeft,label:`${planDaysLeft}d plan`,sortKey:planDaysLeft});
+  if(listingPendingDays!=null)chips.push({kind:"listing",days:listingPendingDays,label:`${listingPendingDays}d listing`,sortKey:-listingPendingDays});
+  if(bdmWaitDays!=null)chips.push({kind:"bdm",days:bdmWaitDays,label:`${bdmWaitDays}d BDM`,sortKey:-bdmWaitDays});
+
+  if(!chips.length)return{...empty,planDaysLeft,graceDaysLeft,graceExpired,listingPendingDays,bdmWaitDays};
+
+  chips.sort((a,b)=>{
+    if(a.kind==="grace"&&b.kind!=="grace")return-1;
+    if(b.kind==="grace"&&a.kind!=="grace")return 1;
+    return a.sortKey-b.sortKey;
+  });
+  const top=chips[0];
+  return{
+    planDaysLeft,
+    graceDaysLeft,
+    graceExpired,
+    listingPendingDays,
+    bdmWaitDays,
+    urgencyDays:top.days,
+    urgencyKind:top.kind,
+    urgencyLabel:top.label,
+    urgencySortKey:top.sortKey,
+    chips,
+  };
+}
+
+/**
+ * True if listing falls in a relative window (all | 7 | 30 | 90).
+ * Uses submitted date, then liveDate. Unparseable dates pass through (kept visible).
+ */
+export function listingInDateWindow(listing,timeF="all"){
+  if(!timeF||timeF==="all")return true;
+  const daysMax=Number(timeF);
+  if(!daysMax)return true;
+  const d=parseLooseDate(listing?.submitted)||parseLooseDate(listing?.liveDate);
+  if(!d)return true;
+  const age=(Date.now()-d.getTime())/86400000;
+  return age<=daysMax&&age>=-1;
+}
+
+/** Shared toolbar options for listing date filters. */
+export const LISTING_DATE_FILTER_OPTS=[
+  {value:"all",label:"All time"},
+  {value:"7",label:"Last 7 days"},
+  {value:"30",label:"Last 30 days"},
+  {value:"90",label:"Last 90 days"},
+];
+
+/**
+ * Color for urgency days.
+ * Plan/grace (days left): red ≤3, amber ≤7.
+ * Listing/BDM wait (days elapsed): red ≥14, amber ≥7.
+ */
+export function urgencyDaysColor(days,graceExpired=false,kind=null){
+  if(graceExpired)return"red";
+  if(days==null)return"ok";
+  if(kind==="listing"||kind==="bdm"){
+    if(days>=14)return"red";
+    if(days>=7)return"amber";
+    return"ok";
+  }
+  if(days<=3)return"red";
+  if(days<=7)return"amber";
+  return"ok";
+}
+
 /** Parse Book-a-Call slot ("July 15, 2026" + "9:00 AM") → Date, or null. */
 export function parseBookingSlot(slotDate, slotTime) {
   if (!slotDate || !slotTime) return null;

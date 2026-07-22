@@ -74,13 +74,29 @@ export const api={
       LSet("ro3_activity",SEED.activity);LSet("ro3_settings",SEED.settings);
     }
   },
-  // Returns the logged-in profile if a Supabase session already exists
+  // Returns the logged-in profile if a Supabase session already exists.
+  // Creates a client profile once when Auth user exists but profiles row is missing
+  // (common right after Google OAuth before / instead of the DB trigger).
   async currentUser(){
     if(!supa)return null;
     const{data:{session}}=await supa.auth.getSession();
-    if(!session)return null;
-    const{data}=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
-    return data||null;
+    if(!session?.user)return null;
+    let{data}=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
+    if(data)return data;
+    const m=session.user.user_metadata||{};
+    const name=m.full_name||m.name||session.user.email?.split("@")[0]||"there";
+    const metaRole=m.role;
+    const role=["super_admin","manager","bdm","agent"].includes(metaRole)?metaRole:"client";
+    await supa.from("profiles").upsert({
+      id:session.user.id,
+      email:session.user.email,
+      role,
+      name,
+      avatar:(name[0]||"U").toUpperCase(),
+      status:"active",
+    },{onConflict:"id"});
+    const r=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
+    return r.data||null;
   },
   // remember=true → durable localStorage session; false → tab-only sessionStorage.
   setRemember(remember){
@@ -214,9 +230,21 @@ export const api={
   async googleLogin(){
     if(!supa)return{error:"Google sign-in needs the live database. It's disabled in demo mode."};
     // Preserve ?plan= so post-OAuth landing still resumes the chosen plan.
+    // Always land on /login so ClientAuth can Navigate → /dashboard after hydrate.
     const qs=typeof window!=="undefined"?window.location.search:"";
-    const{error}=await supa.auth.signInWithOAuth({provider:"google",options:{redirectTo:window.location.origin+"/login"+qs}});
+    const{data,error}=await supa.auth.signInWithOAuth({
+      provider:"google",
+      options:{
+        redirectTo:window.location.origin+"/login"+qs,
+        queryParams:{access_type:"online",prompt:"select_account"},
+      },
+    });
     if(error)return{error:error.message};
+    // signInWithOAuth navigates away; if it returns a URL without redirecting, follow it.
+    if(data?.url&&typeof window!=="undefined"){
+      window.location.assign(data.url);
+      return{redirecting:true};
+    }
     return{redirecting:true};
   },
   // Single-flight refresh — concurrent refreshSession() rotates tokens and can
