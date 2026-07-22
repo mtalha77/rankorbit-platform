@@ -44,9 +44,21 @@ export function isSlotBeyondLead(slotDate, slotTime, now = new Date(), leadMs = 
   return start.getTime() >= now.getTime() + leadMs;
 }
 
-/** Open for booking: not past buffer AND meets 24h lead. */
+/** Client meetings are Mon–Fri only (local calendar day of the slot). */
+export function isBookingWeekday(slotDate, slotTime = "12:00 PM") {
+  const start = parseBookingSlot(slotDate, slotTime) || parseBookingSlot(slotDate, "12:00 PM");
+  if (!start) return false;
+  const day = start.getDay();
+  return day >= 1 && day <= 5;
+}
+
+/** Open for booking: weekday, not past buffer, AND meets 24h lead. */
 export function isSlotBookable(slotDate, slotTime, now = new Date()) {
-  return isSlotStillOpen(slotDate, slotTime, now) && isSlotBeyondLead(slotDate, slotTime, now);
+  return (
+    isBookingWeekday(slotDate, slotTime) &&
+    isSlotStillOpen(slotDate, slotTime, now) &&
+    isSlotBeyondLead(slotDate, slotTime, now)
+  );
 }
 
 export function slotKey(slotDate, slotTime) {

@@ -349,13 +349,18 @@ export async function notifyClient(admin, { userId, clientId, type, title, body,
 
   const { data: profile } = await admin
     .from("profiles")
-    .select("email,name,notifyEmail,role")
+    .select("email,name,notifyEmail,role,emailNotifications")
     .eq("id", userId)
     .maybeSingle();
 
   const email = deliveryEmail(profile);
   if (!email) {
     return { notified: true, notificationId: row?.id, emailResult: { sent: false, reason: "no_email" } };
+  }
+
+  // Clients who opted out at signup still get in-app notifications, but no email.
+  if (profile?.role === "client" && profile?.emailNotifications === false) {
+    return { notified: true, notificationId: row?.id, email, emailResult: { sent: false, reason: "opted_out" } };
   }
 
   const isStaff = profile?.role && profile.role !== "client";

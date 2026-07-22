@@ -42,7 +42,7 @@ export default async function handler(req, res) {
   }
   if (!isSlotBookable(slotDate, slotTime)) {
     return res.status(400).json({
-      error: "Pick a time at least 24 hours from now.",
+      error: "Pick a weekday (Mon–Fri) at least 24 hours from now.",
     });
   }
 

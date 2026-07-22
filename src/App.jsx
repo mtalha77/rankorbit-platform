@@ -246,6 +246,20 @@ export default function App(){
         prof=r.data;
       }
       if(!prof)return null;
+      // Apply email-notification opt-in from Google signup checkbox (once).
+      if(prof.role==="client"&&typeof window!=="undefined"){
+        try{
+          const raw=sessionStorage.getItem("ro_signup_email_notif");
+          if(raw==="0"||raw==="1"){
+            sessionStorage.removeItem("ro_signup_email_notif");
+            const emailNotifications=raw==="1";
+            if(prof.emailNotifications!==emailNotifications){
+              await api.patchProfile(prof.id,{emailNotifications});
+              prof={...prof,emailNotifications};
+            }
+          }
+        }catch{/* ignore */}
+      }
       await applyUser(prof,{forceReload});
       api.ensureClientLifecycleNotifs(prof);
       if(typeof window!=="undefined"){

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { T, FONT_D, FONT_B } from "../../lib/theme";
 import { api } from "../../lib/api";
 import { getPlanEntitlements, planAllowsMessaging } from "../../lib/constants";
-import { isBookingPast, CALL_SLOT_TIMES, isSlotBookable, slotKey } from "../../lib/helpers";
+import { isBookingPast, CALL_SLOT_TIMES, isSlotBookable, isBookingWeekday, slotKey } from "../../lib/helpers";
 import { Card, Btn, Confirm, Empty, PageHead, SectionTitle } from "../atoms";
 
 export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOnly=false,needsPlan=false,initialKind="regular",onInitialKindConsumed}){
@@ -120,6 +120,7 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOn
   const confirmBooking=async()=>{
     if(readOnly){toast(lockMsg,"info");return;}
     if(!selDay||!selTime)return;
+    if(!isBookingWeekday(slotDateLabel,selTime)){toast("Meetings are Monday–Friday only","info");return;}
     if(kindBlocked){toast("No meetings left for this type in your billing period.","info");return;}
     setBusy(true);
     const r=await api.bookCall({
@@ -195,7 +196,7 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOn
           </div>
         </div>
         <div style={{fontSize:12,color:T.sub,lineHeight:1.45}}>
-          Slots must be at least <b>24 hours</b> from now. Quotas renew on your next billing date.
+          Meetings are <b>Monday–Friday</b> only, at least <b>24 hours</b> ahead. Quotas renew on your next billing date.
         </div>
       </Card>
     )}
@@ -349,7 +350,8 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOn
             const isSel=selDay===day;
             const cell=new Date(viewY,viewM,day);
             const isPast=cell<startOfToday;
-            const isWknd=(firstDay+i)%7===0||(firstDay+i)%7===6;
+            const dow=cell.getDay();
+            const isWknd=dow===0||dow===6; // Sun / Sat — meetings Mon–Fri only
             const noSlots=!isPast&&!isWknd&&!dayHasSlots(day);
             const dead=isPast||isWknd||noSlots||kindBlocked;
             return(<div key={day} onClick={()=>!dead&&(setSelDay(day),setSelTime(null))} style={{textAlign:"center",padding:"8px 2px",borderRadius:10,fontSize:12.5,fontWeight:isSel?800:600,cursor:dead?"default":"pointer",background:isSel?T.brand:dead?"transparent":T.surface2,color:isSel?"#fff":dead?T.faint:T.ink,position:"relative",transition:"all .15s"}}>

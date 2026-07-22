@@ -133,7 +133,7 @@ export const api={
     if(u.status==="suspended")return{error:"This account is suspended. Contact your account manager."};
     return{user:u};
   },
-  async signup({email,password,name,businessName,phone}){
+  async signup({email,password,name,businessName,phone,emailNotifications=true}={}){
     // Enforce password policy before hitting the network.
     const issues=passwordIssues(password);
     if(issues.length)return{error:"Password needs "+issues.join(", ")+"."};
@@ -142,7 +142,13 @@ export const api={
       const{data,error}=await supa.auth.signUp({email,password,options:{data:{name},emailRedirectTo:window.location.origin+"/login"+(typeof window!=="undefined"?window.location.search:"")}});
       if(error)return{error:error.message};
       if(data.user){
-        await supa.from("profiles").update({name,businessName,phone,avatar:(name||email)[0].toUpperCase()}).eq("id",data.user.id);
+        await supa.from("profiles").update({
+          name,
+          businessName,
+          phone,
+          avatar:(name||email)[0].toUpperCase(),
+          emailNotifications:!!emailNotifications,
+        }).eq("id",data.user.id);
       }
       // Fire-and-forget welcome. Mark localStorage only after success so a failed
       // request can still be retried on first login via ensureWelcomeNotify.
@@ -163,7 +169,7 @@ export const api={
     }
     const us=LS("ro3_users")||[];
     if(us.find(x=>x.email===email))return{error:"An account with this email already exists."};
-    const u={id:uid(),email,password,role:"client",name,businessName,phone,avatar:(name||email)[0].toUpperCase(),status:"active",napScore:0,createdAt:new Date().toISOString()};
+    const u={id:uid(),email,password,role:"client",name,businessName,phone,avatar:(name||email)[0].toUpperCase(),status:"active",napScore:0,emailNotifications:!!emailNotifications,createdAt:new Date().toISOString()};
     us.push(u);LSet("ro3_users",us);return{user:u};
   },
   /** Staff → client in-app + email. Types: listing_live, rejected, flagged, nap_fix, welcome, info, agent_edit */

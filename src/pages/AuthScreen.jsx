@@ -20,6 +20,8 @@ export default function AuthScreen({onLogin,portal="client",initialMode="login"}
   const[businessName,setBusinessName]=useState("");
   const[phone,setPhone]=useState("");
   const[remember,setRemember]=useState(true);
+  const[wantEmailNotifs,setWantEmailNotifs]=useState(true);
+  const[acceptPrivacy,setAcceptPrivacy]=useState(false);
   const[error,setError]=useState("");
   const[fieldErrors,setFieldErrors]=useState({});
   const[info,setInfo]=useState("");
@@ -79,15 +81,27 @@ export default function AuthScreen({onLogin,portal="client",initialMode="login"}
       const issues=passwordIssues(password);
       if(issues.length)fe.password="Password needs "+issues.join(", ");
     }
+    if(!acceptPrivacy)fe.privacy="Please accept the Privacy Policy to continue";
     setFieldErrors(fe);
     if(Object.keys(fe).length){setError("");return;}
     api.setRemember(remember);
-    setBusy(true);const r=await api.signup({email,password,name,businessName,phone});setBusy(false);
+    setBusy(true);const r=await api.signup({email,password,name,businessName,phone,emailNotifications:wantEmailNotifs});setBusy(false);
     if(r.error)setError(r.error);
     else if(r.needsConfirm){setError("");setFieldErrors({});setInfo("Almost there! Check your email and click the verification link, then sign in.");nav("/login");}
     else{setError("");setFieldErrors({});onLogin(r.user);}
   };
-  const google=async()=>{api.setRemember(remember);setBusy(true);const r=await api.googleLogin();setBusy(false);if(r.error)setError(r.error);};
+  const google=async()=>{
+    if(mode==="signup"&&!isStaff&&!acceptPrivacy){
+      setFieldErrors(prev=>({...prev,privacy:"Please accept the Privacy Policy to continue"}));
+      setError("");
+      return;
+    }
+    api.setRemember(remember);
+    if(mode==="signup"&&!isStaff){
+      try{sessionStorage.setItem("ro_signup_email_notif",wantEmailNotifs?"1":"0");}catch{/* ignore */}
+    }
+    setBusy(true);const r=await api.googleLogin();setBusy(false);if(r.error)setError(r.error);
+  };
   const forgot=async()=>{
     const fe={};
     if(!email.trim())fe.email="Email is required";
@@ -145,6 +159,42 @@ export default function AuthScreen({onLogin,portal="client",initialMode="login"}
             <input type="checkbox" checked={remember} onChange={e=>setRemember(e.target.checked)} style={{width:15,height:15,accentColor:T.brand}}/>
             Keep me signed in for 30 days
           </label>)}
+          {mode==="signup"&&!isStaff&&(
+            <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:14}}>
+              <label style={{display:"flex",alignItems:"flex-start",gap:8,cursor:"pointer",fontSize:12.5,color:T.sub,lineHeight:1.45}}>
+                <input
+                  type="checkbox"
+                  checked={wantEmailNotifs}
+                  onChange={e=>setWantEmailNotifs(e.target.checked)}
+                  style={{width:15,height:15,marginTop:2,flexShrink:0,accentColor:T.brand}}
+                />
+                <span>I want to receive app notifications by email</span>
+              </label>
+              <label style={{display:"flex",alignItems:"flex-start",gap:8,cursor:"pointer",fontSize:12.5,color:T.sub,lineHeight:1.45}}>
+                <input
+                  type="checkbox"
+                  checked={acceptPrivacy}
+                  onChange={e=>{clearField("privacy");setAcceptPrivacy(e.target.checked);}}
+                  style={{width:15,height:15,marginTop:2,flexShrink:0,accentColor:T.brand}}
+                />
+                <span>
+                  I agree to the{" "}
+                  <a
+                    href="/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={e=>e.stopPropagation()}
+                    style={{color:T.brand,fontWeight:700,textDecoration:"underline"}}
+                  >
+                    Privacy Policy
+                  </a>
+                </span>
+              </label>
+              {fieldErrors.privacy&&(
+                <div style={{fontSize:12,color:T.red,fontWeight:600,marginTop:-2}}>{fieldErrors.privacy}</div>
+              )}
+            </div>
+          )}
           {error&&<div style={{fontSize:12.5,color:T.red,marginBottom:12,background:T.redSoft,padding:"8px 12px",borderRadius:9}}>{error}</div>}
           {mode==="login"&&<Btn onClick={login} style={{width:"100%"}} size="lg">{busy?"Signing in…":"Sign In →"}</Btn>}
           {mode==="signup"&&<Btn onClick={signup} style={{width:"100%"}} size="lg">{busy?"Creating…":"Create Account →"}</Btn>}
