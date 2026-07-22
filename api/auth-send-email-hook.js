@@ -119,14 +119,16 @@ export default async function handler(req, res) {
     res.setHeader("Content-Type", "application/json");
     res.end(JSON.stringify({}));
   } catch (e) {
-    console.error("[auth-email-hook]", e.message || e);
-    res.statusCode = 401;
+    const msg = String(e?.message || e || "Hook verification or send failed");
+    console.error("[auth-email-hook]", msg);
+    // 500 so Auth surfaces a real message (401 + empty body often becomes "{}" in the client).
+    res.statusCode = 500;
     res.setHeader("Content-Type", "application/json");
     res.end(
       JSON.stringify({
         error: {
-          http_code: 401,
-          message: e.message || "Hook verification or send failed",
+          http_code: 500,
+          message: msg,
         },
       })
     );

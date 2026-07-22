@@ -4,6 +4,38 @@ import { supa, LS, LSet } from "./supabase";
 import { SEED } from "./seed";
 import { uid, passwordIssues, computeNapScoreFromListings } from "./helpers";
 
+/** Human message from Supabase Auth errors (hook failures often arrive as "{}" / empty). */
+function formatAuthError(error, fallback = "Something went wrong. Please try again.") {
+  if (!error) return fallback;
+  if (typeof error === "string") {
+    const t = error.trim();
+    if (!t || t === "{}" || t === "[object Object]") return fallback;
+    return t;
+  }
+  const nested = error.error && typeof error.error === "object" ? error.error.message : null;
+  const candidates = [error.message, error.msg, error.error_description, nested, typeof error.error === "string" ? error.error : null];
+  for (const c of candidates) {
+    const t = String(c || "").trim();
+    if (t && t !== "{}" && t !== "[object Object]") {
+      if (/hook_timeout|hook_timeout_after_retry|Error running hook|Failed to reach hook/i.test(t)) {
+        return "Could not send confirmation email (email service timed out). Wait a minute and try again, or use Continue with Google.";
+      }
+      if (/resend|domain is not verified|NOTIFY_FROM|from address/i.test(t)) {
+        return "Could not send confirmation email. Check Resend domain / FROM address, then try again.";
+      }
+      return t;
+    }
+  }
+  const code = String(error.code || error.error_code || "");
+  if (error.status === 429 || /rate|over_email/i.test(code)) {
+    return "Too many signup emails sent. Please wait a few minutes, then try again — or use Continue with Google.";
+  }
+  if (/hook|unexpected_failure|email/i.test(code) || error.status === 500 || error.status === 422) {
+    return "Could not send confirmation email. Please try again in a minute, or use Continue with Google.";
+  }
+  return fallback;
+}
+
 export const api={
   mode: supa?"supabase":"local",
   /**
@@ -106,11 +138,12 @@ export const api={
     if(supa){
       const{data,error}=await supa.auth.signInWithPassword({email,password});
       if(error){
-        if(error.message.includes("Email not confirmed"))
+        if(/Email not confirmed/i.test(String(error.message||"")))
           return{error:"Please verify your email first. Check your inbox for the confirmation link."};
-        if(error.status===429||/rate/i.test(error.message))
+        if(error.status===429||/rate/i.test(String(error.message||error.code||"")))
           return{error:"Too many attempts. Please wait a minute and try again."};
-        return{error:error.message.includes("Invalid")?"Invalid email or password.":error.message};
+        const msg=formatAuthError(error,"Sign-in failed. Please try again.");
+        return{error:/invalid/i.test(msg)?"Invalid email or password.":msg};
       }
       let{data:prof}=await supa.from("profiles").select("*").eq("id",data.user.id).maybeSingle();
       if(!prof){
@@ -171,11 +204,13 @@ export const api={
         },
       });
       if(error){
-        const msg=String(error.message||"");
-        if(error.status===429||/rate limit|too many/i.test(msg)){
-          return{error:"Too many signup emails sent. Please wait a few minutes, then try again — or use Continue with Google."};
-        }
-        return{error:msg};
+        console.error("[signup]", error.status, error.code, error.message, error);
+        return{
+          error:formatAuthError(
+            error,
+            "Could not create account. Please try again, or use Continue with Google."
+          ),
+        };
       }
       // Best-effort when a session exists (confirm-email-off). Metadata+trigger covers the rest.
       if(data.user&&data.session){

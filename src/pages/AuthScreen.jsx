@@ -86,7 +86,10 @@ export default function AuthScreen({onLogin,portal="client",initialMode="login"}
     if(Object.keys(fe).length){setError("");return;}
     api.setRemember(remember);
     setBusy(true);const r=await api.signup({email,password,name,businessName,phone,emailNotifications:wantEmailNotifs});setBusy(false);
-    if(r.error)setError(r.error);
+    if(r.error){
+      const msg=typeof r.error==="string"?r.error.trim():"";
+      setError(msg&&msg!=="{}"?msg:"Could not create account. Please try again, or use Continue with Google.");
+    }
     else if(r.needsConfirm){setError("");setFieldErrors({});setInfo("Almost there! Check your email and click the verification link, then sign in.");nav("/login");}
     else{setError("");setFieldErrors({});onLogin(r.user);}
   };
@@ -195,7 +198,13 @@ export default function AuthScreen({onLogin,portal="client",initialMode="login"}
               )}
             </div>
           )}
-          {error&&<div style={{fontSize:12.5,color:T.red,marginBottom:12,background:T.redSoft,padding:"8px 12px",borderRadius:9}}>{error}</div>}
+          {error?(
+            <div style={{fontSize:12.5,color:T.red,marginBottom:12,background:T.redSoft,padding:"8px 12px",borderRadius:9}}>
+              {typeof error==="string"&&error.trim()&&error.trim()!=="{}"
+                ? error
+                : "Something went wrong. Please try again."}
+            </div>
+          ):null}
           {mode==="login"&&<Btn onClick={login} style={{width:"100%"}} size="lg">{busy?"Signing in…":"Sign In →"}</Btn>}
           {mode==="signup"&&<Btn onClick={signup} style={{width:"100%"}} size="lg">{busy?"Creating…":"Create Account →"}</Btn>}
           {mode==="forgot"&&<Btn onClick={forgot} style={{width:"100%"}} size="lg">{busy?"Sending…":"Send Reset Link"}</Btn>}
