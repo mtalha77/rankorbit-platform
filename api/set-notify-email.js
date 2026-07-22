@@ -129,7 +129,7 @@ export default async function handler(req, res) {
   const mail = await sendNotifyEmails(
     [email],
     "Confirm your notification email — NAP Orbit",
-    "Confirm this address to receive NAP Orbit notification emails here instead of your login email. This does not change how you sign in.\n\nYou can also confirm from Settings → Confirm now while signed in.",
+    "Confirm this address to receive NAP Orbit notification emails here instead of your login email. This does not change how you sign in.\n\nIf you did not request this, you can ignore this email.",
     { ctaUrl: confirmUrl, ctaLabel: "Confirm notification email" }
   );
   if (!mail.sent) {

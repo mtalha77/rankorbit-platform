@@ -128,32 +128,56 @@ export default function AccountSettings({
     setNotifyDraft((user?.notifyEmail || user?.notifyEmailPending || "").trim());
   }, [user?.notifyEmail, user?.notifyEmailPending]);
 
+  // Keep local name in sync when parent user updates (after save / reload).
+  useEffect(() => {
+    setName(user?.name || "");
+  }, [user?.id, user?.name]);
+
+  // Drop blob preview once the saved avatar URL is on the user object.
+  useEffect(() => {
+    if (!preview || !isAvatarUrl(user?.avatar)) return;
+    if (preview.startsWith("blob:")) {
+      URL.revokeObjectURL(preview);
+      setPreview(null);
+    } else if (preview === user.avatar) {
+      setPreview(null);
+    }
+  }, [user?.avatar, preview]);
+
   const displayUser = preview ? { ...user, avatar: preview } : user;
   const verifiedNotify = (user?.notifyEmail || "").trim();
-  // Hide pending banner once verified is set (stale pending in memory).
-  const pendingNotify = verifiedNotify ? "" : (user?.notifyEmailPending || "").trim();
+  const pendingNotify = (user?.notifyEmailPending || "").trim();
   const draftNorm = notifyDraft.trim().toLowerCase();
-  const alreadyActiveDraft = !!(verifiedNotify && draftNorm === verifiedNotify.toLowerCase());
+  const alreadyActiveDraft = !!(verifiedNotify && draftNorm === verifiedNotify.toLowerCase() && !pendingNotify);
+  const pendingMatchesDraft = !!(pendingNotify && draftNorm === pendingNotify.toLowerCase());
+
+  const trimmedName = name.trim();
+  const savedName = (user?.name || "").trim();
+  const profileDirty = !!trimmedName && trimmedName !== savedName;
 
   const applyLocal = (fields) => {
     if (typeof onUserUpdate === "function") onUserUpdate(fields);
   };
 
   const saveProfile = async () => {
-    const trimmed = name.trim();
-    if (!trimmed) {
+    if (!trimmedName) {
       toast?.("Name is required", "info");
+      return;
+    }
+    if (!profileDirty) {
+      toast?.("No changes to save", "info");
       return;
     }
     setSavingProfile(true);
     try {
-      const fields = { name: trimmed };
+      const fields = { name: trimmedName };
       // Keep letter avatar in sync when no photo URL is set
       if (!isAvatarUrl(user?.avatar)) {
-        fields.avatar = trimmed[0].toUpperCase();
+        fields.avatar = trimmedName[0].toUpperCase();
       }
       await api.patchProfile(user.id, fields);
       applyLocal(fields);
+      setName(trimmedName);
       await reload?.();
       toast?.("Profile updated");
     } catch (e) {
@@ -248,39 +272,12 @@ export default function AccountSettings({
       }
       applyLocal({
         notifyEmailPending: r.pending || email,
+        // Keep current verified address until the new one is confirmed via email link.
         notifyEmail: user?.notifyEmail || null,
       });
+      setNotifyDraft(r.pending || email);
       await reload?.();
-      toast?.(`Confirmation sent to ${r.pending || email}. Then tap Confirm now below.`);
-    } finally {
-      setSavingNotify(false);
-    }
-  };
-
-  const confirmNotifyNow = async () => {
-    setSavingNotify(true);
-    try {
-      const r = await api.confirmMyNotifyEmail();
-      if (r.error) {
-        toast?.(r.error, "info");
-        return;
-      }
-      const email = String(r.notifyEmail || "").trim().toLowerCase();
-      setNotifyDraft(email);
-      applyLocal({
-        notifyEmail: email || null,
-        notifyEmailPending: null,
-      });
-      const fresh = await api.currentUser();
-      if (fresh) {
-        applyLocal({
-          notifyEmail: fresh.notifyEmail || email || null,
-          notifyEmailPending: fresh.notifyEmailPending || null,
-        });
-        if (fresh.notifyEmail) setNotifyDraft(fresh.notifyEmail);
-      }
-      await reload?.();
-      toast?.(`Notification email confirmed: ${email || "saved"}`);
+      toast?.(`Confirmation sent to ${r.pending || email}. Open that inbox and click the link to activate.`);
     } finally {
       setSavingNotify(false);
     }
@@ -357,7 +354,7 @@ export default function AccountSettings({
         </div>
         <Input label="Full name" value={name} onChange={setName} placeholder="Your name" />
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
-          <Btn onClick={saveProfile} disabled={savingProfile || !name.trim()}>
+          <Btn onClick={saveProfile} disabled={savingProfile || !profileDirty}>
             {savingProfile ? "Saving…" : "Save profile"}
           </Btn>
         </div>
@@ -377,7 +374,7 @@ export default function AccountSettings({
           placeholder="notifications@gmail.com"
           validate="email"
         />
-        {verifiedNotify && (
+        {verifiedNotify && !pendingNotify && (
           <div style={{ fontSize: 12, color: T.green, fontWeight: 700, marginBottom: 8 }}>
             Active: {verifiedNotify}
             {alreadyActiveDraft ? " — already confirmed" : ""}
@@ -385,7 +382,13 @@ export default function AccountSettings({
         )}
         {pendingNotify && (
           <div style={{ fontSize: 12, color: T.amber, fontWeight: 700, marginBottom: 10, lineHeight: 1.45 }}>
-            Pending: {pendingNotify}. Open the email link, or tap <b>Confirm now</b> below (works while signed in).
+            Pending: {pendingNotify}. Check that inbox and click the confirmation link — it will not activate until you confirm.
+            {verifiedNotify ? (
+              <>
+                {" "}
+                Alerts still go to <b>{verifiedNotify}</b> until then.
+              </>
+            ) : null}
           </div>
         )}
         {!verifiedNotify && !pendingNotify && (
@@ -399,14 +402,9 @@ export default function AccountSettings({
               Use login email
             </Btn>
           )}
-          {pendingNotify && (
-            <Btn variant="green" onClick={confirmNotifyNow} disabled={savingNotify}>
-              {savingNotify ? "Confirming…" : "Confirm now"}
-            </Btn>
-          )}
           {!alreadyActiveDraft && (
             <Btn onClick={sendNotifyConfirm} disabled={savingNotify || !notifyDraft.trim()}>
-              {savingNotify ? "Sending…" : "Send confirmation"}
+              {savingNotify ? "Sending…" : pendingMatchesDraft ? "Resend confirmation" : "Send confirmation"}
             </Btn>
           )}
           {alreadyActiveDraft && (

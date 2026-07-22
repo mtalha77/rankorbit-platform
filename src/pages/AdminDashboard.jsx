@@ -67,17 +67,19 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
           } catch { /* ignore */ }
         }
         if (!ne && !addr) return;
-        if (ne === "confirmed" || addr) {
-          if (addr) onUserUpdate?.({ notifyEmail: addr, notifyEmailPending: null });
-          toast("Notification email confirmed. Alerts will go there.");
-          setPage("account");
+        // Only trust an explicit confirmed redirect from the email-link flow.
+        if (ne === "confirmed") {
           const fresh = await api.currentUser();
           if (!cancelled && fresh) {
             onUserUpdate?.({
               notifyEmail: fresh.notifyEmail || addr || null,
               notifyEmailPending: fresh.notifyEmailPending || null,
             });
+          } else if (addr) {
+            onUserUpdate?.({ notifyEmail: addr, notifyEmailPending: null });
           }
+          toast("Notification email confirmed. Alerts will go there.");
+          setPage("account");
           await reload?.();
         } else if (ne === "expired") toast("Confirmation link expired. Request a new one in Settings.", "info");
         else if (ne === "invalid" || ne === "missing") toast("That confirmation link is invalid.", "info");
