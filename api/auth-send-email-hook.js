@@ -38,7 +38,7 @@ function readRaw(req) {
 
 async function sendResend({ to, subject, html, text }) {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.NOTIFY_FROM_EMAIL || "NAP Orbit <noreply@nap.rankorbit.com>";
+  const from = process.env.NOTIFY_FROM_EMAIL || "NAP Orbit <noreply@naporbit.com>";
   if (!apiKey) throw new Error("RESEND_API_KEY missing");
   const r = await fetch("https://api.resend.com/emails", {
     method: "POST",

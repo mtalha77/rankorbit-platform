@@ -325,28 +325,39 @@ export function deliveryEmail(profile) {
 export async function notifyClient(admin, { userId, clientId, type, title, body, meta, email: sendEmail = true }) {
   if (!userId) return { notified: false };
 
-  // Welcome + first subscription: once per client (webhook + client ensure must not double-send).
+  // Welcome + first subscription: one in-app row per client. If email never succeeded, retry Resend.
+  let row = null;
+  let emailRetryOnly = false;
   if (type === "welcome" || type === "plan_subscribed") {
     const { data: existing } = await admin
       .from("notifications")
-      .select("id")
+      .select("id,title,body,meta")
       .eq("userId", userId)
       .eq("type", type)
       .limit(1)
       .maybeSingle();
     if (existing) {
-      return { notified: true, skipped: `already_${type}`, notificationId: existing.id };
+      if (existing.meta?.emailSent === true) {
+        return { notified: true, skipped: `already_${type}`, notificationId: existing.id };
+      }
+      // In-app already created (maybe prior Resend fail) — retry email only.
+      row = existing;
+      emailRetryOnly = true;
+      title = existing.title || title;
+      body = existing.body || body;
     }
   }
 
-  const row = await createNotification(admin, {
-    userId,
-    clientId: clientId || userId,
-    type,
-    title,
-    body,
-    meta,
-  });
+  if (!row) {
+    row = await createNotification(admin, {
+      userId,
+      clientId: clientId || userId,
+      type,
+      title,
+      body,
+      meta,
+    });
+  }
 
   if (sendEmail === false) {
     return { notified: true, notificationId: row?.id, emailResult: { sent: false, reason: "in_app_only" } };
@@ -373,7 +384,28 @@ export async function notifyClient(admin, { userId, clientId, type, title, body,
     ctaUrl: `${appBaseUrl()}${isStaff ? "/admin" : "/dashboard"}`,
     ctaLabel: isStaff ? "Open admin" : "Open dashboard",
   });
-  return { notified: true, notificationId: row?.id, email, emailResult };
+
+  if (emailResult?.sent && row?.id && (type === "welcome" || type === "plan_subscribed" || emailRetryOnly)) {
+    try {
+      const nextMeta = {
+        ...(row.meta && typeof row.meta === "object" ? row.meta : {}),
+        ...(meta && typeof meta === "object" ? meta : {}),
+        emailSent: true,
+        emailSentAt: new Date().toISOString(),
+      };
+      await admin.from("notifications").update({ meta: nextMeta }).eq("id", row.id);
+    } catch (e) {
+      console.warn("notifyClient emailSent meta:", e.message);
+    }
+  }
+
+  return {
+    notified: true,
+    notificationId: row?.id,
+    email,
+    emailResult,
+    ...(emailRetryOnly ? { retriedEmail: true } : {}),
+  };
 }
 
 /**
@@ -515,7 +547,7 @@ export async function notifyBdm(admin, { agentId, clientId, type, title, body, m
 export async function sendNotifyEmails(toList, subject, body, opts = {}) {
   if (!toList.length) return { sent: false, reason: "no_recipients" };
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.NOTIFY_FROM_EMAIL || "NAP Orbit <noreply@nap.rankorbit.com>";
+  const from = process.env.NOTIFY_FROM_EMAIL || "NAP Orbit <noreply@naporbit.com>";
   if (!apiKey) {
     console.info("[notify] RESEND_API_KEY missing — in-app notification only. Would email:", toList.join(", "));
     return { sent: false, reason: "no_resend_key", to: toList };
