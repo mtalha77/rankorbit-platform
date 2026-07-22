@@ -203,17 +203,41 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
       cancelled = true;
     };
   }, [page, userId, impersonating]); // eslint-disable-line react-hooks/exhaustive-deps
-  // First-login user manual: show once. Never auto-open while staff is impersonating.
+  // First-login tour: once per account (localStorage by id+email, and profile.manualSeen).
+  const markTourSeen = () => {
+    if (!userId) return;
+    const email = (user?.email || userProp?.email || "").trim().toLowerCase();
+    try {
+      localStorage.setItem("ro_manual_seen_" + userId, "1");
+      if (email) localStorage.setItem("ro_manual_seen_email_" + email, "1");
+      sessionStorage.setItem("ro_manual_seen_session_" + userId, "1");
+    } catch { /* ignore */ }
+    if (!user?.manualSeen) {
+      api.patchProfile(userId, { manualSeen: true }).catch(() => {});
+      onUserUpdate?.({ manualSeen: true });
+    }
+  };
   useEffect(() => {
     if (impersonating || !userId) return;
+    if (user?.manualSeen) return;
+    const email = (user?.email || userProp?.email || "").trim().toLowerCase();
+    let seen = false;
     try {
-      const key = "ro_manual_seen_" + userId;
-      if (!localStorage.getItem(key)) {
-        setShowManual(true);
-        localStorage.setItem(key, "1");
-      }
-    } catch {}
-  }, [userId, impersonating]);
+      seen =
+        localStorage.getItem("ro_manual_seen_" + userId) === "1" ||
+        (email && localStorage.getItem("ro_manual_seen_email_" + email) === "1") ||
+        sessionStorage.getItem("ro_manual_seen_session_" + userId) === "1";
+    } catch { /* ignore */ }
+    if (seen) {
+      // Keep profile in sync when browser already finished the tour.
+      api.patchProfile(userId, { manualSeen: true }).catch(() => {});
+      onUserUpdate?.({ manualSeen: true });
+      return;
+    }
+    setShowManual(true);
+    // Persist immediately so Skip/refresh/sign-out still counts as "already shown".
+    markTourSeen();
+  }, [userId, impersonating]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     // Staff session notifications must not appear in impersonation view.
     if (impersonating || !userId) {
@@ -565,40 +589,19 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
               ? isMobile
                 ? "14px 16px 40px"
                 : "20px 34px 50px"
-              : null
+              : showSetupBanner || grace.pastDue
+                ? isMobile
+                  ? "10px 16px 40px"
+                  : "14px 34px 50px"
+                : null
         }
       >
-        {needsPlan && (
-          <div
-            style={{
-              padding: "14px 16px",
-              marginBottom: 14,
-              borderRadius: 14,
-              background: `linear-gradient(135deg,${T.amberSoft},#fff)`,
-              border: `1px solid ${T.amber}44`,
-              display: "flex",
-              gap: 12,
-              alignItems: "center",
-              flexWrap: "wrap",
-              justifyContent: "space-between",
-            }}
-          >
-            <div style={{ flex: 1, minWidth: 220 }}>
-              <div style={{ fontSize: 14, fontWeight: 800, color: T.amber, fontFamily: FONT_D }}>
-                View-only until you subscribe
-              </div>
-              <div style={{ fontSize: 12.5, color: T.sub, marginTop: 4, lineHeight: 1.45 }}>
-                You can browse every page. Booking calls, messaging, and other actions unlock after you pay for a plan.
-              </div>
-            </div>
-            <Btn size="sm" onClick={() => goPage("billing")}>Choose a plan →</Btn>
-          </div>
-        )}
         {showSetupBanner && (
           <div
             style={{
               padding: "14px 16px",
-              marginBottom: 14,
+              marginTop: viewPage === "home" ? 0 : -4,
+              marginBottom: 16,
               borderRadius: 14,
               background: `linear-gradient(135deg,${T.brandSoft},#fff)`,
               border: `1px solid ${T.brand}33`,
@@ -607,6 +610,8 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
               alignItems: "center",
               flexWrap: "wrap",
               justifyContent: "space-between",
+              position: "relative",
+              zIndex: 2,
             }}
           >
             <div style={{ flex: 1, minWidth: 220 }}>
@@ -657,7 +662,10 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
               display: "flex",
               flexDirection: "column",
               overflow: "hidden",
-              margin: isMobile ? "-8px 0 -24px" : "-18px 0 -40px",
+              // Negative top margin hugs the header — skip it when a banner sits above so titles don't overlap.
+              margin: (showSetupBanner || grace.pastDue)
+                ? (isMobile ? "0 0 -24px" : "0 0 -40px")
+                : (isMobile ? "-8px 0 -24px" : "-18px 0 -40px"),
               boxSizing: "border-box",
             }}
           >
@@ -764,8 +772,12 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
         <UserManual
           user={user}
           plan={plan}
-          onClose={() => setShowManual(false)}
+          onClose={() => {
+            markTourSeen();
+            setShowManual(false);
+          }}
           goTo={(p) => {
+            markTourSeen();
             setPage(p);
             setShowManual(false);
           }}
