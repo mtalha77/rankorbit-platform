@@ -320,8 +320,9 @@ export function deliveryEmail(profile) {
 /**
  * Client-facing: in-app notification + email (Resend when configured).
  * Email goes to verified notifyEmail if set, else login email.
+ * Pass email: false for in-app only (e.g. chat messages).
  */
-export async function notifyClient(admin, { userId, clientId, type, title, body, meta }) {
+export async function notifyClient(admin, { userId, clientId, type, title, body, meta, email: sendEmail = true }) {
   if (!userId) return { notified: false };
 
   // Welcome + first subscription: once per client (webhook + client ensure must not double-send).
@@ -346,6 +347,10 @@ export async function notifyClient(admin, { userId, clientId, type, title, body,
     body,
     meta,
   });
+
+  if (sendEmail === false) {
+    return { notified: true, notificationId: row?.id, emailResult: { sent: false, reason: "in_app_only" } };
+  }
 
   const { data: profile } = await admin
     .from("profiles")
@@ -442,7 +447,7 @@ export async function notifySuperAdmins(_admin, _payload) {
 }
 
 /** In-app notification + optional email to agent and routeBdm addresses. */
-export async function notifyBdm(admin, { agentId, clientId, type, title, body, meta }) {
+export async function notifyBdm(admin, { agentId, clientId, type, title, body, meta, email: sendEmail = true }) {
   if (!agentId) return { notified: false };
 
   const { data: agent } = await admin
@@ -464,6 +469,15 @@ export async function notifyBdm(admin, { agentId, clientId, type, title, body, m
     body,
     meta,
   });
+
+  if (sendEmail === false) {
+    return {
+      notified: true,
+      notificationId: row?.id,
+      emails: [],
+      emailResult: { sent: false, reason: "in_app_only" },
+    };
+  }
 
   const emails = new Set();
   const agentMail = deliveryEmail(agent);

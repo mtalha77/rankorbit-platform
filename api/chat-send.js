@@ -4,7 +4,6 @@ import {
   notifyBdm,
   notifyClient,
   notifyManagersInApp,
-  notifyStaffRoute,
 } from "../server/assign.js";
 import { planAllowsMessaging } from "../server/planEntitlements.js";
 import { randomUUID } from "crypto";
@@ -81,10 +80,12 @@ export default async function handler(req, res) {
     const { client, peer, kind, needsBdm } = await resolveClientChatPeer(admin, targetClientId);
     if (!peer) {
       try {
-        await notifyStaffRoute(admin, {
-          kind: "system",
+        await notifyManagersInApp(admin, {
+          clientId: targetClientId,
+          type: "chat_message",
           title: "Client waiting — no BDM or manager",
           body: `${client?.businessName || client?.name || client?.email || "A client"} tried to chat but no staff is available to receive it.`,
+          meta: { from: "client", needsBdm: true },
         });
       } catch {
         /* optional */
@@ -120,6 +121,7 @@ export default async function handler(req, res) {
     const who = client?.businessName || client?.name || client?.email || "Client";
     const preview = text.length > 120 ? `${text.slice(0, 120)}…` : text;
 
+    // Chat alerts stay in-app only — never email message previews.
     if (isStaff) {
       await notifyClient(admin, {
         userId: targetClientId,
@@ -128,6 +130,7 @@ export default async function handler(req, res) {
         title: `Message from ${sender.name || "your team"}`,
         body: preview,
         meta: { agentId, from: "staff" },
+        email: false,
       });
     } else if (kind === "bdm") {
       await notifyBdm(admin, {
@@ -137,9 +140,10 @@ export default async function handler(req, res) {
         title: `Chat from ${who}`,
         body: preview,
         meta: { from: "client" },
+        email: false,
       });
     } else {
-      // Support fallback — alert managers to reply and assign a BDM.
+      // Support fallback — alert managers in-app to reply and assign a BDM.
       await notifyManagersInApp(admin, {
         clientId: targetClientId,
         type: "chat_message",
@@ -147,15 +151,6 @@ export default async function handler(req, res) {
         body: `${preview} — assign a BDM when ready.`,
         meta: { from: "client", support: true, peerId: agentId },
       });
-      try {
-        await notifyStaffRoute(admin, {
-          kind: "system",
-          title: "Client chat needs a BDM",
-          body: `${who} messaged support (no BDM assigned yet): ${preview}`,
-        });
-      } catch {
-        /* optional */
-      }
     }
 
     return res.status(200).json({
