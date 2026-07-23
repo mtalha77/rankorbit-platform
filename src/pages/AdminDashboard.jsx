@@ -240,15 +240,6 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
     return true;
   });
 
-  const roleBadge = (
-    <div style={{ marginTop: 14, padding: "9px 13px", background: T.surface2, borderRadius: 12 }}>
-      <div style={{ fontSize: 10, color: T.faint, fontWeight: 800, letterSpacing: ".5px" }}>SIGNED IN AS</div>
-      <div style={{ fontSize: 13, fontWeight: 800, color: T.brand, marginTop: 2 }}>
-        {staffRoleLabel(user.role)}
-      </div>
-    </div>
-  );
-
   const adminCtx = {
     user, data, reload, onLogout, onUserUpdate,
     page, setPage, selClient, setSelClient, modal, setModal, confirm, setConfirm,
@@ -284,7 +275,7 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
 
   return (
     <AdminContext.Provider value={adminCtx}>
-      <Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} planBadge={roleBadge} brandTag="ADMIN" badgeCounts={{ notifications: notifBadge, messages: chatUnreadTotal }} settingsPageId="account">
+      <Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} brandTag={staffRoleLabel(user.role)} badgeCounts={{ notifications: notifBadge, messages: chatUnreadTotal }} settingsPageId="account">
         {page === "overview" && <Overview />}
         {page === "notifications" && (
           <NotificationsPage user={user} isAdmin={isAdmin} isMobile={isMobile} toast={toast} setNotifBadge={setNotifBadge} setSelClient={setSelClient} setPage={setPage} />

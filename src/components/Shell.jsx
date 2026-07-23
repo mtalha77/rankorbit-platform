@@ -155,24 +155,24 @@ export default function Shell({
             );
           })}
         </nav>
-        <div style={{ padding: "14px 16px 18px", borderTop: `1px solid ${T.line}` }}>
+        <div style={{ padding: "10px 12px 12px", borderTop: `1px solid ${T.line}` }}>
           <div
             style={{
               display: "flex",
-              gap: 10,
+              gap: 8,
               alignItems: "center",
-              marginBottom: 12,
-              padding: settingsPageId ? "8px 8px 8px 6px" : 0,
-              borderRadius: 12,
+              marginBottom: 8,
+              padding: settingsPageId ? "4px 6px 4px 4px" : 0,
+              borderRadius: 10,
               background: settingsActive ? T.brandSoft : "transparent",
             }}
           >
-            <UserAvatar user={user} size={36} />
+            <UserAvatar user={user} size={30} />
             <div style={{ overflow: "hidden", flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <div style={{ fontSize: 12, fontWeight: 800, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {user.businessName || user.name}
               </div>
-              <div style={{ fontSize: 10.5, color: T.faint, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <div style={{ fontSize: 10, color: T.faint, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {user.email}
               </div>
             </div>
@@ -184,9 +184,9 @@ export default function Shell({
                 onClick={() => go(settingsPageId)}
                 style={{
                   flexShrink: 0,
-                  width: 34,
-                  height: 34,
-                  borderRadius: 10,
+                  width: 28,
+                  height: 28,
+                  borderRadius: 8,
                   border: `1px solid ${settingsActive ? T.brand : T.line}`,
                   background: settingsActive ? "#fff" : T.surface2,
                   display: "flex",
@@ -196,7 +196,7 @@ export default function Shell({
                   padding: 0,
                 }}
               >
-                <SettingsGearIcon color={settingsActive ? T.brand : T.sub} />
+                <SettingsGearIcon color={settingsActive ? T.brand : T.sub} size={15} />
               </button>
             )}
           </div>
@@ -205,22 +205,22 @@ export default function Shell({
             onClick={onLogout}
             style={{
               width: "100%",
-              padding: "9px 0",
+              padding: "6px 0",
               background: T.surface2,
               border: `1px solid ${T.line}`,
-              borderRadius: 10,
+              borderRadius: 8,
               color: T.sub,
-              fontSize: 12.5,
+              fontSize: 12,
               fontWeight: 700,
               cursor: "pointer",
               fontFamily: FONT_B,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: 7,
+              gap: 6,
             }}
           >
-            <span style={{ fontSize: 13 }}>↪</span> Sign Out
+            <span style={{ fontSize: 12 }}>↪</span> Sign Out
           </button>
           {showLegalLinks && (
             <div style={{ marginTop: 10, textAlign: "center", fontSize: 11.5, color: T.faint, lineHeight: 1.5 }}>
