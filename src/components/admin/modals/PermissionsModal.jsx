@@ -80,6 +80,7 @@ export function PermissionsModal({ member: memberProp, onClose }) {
       }
       await reload();
       toast("Permissions saved");
+      onClose?.();
     } catch (e) {
       console.error(e);
       toast(e.message || "Could not save permissions", "info");
