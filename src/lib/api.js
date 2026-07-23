@@ -253,20 +253,79 @@ export const api={
     us.push(u);LSet("ro3_users",us);return{user:u};
   },
   /** Staff → client in-app + email. Types: listing_live, rejected, flagged, nap_fix, welcome, info, agent_edit */
-  async notifyClient({clientId,type,title,body,meta}={}){
+  async notifyClient({clientId,type,title,body,meta,sendEmail,sendInApp}={}){
     if(!supa)return{ok:false,skipped:"local"};
     const token=await this._accessToken();
     if(!token)return{ok:false,error:"Not signed in"};
     try{
+      const payload={token,clientId,type,title,body,meta};
+      if(sendEmail===false)payload.sendEmail=false;
+      if(sendInApp===false)payload.sendInApp=false;
       const r=await fetch("/api/notify-client",{
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({token,clientId,type,title,body,meta}),
+        body:JSON.stringify(payload),
       });
       const j=await r.json().catch(()=>({}));
       if(!r.ok)return{ok:false,error:j.error||"Notify failed"};
       return{ok:true,...j};
     }catch(e){return{ok:false,error:e.message};}
+  },
+  async previewNotifyEmail({title,body}={}){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/notify-preview",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({token,title,body}),
+      });
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Preview failed"};
+      return{html:j.html||"",text:j.text||""};
+    }catch(e){return{error:e.message};}
+  },
+  async listBroadcastDrafts(){
+    const token=await this._accessToken();
+    if(!token)return{drafts:[],error:"Not signed in"};
+    try{
+      const r=await fetch("/api/broadcast-drafts",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({token,action:"list"}),
+      });
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{drafts:[],error:j.error||"Could not load drafts"};
+      return{drafts:j.drafts||[]};
+    }catch(e){return{drafts:[],error:e.message};}
+  },
+  async saveBroadcastDraft(draft){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/broadcast-drafts",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({token,action:"save",draft}),
+      });
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not save draft"};
+      return{ok:true,draft:j.draft};
+    }catch(e){return{error:e.message};}
+  },
+  async deleteBroadcastDraft(id){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/broadcast-drafts",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({token,action:"delete",id}),
+      });
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not delete draft"};
+      return{ok:true};
+    }catch(e){return{error:e.message};}
   },
   /**
    * Welcome once per client after register / first session.

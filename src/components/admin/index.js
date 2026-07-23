@@ -25,3 +25,4 @@ export { Finance } from "./pages/Finance";
 export { Trash } from "./pages/Trash";
 export { Settings } from "./pages/Settings";
 export { ScheduledMeetings } from "./pages/ScheduledMeetings";
+export { Broadcast, canUseBroadcast } from "./pages/Broadcast";

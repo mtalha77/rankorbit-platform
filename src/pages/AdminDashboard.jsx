@@ -39,6 +39,8 @@ import {
   Trash,
   Settings,
   ScheduledMeetings,
+  Broadcast,
+  canUseBroadcast,
 } from "../components/admin";
 
 export default function AdminDashboard({ user, data, reload, onLogout, onUserUpdate }) {
@@ -219,19 +221,24 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
   }, [user.id]);
 
   const nav = [
-    { id: "overview", icon: "📊", label: "Overview", roles: ["super_admin", "manager", "bdm", "agent"] },
-    { id: "notifications", icon: "🔔", label: "Notifications", roles: ["super_admin", "manager", "bdm", "agent"] },
-    { id: "meetings", icon: "📅", label: "Scheduled Meetings", roles: ["super_admin", "manager", "bdm"] },
-    { id: "messages", icon: "💬", label: "Messages", roles: ["super_admin", "manager", "bdm"] },
-    { id: "clients", icon: "👥", label: "Clients", roles: ["super_admin", "manager", "bdm", "agent"], match: ["clientDetail"] },
-    { id: "listings", icon: "📋", label: "All Listings", roles: ["super_admin", "manager", "bdm", "agent"] },
-    { id: "gmb", icon: "📍", label: "GMB", roles: ["super_admin", "manager", "agent", "bdm"] },
-    { id: "team", icon: "👥", label: "Team", roles: ["super_admin", "manager"] },
-    { id: "activity", icon: "📜", label: "Activity Logs", roles: ["super_admin", "manager"] },
-    { id: "finance", icon: "💰", label: "Finance", roles: ["super_admin"] },
-    { id: "trash", icon: "🗑️", label: "Trash", roles: ["super_admin"] },
-    { id: "settings", icon: "🛠️", label: "Control Panel", roles: ["super_admin"] },
-  ].filter((n) => n.roles.includes(user.role));
+    { id: "overview", icon: "chart", label: "Overview", roles: ["super_admin", "manager", "bdm", "agent"] },
+    { id: "notifications", icon: "bell", label: "Notifications", roles: ["super_admin", "manager", "bdm", "agent"] },
+    { id: "meetings", icon: "clipboard", label: "Scheduled Meetings", roles: ["super_admin", "manager", "bdm"] },
+    { id: "messages", icon: "message", label: "Messages", roles: ["super_admin", "manager", "bdm"] },
+    { id: "broadcast", icon: "broadcast", iconSize: 22, label: "Broadcast", roles: ["super_admin", "manager", "bdm", "agent"], requiresBroadcast: true },
+    { id: "clients", icon: "users", label: "Clients", roles: ["super_admin", "manager", "bdm", "agent"], match: ["clientDetail"] },
+    { id: "listings", icon: "listing", label: "All Listings", roles: ["super_admin", "manager", "bdm", "agent"] },
+    { id: "gmb", icon: "globe", label: "GMB", roles: ["super_admin", "manager", "agent", "bdm"] },
+    { id: "team", icon: "team", label: "Team", roles: ["super_admin", "manager"] },
+    { id: "activity", icon: "activity", label: "Activity Logs", roles: ["super_admin", "manager"] },
+    { id: "finance", icon: "bag", label: "Finance", roles: ["super_admin"] },
+    { id: "trash", icon: "database", label: "Trash", roles: ["super_admin"] },
+    { id: "settings", icon: "settings", label: "Control Panel", roles: ["super_admin"] },
+  ].filter((n) => {
+    if (!n.roles.includes(user.role)) return false;
+    if (n.requiresBroadcast && !canUseBroadcast(user)) return false;
+    return true;
+  });
 
   const roleBadge = (
     <div style={{ marginTop: 14, padding: "9px 13px", background: T.surface2, borderRadius: 12 }}>
@@ -286,6 +293,7 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
         {page === "messages" && (
           <StaffMessagesInbox user={user} clients={clients} selClient={selClient} setSelClient={setSelClient} setChatUnreadTotal={setChatUnreadTotal} toast={toast} isMobile={isMobile} isAdmin={isAdmin} />
         )}
+        {page === "broadcast" && canUseBroadcast(user) && <Broadcast />}
         {page === "clients" && <Clients />}
         {page === "clientDetail" && <ClientDetail />}
         {page === "listings" && <AllListings />}
