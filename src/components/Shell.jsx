@@ -2,7 +2,6 @@
 import { useState } from "react";
 import { T, FONT_B, SHADOW_LG } from "../lib/theme";
 import { useWindowSize } from "../hooks";
-
 import { UserAvatar } from "./AccountSettings";
 import { NavIcon, hasNavIcon } from "./navIcons";
 
@@ -129,8 +128,10 @@ export default function Shell({
                 >
                   {typeof item.icon === "string" && hasNavIcon(item.icon) ? (
                     <NavIcon name={item.icon} size={item.iconSize || 18} />
-                  ) : (
+                  ) : typeof item.icon === "string" ? (
                     <span style={{ fontSize: 16, lineHeight: 1 }}>{item.icon}</span>
+                  ) : (
+                    item.icon
                   )}
                 </span>
                 <span>{item.label}</span>

@@ -370,14 +370,14 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
   const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   // Browse every area even without a plan; GMB/Messages stay visible as locked previews.
   const nav = [
-    { id: "home", icon: "🏠", label: "Home" },
-    { id: "notifications", icon: "🔔", label: "Notifications" },
-    ...(canMessage || needsPlan ? [{ id: "messages", icon: "💬", label: "Messages" }] : []),
-    { id: "listings", icon: "📋", label: "Listings" },
-    { id: "analytics", icon: "analytics", label: "Analytics" },
-    ...(user.plan === "gmb" || needsPlan ? [{ id: "gmb", icon: "📍", label: "GMB" }] : []),
-    { id: "billing", icon: "💳", label: "Plan & Billing" },
-    { id: "call", icon: "📞", label: "Book a Call" },
+    { id: "home", icon: "chart", label: "Home" },
+    { id: "notifications", icon: "bell", label: "Notifications" },
+    ...(canMessage || needsPlan ? [{ id: "messages", icon: "message", label: "Messages" }] : []),
+    { id: "listings", icon: "listing", label: "Listings" },
+    { id: "analytics", icon: "chart", label: "Analytics" },
+    ...(user.plan === "gmb" || needsPlan ? [{ id: "gmb", icon: "globe", label: "GMB" }] : []),
+    { id: "billing", icon: "bag", label: "Plan & Billing" },
+    { id: "call", icon: "message", label: "Book a Call" },
   ];
   // Product actions locked until plan (and while staff is impersonating).
   const viewOnly = needsPlan || impersonating;

@@ -322,13 +322,19 @@ export function deliveryEmail(profile) {
  * Email goes to verified notifyEmail if set, else login email.
  * Pass email: false for in-app only (e.g. chat messages).
  */
-export async function notifyClient(admin, { userId, clientId, type, title, body, meta, email: sendEmail = true }) {
+export async function notifyClient(admin, { userId, clientId, type, title, body, meta, email: sendEmail = true, inApp = true }) {
   if (!userId) return { notified: false };
+  // Defaults unchanged for welcome / payment / listing callers (both channels on).
+  const wantInApp = inApp !== false;
+  const wantEmail = sendEmail !== false;
+  if (!wantInApp && !wantEmail) {
+    return { notified: false, emailResult: { sent: false, reason: "no_channels" } };
+  }
 
   // Welcome + first subscription: one in-app row per client. If email never succeeded, retry Resend.
   let row = null;
   let emailRetryOnly = false;
-  if (type === "welcome" || type === "plan_subscribed") {
+  if (wantInApp && (type === "welcome" || type === "plan_subscribed")) {
     const { data: existing } = await admin
       .from("notifications")
       .select("id,title,body,meta")
@@ -348,7 +354,7 @@ export async function notifyClient(admin, { userId, clientId, type, title, body,
     }
   }
 
-  if (!row) {
+  if (wantInApp && !row) {
     row = await createNotification(admin, {
       userId,
       clientId: clientId || userId,
@@ -359,7 +365,7 @@ export async function notifyClient(admin, { userId, clientId, type, title, body,
     });
   }
 
-  if (sendEmail === false) {
+  if (!wantEmail) {
     return { notified: true, notificationId: row?.id, emailResult: { sent: false, reason: "in_app_only" } };
   }
 
