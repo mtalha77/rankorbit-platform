@@ -363,11 +363,27 @@ export async function notifyClient(admin, { userId, clientId, type, title, body,
     return { notified: true, notificationId: row?.id, emailResult: { sent: false, reason: "in_app_only" } };
   }
 
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("email,name,notifyEmail,role,emailNotifications")
-    .eq("id", userId)
-    .maybeSingle();
+  // Prefer full select; if emailNotifications migration not applied, retry without it
+  // (missing column makes PostgREST return null profile → emails silently skipped).
+  let profile = null;
+  {
+    const full = await admin
+      .from("profiles")
+      .select("email,name,notifyEmail,role,emailNotifications")
+      .eq("id", userId)
+      .maybeSingle();
+    if (full.error && /emailNotifications/i.test(full.error.message || "")) {
+      console.warn("profiles.emailNotifications missing — run supabase/email-notifications.sql");
+      const fallback = await admin
+        .from("profiles")
+        .select("email,name,notifyEmail,role")
+        .eq("id", userId)
+        .maybeSingle();
+      profile = fallback.data;
+    } else {
+      profile = full.data;
+    }
+  }
 
   const email = deliveryEmail(profile);
   if (!email) {
