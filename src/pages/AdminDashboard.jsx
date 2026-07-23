@@ -167,13 +167,61 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
   const [chatUnreadTotal, setChatUnreadTotal] = useState(0);
   const [teamView, setTeamView] = useState(null);
 
+  // Clients / listings stay fresh without a hard browser refresh (other staff, Stripe, client edits).
+  useEffect(() => {
+    if (typeof reload !== "function") return;
+    let cancelled = false;
+    let debounceTimer = null;
+    let inFlight = false;
+
+    const softReload = async () => {
+      if (cancelled || (typeof document !== "undefined" && document.visibilityState === "hidden")) return;
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        await reload();
+      } catch {
+        /* ignore soft-refresh errors */
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const scheduleReload = () => {
+      if (cancelled) return;
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(softReload, 900);
+    };
+
+    const onVis = () => {
+      if (document.visibilityState === "visible") scheduleReload();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    const poll = setInterval(softReload, 45000);
+    const unsub = api.subscribeAdminData({ onChange: scheduleReload });
+
+    return () => {
+      cancelled = true;
+      clearTimeout(debounceTimer);
+      clearInterval(poll);
+      document.removeEventListener("visibilitychange", onVis);
+      unsub?.();
+    };
+  }, [reload, user.id]);
+
   useEffect(() => {
     let cancelled = false;
     const pull = async () => {
       const rows = await api.listMyNotifications();
       if (cancelled) return;
       const n = filterVisibleStaffNotifs(rows, user.role).filter((x) => !x.read).length;
-      setNotifBadge((prev) => (prev === n ? prev : n));
+      setNotifBadge((prev) => {
+        // New alerts often mean client/assignment/plan data changed — pull fresh snapshot.
+        if (n > prev && typeof reload === "function") {
+          Promise.resolve(reload()).catch(() => {});
+        }
+        return prev === n ? prev : n;
+      });
     };
     pull();
     const t = setInterval(pull, 45000);
@@ -181,7 +229,7 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
       cancelled = true;
       clearInterval(t);
     };
-  }, [user.id, user.role]);
+  }, [user.id, user.role, reload]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

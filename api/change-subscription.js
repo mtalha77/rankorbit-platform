@@ -19,15 +19,27 @@ async function releaseScheduleIfAny(stripe, sub) {
   const scheduleId = typeof sub.schedule === "string" ? sub.schedule : sub.schedule?.id;
   if (!scheduleId) return;
   try {
+    const sch = await stripe.subscriptionSchedules.retrieve(scheduleId);
+    if (["released", "canceled", "completed"].includes(sch.status)) return;
     await stripe.subscriptionSchedules.release(scheduleId);
   } catch (e) {
-    // Already released / completed — ignore
-    if (!/released|canceled|not.*schedul/i.test(e.message || "")) {
-      console.warn("release schedule:", e.message);
+    // Already released / completed — ignore; try cancel as fallback
+    try {
+      await stripe.subscriptionSchedules.cancel(scheduleId);
+    } catch (e2) {
+      const msg = `${e.message || ""} ${e2.message || ""}`;
+      if (!/released|canceled|completed|not.*schedul/i.test(msg)) {
+        console.warn("release schedule:", e.message);
+      }
     }
   }
 }
 
+/**
+ * Schedule a price change at current_period_end.
+ * Always rebuilds the schedule: after renewals / test-clock advances, updating
+ * an existing schedule's phase 0 fails with "phase that has already ended".
+ */
 async function scheduleAtPeriodEnd(stripe, sub, priceId, planId, profileId) {
   const currentItem = sub.items?.data?.[0];
   const currentPriceId = currentItem?.price?.id;
@@ -35,22 +47,23 @@ async function scheduleAtPeriodEnd(stripe, sub, priceId, planId, profileId) {
   const periodEnd = sub.current_period_end || currentItem?.current_period_end;
   if (!periodEnd) throw new Error("Missing billing period end");
 
-  let scheduleId = typeof sub.schedule === "string" ? sub.schedule : sub.schedule?.id;
-  if (!scheduleId) {
-    const created = await stripe.subscriptionSchedules.create({ from_subscription: sub.id });
-    scheduleId = created.id;
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (periodEnd <= nowSec) {
+    throw new Error("Current billing period has already ended. Refresh billing and try again.");
   }
 
-  const schedule = await stripe.subscriptionSchedules.retrieve(scheduleId);
-  const phase0 = schedule.phases?.[0];
-  if (!phase0) throw new Error("Could not read subscription schedule");
+  // Drop any stale schedule (ended phases from prior renewals), then create fresh.
+  await releaseScheduleIfAny(stripe, sub);
+  const fresh = await stripe.subscriptions.retrieve(sub.id);
+  const created = await stripe.subscriptionSchedules.create({ from_subscription: fresh.id });
+  const scheduleId = created.id;
 
   await stripe.subscriptionSchedules.update(scheduleId, {
     end_behavior: "release",
     phases: [
       {
         items: [{ price: currentPriceId, quantity: 1 }],
-        start_date: phase0.start_date,
+        start_date: "now",
         end_date: periodEnd,
       },
       {
@@ -59,7 +72,7 @@ async function scheduleAtPeriodEnd(stripe, sub, priceId, planId, profileId) {
       },
     ],
     metadata: {
-      ...(schedule.metadata || {}),
+      ...(created.metadata || {}),
       pending_plan_id: planId,
       supabase_user_id: profileId,
     },

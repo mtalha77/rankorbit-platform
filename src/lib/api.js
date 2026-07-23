@@ -774,6 +774,20 @@ export const api={
       return()=>{};
     }
   },
+  /** Soft-live admin data: profiles + listings changes (needs Realtime enabled on those tables). */
+  subscribeAdminData({onChange}={}){
+    if(!supa||typeof onChange!=="function")return()=>{};
+    try{
+      const channel=supa
+        .channel(`admin-data:${Date.now()}`)
+        .on("postgres_changes",{event:"*",schema:"public",table:"profiles"},()=>onChange())
+        .on("postgres_changes",{event:"*",schema:"public",table:"listings"},()=>onChange())
+        .subscribe();
+      return()=>{try{supa.removeChannel(channel);}catch{}};
+    }catch{
+      return()=>{};
+    }
+  },
   async getMyBdm(){
     const token=await this._accessToken();
     if(!token)return{agent:null,bookings:[],takenSlots:[]};
