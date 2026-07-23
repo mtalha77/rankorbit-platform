@@ -120,7 +120,13 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
   const livePlans = livePlanEntries(acfg);
   const PLANSV = plansWithPrices(acfg);
   const revenue = clients.reduce((s, c) => s + (c.plan ? planPrice(c.plan, acfg) : 0), 0);
-  const flat = Object.values(listings).flat();
+  // Agent/BDM: only listings for assigned clients (same scope as Clients / All Listings).
+  const allFlat = Object.values(listings).flat();
+  const scopedClientIds = new Set(clients.map((c) => String(c.id)));
+  const flat =
+    isBdm || isAgent
+      ? allFlat.filter((l) => scopedClientIds.has(String(l.clientId)))
+      : allFlat;
   const totalLive = flat.filter((l) => l.status === "live").length;
   const totalPending = flat.filter((l) => l.status === "pending").length;
   const totalFlagged = flat.filter((l) => l.status === "flagged" || l.status === "rejected").length;
