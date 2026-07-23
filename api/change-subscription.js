@@ -48,23 +48,28 @@ async function scheduleAtPeriodEnd(stripe, sub, priceId, planId, profileId) {
   if (!periodEnd) throw new Error("Missing billing period end");
 
   const nowSec = Math.floor(Date.now() / 1000);
-  if (periodEnd <= nowSec) {
-    throw new Error("Current billing period has already ended. Refresh billing and try again.");
-  }
 
   // Drop any stale schedule (ended phases from prior renewals), then create fresh.
   await releaseScheduleIfAny(stripe, sub);
   const fresh = await stripe.subscriptions.retrieve(sub.id);
-  const created = await stripe.subscriptionSchedules.create({ from_subscription: fresh.id });
-  const scheduleId = created.id;
+  const endTs = fresh.current_period_end || periodEnd;
+  if (!endTs || endTs <= nowSec) {
+    throw new Error("Current billing period has already ended. Refresh billing and try again.");
+  }
 
-  await stripe.subscriptionSchedules.update(scheduleId, {
+  const created = await stripe.subscriptionSchedules.create({ from_subscription: fresh.id });
+  const phase0 = created.phases?.[0];
+  // Must keep the existing phase start — Stripe rejects changing it ("now" or any other value).
+  const phaseStart = phase0?.start_date;
+  if (!phaseStart) throw new Error("Could not read subscription schedule");
+
+  await stripe.subscriptionSchedules.update(created.id, {
     end_behavior: "release",
     phases: [
       {
         items: [{ price: currentPriceId, quantity: 1 }],
-        start_date: "now",
-        end_date: periodEnd,
+        start_date: phaseStart,
+        end_date: endTs,
       },
       {
         items: [{ price: priceId, quantity: 1 }],
@@ -78,7 +83,7 @@ async function scheduleAtPeriodEnd(stripe, sub, priceId, planId, profileId) {
     },
   });
 
-  return new Date(periodEnd * 1000).toISOString();
+  return new Date(endTs * 1000).toISOString();
 }
 
 export default async function handler(req, res) {
