@@ -374,7 +374,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
     { id: "notifications", icon: "🔔", label: "Notifications" },
     ...(canMessage || needsPlan ? [{ id: "messages", icon: "💬", label: "Messages" }] : []),
     { id: "listings", icon: "📋", label: "Listings" },
-    { id: "analytics", icon: "📈", label: "Analytics" },
+    { id: "analytics", icon: "analytics", label: "Analytics" },
     ...(user.plan === "gmb" || needsPlan ? [{ id: "gmb", icon: "📍", label: "GMB" }] : []),
     { id: "billing", icon: "💳", label: "Plan & Billing" },
     { id: "call", icon: "📞", label: "Book a Call" },

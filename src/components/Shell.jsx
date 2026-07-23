@@ -4,6 +4,7 @@ import { T, FONT_B, SHADOW_LG } from "../lib/theme";
 import { useWindowSize } from "../hooks";
 
 import { UserAvatar } from "./AccountSettings";
+import { NavIcon, hasNavIcon } from "./navIcons";
 
 function SettingsGearIcon({ color = T.sub, size = 18 }) {
   return (
@@ -117,7 +118,21 @@ export default function Shell({
                   fontSize: 13.5,
                 }}
               >
-                <span style={{ fontSize: 16 }}>{item.icon}</span>
+                <span
+                  style={{
+                    display: "inline-flex",
+                    width: item.iconSize || 18,
+                    height: item.iconSize || 18,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {typeof item.icon === "string" && hasNavIcon(item.icon) ? (
+                    <NavIcon name={item.icon} size={item.iconSize || 18} />
+                  ) : (
+                    <span style={{ fontSize: 16, lineHeight: 1 }}>{item.icon}</span>
+                  )}
+                </span>
                 <span>{item.label}</span>
                 {badgeCounts[item.id] > 0 && (
                   <span
