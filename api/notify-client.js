@@ -45,8 +45,14 @@ export default async function handler(req, res) {
 
   const payload = await readJson(req);
   const { token, type, title, body, meta } = payload || {};
+  // Optional channel flags (Broadcast). Omitted = both on (existing behavior).
+  const sendEmail = payload?.sendEmail !== false;
+  const sendInApp = payload?.sendInApp !== false;
   if (!type || typeof type !== "string") {
     return res.status(400).json({ error: "type is required" });
+  }
+  if (!sendEmail && !sendInApp) {
+    return res.status(400).json({ error: "Select email and/or in-app" });
   }
 
   // Prefer staff auth; fall back to client for self lifecycle notifs.
@@ -122,6 +128,8 @@ export default async function handler(req, res) {
       type,
       title: finalTitle,
       body: finalBody,
+      email: sendEmail,
+      inApp: sendInApp,
       meta: {
         ...(meta && typeof meta === "object" ? meta : {}),
         source: isStaff ? "staff" : "self",

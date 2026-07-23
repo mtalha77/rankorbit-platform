@@ -37,14 +37,22 @@ export function PermissionsModal({ member: memberProp, onClose }) {
   const defPerms = isBdmMember
     ? { listings: false, nap: false, logEdit: false, gmb: false }
     : { listings: true, nap: true, logEdit: true, gmb: true };
-  const [perms, setPerms] = useState({ ...defPerms, ...(member.perms || {}) });
+  const [perms, setPerms] = useState({
+    ...defPerms,
+    broadcastClients: false,
+    ...(member.perms || {}),
+  });
   const [canViewAccounts, setCanViewAccounts] = useState(!!member.canImpersonate);
   const [saving, setSaving] = useState(false);
+  const canGrantBroadcast = isAdmin && (member.role === "manager" || isBdmMember || isAgentMember);
   const dirtyOps =
     (isBdmMember || isAgentMember) &&
-    JSON.stringify(perms) !== JSON.stringify({ ...defPerms, ...(member.perms || {}) });
+    JSON.stringify(perms) !== JSON.stringify({ ...defPerms, broadcastClients: false, ...(member.perms || {}) });
+  const dirtyBroadcast =
+    canGrantBroadcast &&
+    !!perms.broadcastClients !== !!member.perms?.broadcastClients;
   const dirtyMgr = member.role === "manager" && canViewAccounts !== !!member.canImpersonate;
-  const dirty = dirtyOps || dirtyMgr;
+  const dirty = dirtyOps || dirtyMgr || dirtyBroadcast;
   const togglePerm = (k) => {
     if (!canEdit) return;
     setPerms((p) => ({ ...p, [k]: !p[k] }));
@@ -67,6 +75,16 @@ export function PermissionsModal({ member: memberProp, onClose }) {
             .filter(([, v]) => v)
             .map(([k]) => k)
             .join(", ") || "none",
+        });
+      } else if (member.role === "manager" && isAdmin && dirtyBroadcast) {
+        // Managers: only persist broadcast flag into perms (keep other keys).
+        const nextPerms = { ...(member.perms || {}), broadcastClients: !!perms.broadcastClients };
+        await api.patchProfile(member.id, { perms: nextPerms });
+        await audit("staff.perms", {
+          targetType: "staff",
+          targetId: member.id,
+          targetName: member.name,
+          detail: nextPerms.broadcastClients ? "broadcastClients" : "broadcastClients off",
         });
       }
       if (member.role === "manager" && isAdmin && canViewAccounts !== !!member.canImpersonate) {
@@ -206,6 +224,38 @@ export function PermissionsModal({ member: memberProp, onClose }) {
           </label>
         </>
       )}
+      {canGrantBroadcast && (
+        <>
+          <div style={{ fontSize: 11, fontWeight: 800, color: T.faint, letterSpacing: ".6px", marginBottom: 8 }}>BROADCAST</div>
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 9,
+              padding: "11px 13px",
+              background: perms.broadcastClients ? T.brandSoft : T.surface2,
+              border: `1.5px solid ${perms.broadcastClients ? T.brand : T.line}`,
+              borderRadius: 11,
+              cursor: canEdit ? "pointer" : "default",
+              marginBottom: 16,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={!!perms.broadcastClients}
+              disabled={!canEdit}
+              onChange={() => togglePerm("broadcastClients")}
+              style={{ width: 15, height: 15, accentColor: T.brand }}
+            />
+            <div>
+              <div style={{ fontSize: 12.5, fontWeight: 800, color: perms.broadcastClients ? T.brand : T.sub }}>
+                Broadcast to clients (email + in-app)
+              </div>
+              <div style={{ fontSize: 11, color: T.faint, marginTop: 2 }}>Access the Broadcast section to message selected clients</div>
+            </div>
+          </label>
+        </>
+      )}
       <div style={{ fontSize: 11, fontWeight: 800, color: T.faint, letterSpacing: ".6px", marginBottom: 8 }}>MORE</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 4 }}>
         <Btn
@@ -228,7 +278,10 @@ export function PermissionsModal({ member: memberProp, onClose }) {
         <Btn variant="ghost" onClick={onClose}>
           Close
         </Btn>
-        {canEdit && ((isBdmMember || isAgentMember) && (isStaffMgr || isAdmin) || (member.role === "manager" && isAdmin)) && (
+        {canEdit &&
+          ((isBdmMember || isAgentMember) && (isStaffMgr || isAdmin) ||
+            (member.role === "manager" && isAdmin) ||
+            canGrantBroadcast) && (
           <Btn onClick={save} disabled={saving || !dirty}>
             {saving ? "Saving…" : "Save permissions"}
           </Btn>
