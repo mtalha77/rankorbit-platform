@@ -102,7 +102,7 @@ export function Team() {
           ["Super Admin",T.brand,"Full access; assigns BDMs and Agents; finance, settings, audit"],
           ["Manager",T.amber,"Clients, listings, GMB; assign BDMs; team logs. Account view if granted."],
           ["BDM",T.blue,"Client-facing chat/calls for assigned clients. Listings/GMB only if Super Admin grants access."],
-          ["Agent",T.violet||T.blue,"Backend ops on assigned clients — listings, NAP, GMB. No client chat."],
+          ["Agent",T.violet||T.blue,"Backend ops on assigned clients — listings, NAP, GMB. Team chat yes; no client chat."],
         ].map(([r,c,p])=>(
           <div key={r} style={{display:"flex",gap:9,marginBottom:8,alignItems:"flex-start"}}><span style={{width:8,height:8,borderRadius:3,background:c,marginTop:5,flexShrink:0}}/><div style={{fontSize:12.5}}><b style={{color:c}}>{r}:</b> <span style={{color:T.sub}}>{p}</span></div></div>))}
       </Card>

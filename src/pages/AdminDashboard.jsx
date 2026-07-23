@@ -230,7 +230,7 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
     { id: "overview", icon: "chart", label: "Overview", roles: ["super_admin", "manager", "bdm", "agent"] },
     { id: "notifications", icon: "bell", label: "Notifications", roles: ["super_admin", "manager", "bdm", "agent"] },
     { id: "meetings", icon: "clipboard", label: "Scheduled Meetings", roles: ["super_admin", "manager", "bdm"] },
-    { id: "messages", icon: "message", label: "Messages", roles: ["super_admin", "manager", "bdm"] },
+    { id: "messages", icon: "message", label: "Messages", roles: ["super_admin", "manager", "bdm", "agent"] },
     { id: "broadcast", icon: "broadcast", iconSize: 22, label: "Broadcast", roles: ["super_admin", "manager", "bdm", "agent"], requiresBroadcast: true },
     { id: "clients", icon: "users", label: "Clients", roles: ["super_admin", "manager", "bdm", "agent"], match: ["clientDetail"] },
     { id: "listings", icon: "listing", label: "All Listings", roles: ["super_admin", "manager", "bdm", "agent"] },
@@ -288,7 +288,7 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
         )}
         {page === "meetings" && <ScheduledMeetings />}
         {page === "messages" && (
-          <StaffMessagesInbox user={user} clients={clients} selClient={selClient} setSelClient={setSelClient} setChatUnreadTotal={setChatUnreadTotal} toast={toast} isMobile={isMobile} isAdmin={isAdmin} />
+          <StaffMessagesInbox user={user} clients={clients} selClient={selClient} setSelClient={setSelClient} setChatUnreadTotal={setChatUnreadTotal} toast={toast} isMobile={isMobile} isAdmin={isAdmin} isAgent={isAgent} />
         )}
         {page === "broadcast" && canUseBroadcast(user) && <Broadcast />}
         {page === "clients" && <Clients />}

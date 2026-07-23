@@ -4,15 +4,17 @@ import { api } from "../../lib/api";
 import { Card, Empty, PageHead } from "../atoms";
 import ChatThread from "../ChatThread";
 
-export function StaffMessagesInbox({user,clients,selClient,setSelClient,setChatUnreadTotal,toast,isMobile,isAdmin}){
+export function StaffMessagesInbox({user,clients,selClient,setSelClient,setChatUnreadTotal,toast,isMobile,isAdmin,isAgent}){
+  // Super admin + Agent: team chat only (no client threads). BDM/manager can see clients.
+  const teamOnly=Boolean(isAdmin||isAgent);
   const[clientThreads,setClientThreads]=useState([]);
   const[staffThreads,setStaffThreads]=useState([]);
   const[loading,setLoading]=useState(true);
   // active = { kind:"client"|"staff", id }
-  const[active,setActive]=useState(selClient?{kind:"client",id:selClient}:null);
+  const[active,setActive]=useState(!teamOnly&&selClient?{kind:"client",id:selClient}:null);
 
   const syncTotal=(cT,sT)=>{
-    const cu=(cT||[]).reduce((s,t)=>s+(t.unread||0),0);
+    const cu=teamOnly?0:(cT||[]).reduce((s,t)=>s+(t.unread||0),0);
     const su=(sT||[]).reduce((s,t)=>s+(t.unread||0),0);
     setChatUnreadTotal(cu+su);
   };
@@ -21,22 +23,21 @@ export function StaffMessagesInbox({user,clients,selClient,setSelClient,setChatU
     let cancelled=false;
     (async()=>{
       setLoading(true);
-      // Super admin: staff (team) chat only — no client↔BDM threads.
       const [cr,sr]=await Promise.all([
-        isAdmin?Promise.resolve({threads:[]}):api.listChatThreads(),
+        teamOnly?Promise.resolve({threads:[]}):api.listChatThreads(),
         api.listStaffThreads(),
       ]);
       if(cancelled)return;
       setLoading(false);
       const cT=cr.error?[]:(cr.threads||[]);
       const sT=sr.error?[]:(sr.threads||[]);
-      if(sr.error&&(isAdmin||cr.error)){toast(sr.error,"info");}
+      if(sr.error&&(teamOnly||cr.error)){toast(sr.error,"info");}
       setClientThreads(cT);
       setStaffThreads(sT);
       syncTotal(cT,sT);
       if(!active){
         if(sT[0])setActive({kind:"staff",id:sT[0].staffId});
-        else if(cT[0])setActive({kind:"client",id:cT[0].clientId});
+        else if(!teamOnly&&cT[0])setActive({kind:"client",id:cT[0].clientId});
       }
     })();
     return()=>{cancelled=true;};
@@ -45,7 +46,7 @@ export function StaffMessagesInbox({user,clients,selClient,setSelClient,setChatU
   const clientPeer=active?.kind==="client"?clients.find(c=>c.id===active.id):null;
   const staffPeer=active?.kind==="staff"?staffThreads.find(t=>t.staffId===active.id):null;
   const teamTitle="Team";
-  const roleLabel=(r)=>r==="super_admin"?"Super Admin":r==="manager"?"Manager":(r==="bdm"||r==="agent")?"BDM":"Staff";
+  const roleLabel=(r)=>r==="super_admin"?"Super Admin":r==="manager"?"Manager":r==="bdm"?"BDM":r==="agent"?"Agent":"Staff";
 
   const ThreadRow=({label,sub,when,unread,activeSel,onClick})=>(
     <div onClick={onClick}
@@ -73,7 +74,7 @@ export function StaffMessagesInbox({user,clients,selClient,setSelClient,setChatU
     boxSizing:"border-box",
   }}>
     <div style={{flexShrink:0}}>
-      <PageHead isMobile={isMobile} title="Messages" sub="Chat with any teammate — agents, managers, and admins have the same access"/>
+      <PageHead isMobile={isMobile} title="Messages" sub={teamOnly?"Team chat only — message managers, BDMs, agents, and admins":"Chat with teammates and your assigned clients"}/>
     </div>
     <div style={{flex:1,minHeight:0,marginTop:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"280px 1fr",gap:16,alignItems:"stretch"}}>
       <Card style={{padding:0,overflow:"auto",height:"100%",minHeight:0}}>
@@ -92,7 +93,7 @@ export function StaffMessagesInbox({user,clients,selClient,setSelClient,setChatU
                 activeSel={active?.kind==="staff"&&active.id===t.staffId}
                 onClick={()=>setActive({kind:"staff",id:t.staffId})}/>
             ))}
-            {!isAdmin&&(<>
+            {!teamOnly&&(<>
               <SectionLabel>Clients</SectionLabel>
               {clientThreads.length===0?(
                 <div style={{padding:24}}><Empty icon="💬" title="No client chats yet" sub="When a client messages you, it appears here."/></div>
@@ -123,7 +124,7 @@ export function StaffMessagesInbox({user,clients,selClient,setSelClient,setChatU
               if(n===0)setStaffThreads(prev=>{const next=prev.map(t=>t.staffId===active.id?{...t,unread:0}:t);syncTotal(clientThreads,next);return next;});
             }}
           />
-        ):active?.kind==="client"?(
+        ):active?.kind==="client"&&!teamOnly?(
           <ChatThread
             key={`client_${active.id}`}
             clientId={active.id}
