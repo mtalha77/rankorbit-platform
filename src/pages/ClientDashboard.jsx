@@ -374,9 +374,9 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
     { id: "notifications", icon: "bell", label: "Notifications" },
     ...(canMessage || needsPlan ? [{ id: "messages", icon: "message", label: "Messages" }] : []),
     { id: "listings", icon: "listing", label: "Listings" },
-    { id: "analytics", icon: "chart", label: "Analytics" },
+    { id: "analytics", icon: "analytics", label: "Analytics" },
     ...(user.plan === "gmb" || needsPlan ? [{ id: "gmb", icon: "globe", label: "GMB" }] : []),
-    { id: "billing", icon: "bag", label: "Plan & Billing" },
+    { id: "billing", icon: "billing", label: "Plan & Billing" },
     { id: "call", icon: "message", label: "Book a Call" },
   ];
   // Product actions locked until plan (and while staff is impersonating).

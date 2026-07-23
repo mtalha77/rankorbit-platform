@@ -194,6 +194,29 @@ export function IconActivity({ size }) {
   );
 }
 
+/** Analytics (Lucide chart-bar) */
+export function IconAnalytics({ size }) {
+  return (
+    <Svg size={size} viewBox="0 0 24 24">
+      <path d="M3 3v16a2 2 0 0 0 2 2h16" {...stroke} strokeWidth={2} />
+      <path d="M7 16h8" {...stroke} strokeWidth={2} />
+      <path d="M7 11h12" {...stroke} strokeWidth={2} />
+      <path d="M7 6h3" {...stroke} strokeWidth={2} />
+    </Svg>
+  );
+}
+
+/** Plan & Billing (Lucide wallet-cards) */
+export function IconBilling({ size }) {
+  return (
+    <Svg size={size} viewBox="0 0 24 24">
+      <path d="M3 11h3.75a2 2 0 0 1 1.6.8l.45.6a4 4 0 0 0 6.4 0l.45-.6a2 2 0 0 1 1.6-.8H21" {...stroke} strokeWidth={2} />
+      <path d="M3 7h18" {...stroke} strokeWidth={2} />
+      <rect x="3" y="3" width="18" height="18" rx="2" {...stroke} strokeWidth={2} />
+    </Svg>
+  );
+}
+
 const BY_NAME = {
   users: IconUsers,
   message: IconMessage,
@@ -208,6 +231,8 @@ const BY_NAME = {
   team: IconTeam,
   settings: IconSettings,
   activity: IconActivity,
+  analytics: IconAnalytics,
+  billing: IconBilling,
 };
 
 export function hasNavIcon(name) {
