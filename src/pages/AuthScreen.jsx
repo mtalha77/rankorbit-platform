@@ -25,6 +25,7 @@ export default function AuthScreen({onLogin,portal="client",initialMode="login"}
   const[error,setError]=useState("");
   const[fieldErrors,setFieldErrors]=useState({});
   const[info,setInfo]=useState("");
+  const[noAccount,setNoAccount]=useState(false);
   const[busy,setBusy]=useState(false);
   useEffect(()=>{
     try{
@@ -43,7 +44,7 @@ export default function AuthScreen({onLogin,portal="client",initialMode="login"}
   },[]);
   const clearField=(key)=>setFieldErrors(prev=>{if(!prev[key])return prev;const next={...prev};delete next[key];return next;});
   const setNameVal=v=>{clearField("name");setName(v);};
-  const setEmailVal=v=>{clearField("email");setEmail(v);};
+  const setEmailVal=v=>{clearField("email");setNoAccount(false);setEmail(v);};
   const setPasswordVal=v=>{clearField("password");setPassword(v);};
   const setBusinessNameVal=v=>{clearField("businessName");setBusinessName(v);};
   const setPhoneVal=v=>{clearField("phone");setPhone(v);};
@@ -110,9 +111,18 @@ export default function AuthScreen({onLogin,portal="client",initialMode="login"}
     if(!email.trim())fe.email="Email is required";
     else if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))fe.email="Enter a valid email address";
     setFieldErrors(fe);
-    if(Object.keys(fe).length){setError("");return;}
-    setBusy(true);const r=await api.resetPassword(email);setBusy(false);
-    if(r.error)setError(r.error);else{setError("");setFieldErrors({});setInfo("Password reset link sent. Check your email.");setMode("login");}
+    if(Object.keys(fe).length){setError("");setNoAccount(false);return;}
+    setBusy(true);setNoAccount(false);setInfo("");
+    const r=await api.resetPassword(email);setBusy(false);
+    if(r.exists===false){
+      setError("No account exists for this email.");
+      setNoAccount(true);
+      return;
+    }
+    if(r.error){setError(r.error);return;}
+    setError("");setFieldErrors({});setNoAccount(false);
+    setInfo("We've sent a reset link. Check your inbox (and spam).");
+    setMode("login");
   };
   const w=useWindowSize();const isMobile=w<860;
   return(<div style={{minHeight:"100vh",background:T.bg,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT_B,padding:16,position:"relative",overflow:"hidden"}}>
@@ -208,6 +218,16 @@ export default function AuthScreen({onLogin,portal="client",initialMode="login"}
           {mode==="login"&&<Btn onClick={login} style={{width:"100%"}} size="lg">{busy?"Signing in…":"Sign In →"}</Btn>}
           {mode==="signup"&&<Btn onClick={signup} style={{width:"100%"}} size="lg">{busy?"Creating…":"Create Account →"}</Btn>}
           {mode==="forgot"&&<Btn onClick={forgot} style={{width:"100%"}} size="lg">{busy?"Sending…":"Send Reset Link"}</Btn>}
+          {mode==="forgot"&&noAccount&&!isStaff&&(
+            <Btn
+              onClick={()=>{setError("");setFieldErrors({});setInfo("");setNoAccount(false);nav("/signup");}}
+              style={{width:"100%",marginTop:10}}
+              size="lg"
+              variant="ghost"
+            >
+              Sign Up →
+            </Btn>
+          )}
           {mode!=="forgot"&&!isStaff&&(<>
             <div style={{display:"flex",alignItems:"center",gap:12,margin:"16px 0"}}>
               <div style={{flex:1,height:1,background:T.line}}/><span style={{fontSize:11,color:T.faint}}>or</span><div style={{flex:1,height:1,background:T.line}}/>
@@ -222,17 +242,17 @@ export default function AuthScreen({onLogin,portal="client",initialMode="login"}
               <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
                 <span onClick={()=>{setError("");setFieldErrors({});setInfo("");nav("/signup");}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>Create an account</span>
                 <span style={{fontSize:11,color:T.faint}}>or</span>
-                <span onClick={()=>{setMode("forgot");setError("");setFieldErrors({});setInfo("");}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>Forgot password</span>
+                <span onClick={()=>{setMode("forgot");setError("");setFieldErrors({});setInfo("");setNoAccount(false);}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>Forgot password</span>
               </div>
             )}
             {mode==="signup"&&(<>Have an account? <span onClick={()=>{setError("");setFieldErrors({});nav("/login");}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>Sign in</span></>)}
-            {mode==="forgot"&&(<span onClick={()=>{setMode("login");setError("");setFieldErrors({});}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>← Back to sign in</span>)}
+            {mode==="forgot"&&(<span onClick={()=>{setMode("login");setError("");setFieldErrors({});setNoAccount(false);}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>← Back to sign in</span>)}
           </div>)}
           {isStaff&&mode==="login"&&(<div style={{marginTop:14,textAlign:"center",fontSize:12,color:T.faint}}>
-            <span onClick={()=>{setMode("forgot");setError("");setFieldErrors({});}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>Forgot password?</span>
+            <span onClick={()=>{setMode("forgot");setError("");setFieldErrors({});setNoAccount(false);}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>Forgot password?</span>
           </div>)}
           {isStaff&&mode==="forgot"&&(<div style={{marginTop:14,textAlign:"center",fontSize:12}}>
-            <span onClick={()=>{setMode("login");setError("");setFieldErrors({});}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>← Back to sign in</span>
+            <span onClick={()=>{setMode("login");setError("");setFieldErrors({});setNoAccount(false);}} style={{color:T.brand,fontWeight:700,cursor:"pointer"}}>← Back to sign in</span>
           </div>)}
         </Card>
       </main>

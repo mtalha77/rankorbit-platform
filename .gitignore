@@ -27,6 +27,7 @@ Thumbs.db
 Desktop.ini
 .vscode/
 .idea/
+.cursor/
 *.local
 
 # Local previews / one-off test artifacts

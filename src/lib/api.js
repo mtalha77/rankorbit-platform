@@ -828,15 +828,19 @@ export const api={
     }catch(e){return{meetings:[],counts:{total:0,pending:0,confirmed:0},error:e.message||"Network error"};}
   },
   async resetPassword(email){
-    if(!supa)return{error:"Password reset needs the live database."};
-    const{error}=await supa.auth.resetPasswordForEmail(email,{
-      redirectTo:`${window.location.origin}/reset-password`,
-    });
-    if(!error)return{ok:true};
-    const msg=error.message||"";
-    if(/rate limit|too many/i.test(msg)||error.status===429)
-      return{error:"Too many reset emails sent. Please wait a few minutes, then try again — or check your inbox for the earlier link."};
-    return{error:msg};
+    try{
+      const r=await fetch("/api/request-password-reset",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({email:String(email||"").trim(),returnOrigin:window.location.origin}),
+      });
+      const j=await r.json().catch(()=>({}));
+      if(j.exists===false)return{ok:false,exists:false};
+      if(!r.ok)return{error:j.error||"Could not send reset email"};
+      return{ok:true,exists:true};
+    }catch(e){
+      return{error:e.message||"Network error"};
+    }
   },
   async updatePassword(password){
     if(!supa)return{error:"Password update needs the live database."};
