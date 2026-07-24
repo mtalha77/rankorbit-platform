@@ -2,6 +2,16 @@
 import { randomUUID } from "crypto";
 import { appBaseUrl, buildNotifyEmail } from "./emailTemplate.js";
 import { isBdmRole } from "./roles.js";
+import { sendPushToUser } from "./push.js";
+
+async function maybePush(admin, userId, { type, title, body, meta }) {
+  if (!userId || !title) return;
+  try {
+    await sendPushToUser(admin, userId, { type, title, body, url: meta?.pushUrl });
+  } catch (e) {
+    console.warn("maybePush:", e.message);
+  }
+}
 
 function uid(prefix = "n") {
   try {
@@ -219,6 +229,7 @@ export async function notifyManagersInApp(admin, { clientId, type, title, body, 
         body,
         meta: { ...(meta || {}), audience: "manager" },
       });
+      await maybePush(admin, m.id, { type: type || "info", title, body, meta });
     } catch (e) {
       console.warn("notifyManagersInApp:", e.message);
     }
@@ -255,7 +266,7 @@ export async function createNotification(admin, row) {
 /** Types super_admin may receive in-app (besides peer chat). */
 const SUPER_ADMIN_INAPP_TYPES = new Set(["staff_message", "payment_failed", "plan_subscribed", "needs_bdm"]);
 
-/** Notify any user (client or staff) in-app only. */
+/** Notify any user (client or staff) in-app only (+ web push when subscribed). */
 export async function notifyUser(admin, { userId, clientId, type, title, body, meta }) {
   if (!userId) return null;
   // Super admins: team-chat + critical billing alerts only.
@@ -269,7 +280,9 @@ export async function notifyUser(admin, { userId, clientId, type, title, body, m
       return null;
     }
   }
-  return createNotification(admin, { userId, clientId, type, title, body, meta });
+  const row = await createNotification(admin, { userId, clientId, type, title, body, meta });
+  await maybePush(admin, userId, { type, title, body, meta });
+  return row;
 }
 
 /** Ping every active super_admin in-app (billing alerts). */
@@ -289,6 +302,7 @@ export async function notifySuperAdminsInApp(admin, { clientId, type, title, bod
         body,
         meta: { ...(meta || {}), audience: "super_admin" },
       });
+      await maybePush(admin, a.id, { type: type || "payment_failed", title, body, meta });
     } catch (e) {
       console.warn("notifySuperAdminsInApp:", e.message);
     }
@@ -364,6 +378,10 @@ export async function notifyClient(admin, { userId, clientId, type, title, body,
       meta,
     });
   }
+
+  // Web push once per new notification (not on email-only retries / already-sent skips).
+  const shouldPush = wantInApp && !emailRetryOnly && !!title;
+  if (shouldPush) await maybePush(admin, userId, { type, title, body, meta });
 
   if (!wantEmail) {
     return { notified: true, notificationId: row?.id, emailResult: { sent: false, reason: "in_app_only" } };
@@ -523,6 +541,7 @@ export async function notifyBdm(admin, { agentId, clientId, type, title, body, m
     body,
     meta,
   });
+  await maybePush(admin, agentId, { type, title, body, meta });
 
   if (sendEmail === false) {
     return {

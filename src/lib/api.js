@@ -518,6 +518,26 @@ export const api={
   },
   googleGbpSync(clientId){return this._gbpPost("/api/google-gbp-sync",{clientId});},
   googleGbpDisconnect(clientId){return this._gbpPost("/api/google-gbp-disconnect",{clientId});},
+  async pushSubscribe(subscription){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/push-subscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,subscription})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not save push subscription"};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
+  async pushUnsubscribe(endpoint){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/push-unsubscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,endpoint:endpoint||undefined})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not remove push subscription"};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
   /**
    * Light own-profile read for the BDM connect panel (poll target).
    * Falls back to assignedBdmId alone when bdm-connect-request.sql hasn't been run.
