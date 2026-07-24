@@ -19,6 +19,7 @@ import {
   notifyManagersInApp,
   planLabel,
 } from "../server/assign.js";
+import { onboardingHelpLine } from "../server/emailTemplate.js";
 
 export const config = { api: { bodyParser: false } };
 
@@ -201,7 +202,7 @@ export default async function handler(req, res) {
                 clientId: profileId,
                 type: "plan_subscribed",
                 title: "Subscription active",
-                body: `Your ${planLabel(planId)} plan is active. Thank you for subscribing — your dashboard is ready.`,
+                body: `Your ${planLabel(planId)} plan is active. Thank you for subscribing — your dashboard is ready.\n\n${onboardingHelpLine()}`,
                 meta: { planId: planId || null },
               });
               await notifyStaffRoute(admin, {

@@ -3,6 +3,14 @@
  * Colors mirror src/lib/theme.js (brand #5B5BD6, ink #171732).
  */
 
+/** Shared on onboarding emails (welcome + first subscription). */
+export const ONBOARDING_HELP_PHONE = "559-508-8793";
+
+/** Plain-text line for onboarding help / guidance. */
+export function onboardingHelpLine() {
+  return `Need onboarding help or guidance? Call us at ${ONBOARDING_HELP_PHONE}.`;
+}
+
 function appBaseUrl() {
   const raw = (process.env.APP_URL || "").replace(/\/$/, "");
   return raw || "https://nap.rankorbit.com";

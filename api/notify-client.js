@@ -1,5 +1,6 @@
 import { getAdmin, readJson, requireStaff, requireClient } from "../server/billing.js";
 import { notifyClient, notifyStaffRoute, planLabel } from "../server/assign.js";
+import { onboardingHelpLine } from "../server/emailTemplate.js";
 
 const STAFF_TYPES = new Set([
   "listing_live",
@@ -14,14 +15,16 @@ const STAFF_TYPES = new Set([
 /** Client may self-emit these once (register → welcome, first plan → plan_subscribed). */
 const CLIENT_SELF_TYPES = new Set(["welcome", "plan_subscribed"]);
 
+const HELP = onboardingHelpLine();
+
 const DEFAULTS = {
   welcome: {
     title: "Welcome to NAP Orbit",
-    body: "Your account is ready. Choose a plan from Billing when you're set, then track listings and NAP health from your dashboard.",
+    body: `Your account is ready. Choose a plan from Billing when you're set, then track listings and NAP health from your dashboard.\n\n${HELP}`,
   },
   plan_subscribed: {
     title: "Subscription active",
-    body: "Your plan is active. Thank you for subscribing — your dashboard is ready.",
+    body: `Your plan is active. Thank you for subscribing — your dashboard is ready.\n\n${HELP}`,
   },
   listing_live: { title: "Listing went live", body: "One of your directory listings is now live." },
   rejected: { title: "Listing update", body: "A listing was rejected. Check your dashboard for details." },
@@ -103,7 +106,7 @@ export default async function handler(req, res) {
   let finalBody = (body && String(body).trim()) || defaults.body;
   if (type === "plan_subscribed" && client.plan && !(title && String(title).trim()) && !(body && String(body).trim())) {
     finalTitle = "Subscription active";
-    finalBody = `Your ${planLabel(client.plan)} plan is active. Thank you for subscribing — your dashboard is ready.`;
+    finalBody = `Your ${planLabel(client.plan)} plan is active. Thank you for subscribing — your dashboard is ready.\n\n${HELP}`;
   }
 
   // Agent edits: email managers only (no client notification).
