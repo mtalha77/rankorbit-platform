@@ -496,7 +496,25 @@ export default function AccountSettings({
               ? "Push is on for this browser. You’ll get alerts for messages, calls, and important account updates."
               : "Turn on to receive push alerts on this device. You can change this anytime."}
           </div>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+            {pushOn && (
+              <Btn
+                variant="ghost"
+                disabled={pushBusy || readOnly}
+                onClick={async () => {
+                  setPushBusy(true);
+                  const r = await api.pushTest();
+                  setPushBusy(false);
+                  if (r.error) {
+                    toast?.(r.error, "err");
+                    return;
+                  }
+                  toast?.("Test push sent — check Windows Notification Center (Win+N)", "ok");
+                }}
+              >
+                Send test
+              </Btn>
+            )}
             {pushOn ? (
               <Btn
                 variant="soft"
@@ -527,7 +545,7 @@ export default function AccountSettings({
                     return;
                   }
                   setPushOn(true);
-                  toast?.("Browser notifications enabled", "ok");
+                  toast?.("Enabled — you should see a local toast. Use Send test for server push.", "ok");
                 }}
               >
                 {pushBusy ? "Enabling…" : "Enable on this device"}

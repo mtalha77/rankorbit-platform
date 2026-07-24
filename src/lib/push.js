@@ -20,7 +20,6 @@ export function vapidPublicKeyFromEnv() {
 
 /**
  * Resolve public key: env first, else GET /api/push-vapid-public (runtime).
- * Fixes “mobile works / web Enable missing” when VITE_ was not in the client bundle.
  */
 export async function resolveVapidPublicKey() {
   const fromEnv = vapidPublicKeyFromEnv();
@@ -48,7 +47,6 @@ export function vapidPublicKey() {
   return cachedPublicKey || vapidPublicKeyFromEnv();
 }
 
-/** Sync check — prefer await resolveVapidPublicKey() + isPushSupported for UI. */
 export function isPushConfigured() {
   return isPushSupported() && !!vapidPublicKey();
 }
@@ -70,7 +68,13 @@ function urlBase64ToUint8Array(base64String) {
 
 export async function registerPushSw() {
   if (!isPushSupported()) return null;
-  const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+  const reg = await navigator.serviceWorker.register("/sw.js", {
+    scope: "/",
+    updateViaCache: "none",
+  });
+  try {
+    await reg.update();
+  } catch { /* ignore */ }
   await navigator.serviceWorker.ready;
   return reg;
 }
@@ -103,7 +107,7 @@ export function dismissPushPrompt(days = 7) {
 }
 
 /**
- * Request permission, subscribe, and POST to /api/push-subscribe via api helper.
+ * Request permission, subscribe (fresh), save to server, local toast to verify Windows.
  * @param {(sub: object) => Promise<{error?: string}>} saveFn
  */
 export async function enablePush(saveFn) {
@@ -118,19 +122,43 @@ export async function enablePush(saveFn) {
 
   const perm = await Notification.requestPermission();
   if (perm !== "granted") {
-    return { error: "Notifications were blocked. Enable them in browser settings." };
+    return { error: "Notifications were blocked. Enable them in browser settings (Chrome → site settings → Notifications)." };
   }
 
-  let sub = await reg.pushManager.getSubscription();
-  if (!sub) {
+  // Always resubscribe — stale subs from old/wrong VAPID keys break Windows/desktop sends.
+  try {
+    const old = await reg.pushManager.getSubscription();
+    if (old) await old.unsubscribe();
+  } catch { /* ignore */ }
+
+  let sub;
+  try {
     sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(publicKey),
     });
+  } catch (e) {
+    return { error: e?.message || "Could not subscribe to push on this browser" };
   }
+
   const json = sub.toJSON();
+  if (!json?.endpoint || !json?.keys?.p256dh || !json?.keys?.auth) {
+    return { error: "Browser returned an incomplete push subscription" };
+  }
+
   const r = await saveFn(json);
   if (r?.error) return { error: r.error };
+
+  // Local toast (not server push) — proves Windows Notification Center works on this PC.
+  try {
+    await reg.showNotification("NAP Orbit", {
+      body: "Notifications enabled on this device.",
+      icon: `${window.location.origin}/android-chrome-512x512.png`,
+      badge: `${window.location.origin}/favicon-32x32.png`,
+      tag: "nap-enabled-" + Date.now(),
+    });
+  } catch { /* ignore */ }
+
   try {
     localStorage.removeItem(DISMISS_KEY);
   } catch { /* ignore */ }

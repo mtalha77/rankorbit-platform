@@ -148,17 +148,19 @@ export async function sendPushToUser(admin, userId, { title, body, type, url } =
           keys: { p256dh: row.p256dh, auth: row.auth },
         },
         payload,
-        { TTL: 60 * 60 * 12 }
+        { TTL: 60 * 60 * 12, urgency: "high" }
       );
       sent++;
     } catch (e) {
       const code = e?.statusCode || e?.status;
-      if (code === 404 || code === 410) {
+      // Gone / unauthorized / bad key → drop stale desktop/mobile endpoints
+      if (code === 404 || code === 410 || code === 401 || code === 403) {
         try {
           await admin.from("push_subscriptions").delete().eq("id", row.id);
         } catch { /* ignore */ }
+        console.warn("web-push dropped stale sub:", code, row.endpoint?.slice(0, 48));
       } else {
-        console.warn("web-push send:", e?.message || e);
+        console.warn("web-push send:", code, e?.message || e);
       }
     }
   }
