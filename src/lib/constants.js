@@ -33,7 +33,8 @@ export const planListPrice=(id,cfg={})=>{
   if(!pct)return null;
   const now=planPrice(id,cfg);
   if(!now)return null;
-  return Math.round((now/(1-pct/100))*100)/100;
+  // Whole dollars only (avoid "$54.44" marketing list prices).
+  return Math.round(now/(1-pct/100));
 };
 
 export const formatMoney=(n)=>{
