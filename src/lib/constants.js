@@ -3,7 +3,44 @@ import { T } from "./theme";
 
 export const PLANS={essentials:{name:"Essentials",price:49,quota:"10 listings/mo",color:T.blue,soft:T.blueSoft,features:["10 directory submissions every month","NAP consistency management","Unauthorized edit protection","1 regular + 1 guidance BDM call / billing period","Listing monitoring & alerts","Client dashboard access"]},
   growth:{name:"Growth",price:89,quota:"20 listings/mo",color:T.brand,soft:T.brandSoft,features:["20 directory submissions every month","Everything in Essentials","2 regular + 1 guidance BDM call / billing period","BDM chat (Messages)","Expanded directory coverage","Monthly coverage report"]},
-  gmb:{name:"GMB Pro",price:249,quota:"15 listings/mo + GMB",color:T.violet,soft:T.violetSoft,features:["15 directory submissions every month","Google Business Profile management","3 regular + 1 guidance BDM call / billing period","BDM chat (Messages)","Monthly GMB posts & Q&A","Engagement analytics (views, calls)"]}};
+  gmb:{name:"GMB Pro",price:99,quota:"15 listings/mo + GMB",color:T.violet,soft:T.violetSoft,features:["15 directory submissions every month","Google Business Profile management","3 regular + 1 guidance BDM call / billing period","BDM chat (Messages)","Monthly GMB posts & Q&A","Engagement analytics (views, calls)"]}};
+
+/** Default marketing discount % (charged price stays planPrice; list/was = price ÷ (1 − pct/100)). */
+const DEFAULT_DISCOUNT_PCT={essentials:10,growth:25,gmb:25};
+const DISCOUNT_PCT_KEYS={essentials:"discountEssentials",growth:"discountGrowth",gmb:"discountGmb"};
+const DISCOUNT_ON_KEYS={essentials:"discountEssentialsOn",growth:"discountGrowthOn",gmb:"discountGmbOn"};
+
+/** Discount % for a plan from Control Panel, else defaults. */
+export const planDiscountPct=(id,cfg={})=>{
+  const key=DISCOUNT_PCT_KEYS[id];
+  const v=key?cfg[key]:null;
+  if(v!=null&&v!==""){const n=Number(v);if(Number.isFinite(n)&&n>0&&n<100)return n;}
+  return DEFAULT_DISCOUNT_PCT[id]??0;
+};
+
+/** Whether the plan discount badge is shown. Default on. */
+export const planDiscountOn=(id,cfg={})=>{
+  const key=DISCOUNT_ON_KEYS[id];
+  const v=key?cfg[key]:undefined;
+  if(v===undefined||v===null)return true;
+  return v===true||v==="true";
+};
+
+/** Pre-discount “was” price for display, or null when discount is off. */
+export const planListPrice=(id,cfg={})=>{
+  if(!planDiscountOn(id,cfg))return null;
+  const pct=planDiscountPct(id,cfg);
+  if(!pct)return null;
+  const now=planPrice(id,cfg);
+  if(!now)return null;
+  return Math.round((now/(1-pct/100))*100)/100;
+};
+
+export const formatMoney=(n)=>{
+  if(!Number.isFinite(n))return"0";
+  const r=Math.round(n*100)/100;
+  return Number.isInteger(r)?String(r):r.toFixed(2);
+};
 
 /** Meeting quotas + messaging per plan (billing period). Keep in sync with server/planEntitlements.js */
 export const PLAN_ENTITLEMENTS={

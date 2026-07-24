@@ -1,5 +1,5 @@
 import { T, FONT_D, FONT_B, SHADOW, SHADOW_LG } from "../../lib/theme";
-import { planLive, popularPlanId, orderPlansPopularCenter } from "../../lib/constants";
+import { planLive, popularPlanId, orderPlansPopularCenter, planListPrice, planDiscountPct, formatMoney } from "../../lib/constants";
 import { Reveal } from "../Reveal";
 
 export function LandingPricing({ isMobile, isTab, w, user, cfg, lprice, goPlan, planBusy, planErr, billingFlag }) {
@@ -126,6 +126,12 @@ export function LandingPricing({ isMobile, isTab, w, user, cfg, lprice, goPlan, 
                       </div>
                       <h3 style={{fontFamily:FONT_D,fontSize:isMobile?24:26,fontWeight:800,margin:"0 0 8px",letterSpacing:"-.5px",color:dark?"#fff":T.ink}}>{pl.n}</h3>
                       <div style={{marginBottom:14}}>
+                        {(()=>{const was=planListPrice(pl.id,cfg);if(was==null)return null;return(
+                          <div style={{marginBottom:6,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                            <span style={{fontSize:16,fontWeight:600,textDecoration:"line-through",color:dark?"rgba(255,255,255,.45)":T.faint}}>${formatMoney(was)}</span>
+                            <span style={{fontSize:11,fontWeight:800,letterSpacing:".3px",padding:"3px 8px",borderRadius:20,background:dark?"rgba(15,164,122,.22)":T.greenSoft,color:dark?T.green:T.green}}>{planDiscountPct(pl.id,cfg)}% OFF</span>
+                          </div>
+                        );})()}
                         <span style={{fontFamily:FONT_D,fontSize:isMobile?42:48,fontWeight:800,letterSpacing:"-2px",color:dark?"#fff":T.ink}}>${lprice(pl.id)}</span>
                         <span style={{fontSize:15,fontWeight:600,color:dark?"rgba(255,255,255,.55)":T.faint}}> /month</span>
                       </div>

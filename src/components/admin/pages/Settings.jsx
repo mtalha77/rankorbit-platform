@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { T, FONT_B } from "../../../lib/theme";
 import { api } from "../../../lib/api";
-import { PLANS } from "../../../lib/constants";
+import { PLANS, planListPrice, planPrice, formatMoney } from "../../../lib/constants";
 import { Card, Btn, Input, PageHead, SectionTitle } from "../../atoms";
 import { useAdmin } from "../AdminContext";
 
@@ -12,6 +12,12 @@ function buildConfig(settings) {
     priceEssentials: PLANS.essentials.price,
     priceGrowth: PLANS.growth.price,
     priceGmb: PLANS.gmb.price,
+    discountEssentials: 10,
+    discountGrowth: 25,
+    discountGmb: 25,
+    discountEssentialsOn: true,
+    discountGrowthOn: true,
+    discountGmbOn: true,
     notifySignup: true,
     notifyCancel: true,
     notifyPlanChange: true,
@@ -41,6 +47,9 @@ export function Settings() {
       priceEssentials: Number(c.priceEssentials),
       priceGrowth: Number(c.priceGrowth),
       priceGmb: Number(c.priceGmb),
+      discountEssentials: Number(c.discountEssentials),
+      discountGrowth: Number(c.discountGrowth),
+      discountGmb: Number(c.discountGmb),
     };
     const saved = await api.saveSettings({
       ...settings,
@@ -76,6 +85,28 @@ export function Settings() {
             </div>
             <div style={{fontSize:11,color:T.faint,lineHeight:1.5,marginTop:2}}>Note: these update what clients see. Keep them in sync with your Stripe Price amounts.</div>
           </div>
+        </div>
+        <div style={{marginTop:16}}>
+          <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:4}}>PLAN DISCOUNTS (shown on landing & client billing)</div>
+          <div style={{fontSize:12,color:T.sub,marginBottom:10,lineHeight:1.5}}>Charged price stays the plan price above. Discount only shows a strikethrough “was” price (marketing). Stripe still charges the real plan price.</div>
+          {[
+            {id:"essentials",label:"Essentials",pctK:"discountEssentials",onK:"discountEssentialsOn"},
+            {id:"growth",label:"Growth",pctK:"discountGrowth",onK:"discountGrowthOn"},
+            {id:"gmb",label:"GMB Pro",pctK:"discountGmb",onK:"discountGmbOn"},
+          ].map((row)=>(
+            <div key={row.id} style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 100px auto",gap:10,alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${T.line}`}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:700,color:T.ink}}>{row.label}</div>
+                <div style={{fontSize:11,color:T.faint,marginTop:2}}>
+                  {c[row.onK]!==false
+                    ? `Was $${formatMoney(planListPrice(row.id,c)||0)} → Now $${planPrice(row.id,c)}`
+                    : `Now $${planPrice(row.id,c)} (discount off)`}
+                </div>
+              </div>
+              <Input label="% off" type="number" value={c[row.pctK]} onChange={v=>setCfg(row.pctK,v)}/>
+              <button type="button" onClick={()=>setCfg(row.onK,c[row.onK]===false?true:false)} style={{padding:"7px 14px",borderRadius:20,border:"none",cursor:"pointer",fontFamily:FONT_B,fontWeight:800,fontSize:11.5,background:c[row.onK]===false?T.surface2:T.greenSoft,color:c[row.onK]===false?T.faint:T.green,whiteSpace:"nowrap",marginTop:isMobile?0:18}}>{c[row.onK]===false?"Off":"On"}</button>
+            </div>
+          ))}
         </div>
         <div style={{marginTop:16}}>
           <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:4}}>LIVE PLANS (shown on website, signup & billing)</div>

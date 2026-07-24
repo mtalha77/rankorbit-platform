@@ -19,9 +19,9 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "settings object is required" });
   }
 
-  // Normalize plan prices to numbers so display + revenue math stay consistent.
+  // Normalize plan prices / discount % to numbers so display + revenue math stay consistent.
   const config = { ...(settings.config || {}) };
-  for (const k of ["priceEssentials", "priceGrowth", "priceGmb"]) {
+  for (const k of ["priceEssentials", "priceGrowth", "priceGmb", "discountEssentials", "discountGrowth", "discountGmb"]) {
     if (config[k] != null && config[k] !== "") {
       const n = Number(config[k]);
       if (Number.isFinite(n)) config[k] = n;

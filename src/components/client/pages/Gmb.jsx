@@ -8,7 +8,7 @@ import { useClient } from "../ClientContext";
 
 export function Gmb() {
   const { user, isMobile, setPage, myGmb, reload, toast, viewOnly, PLANSV } = useClient();
-  const gmbPrice = PLANSV?.gmb?.price ?? 249;
+  const gmbPrice = PLANSV?.gmb?.price ?? 99;
 
     if(user.plan!=="gmb")return(<div>
       <PageHead isMobile={isMobile} title="GMB Management"/>

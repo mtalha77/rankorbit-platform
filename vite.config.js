@@ -22,7 +22,8 @@ function localApiPlugin() {
         const url = req.url || "";
         if (!url.startsWith("/api/")) return next();
 
-        const route = url.split("?")[0].replace(/^\/api\//, "").replace(/\/$/, "");
+        const pathOnly = url.split("?")[0];
+        const route = pathOnly.replace(/^\/api\//, "").replace(/\/$/, "");
         if (!route || route.includes("..")) return next();
 
         const filePath = path.resolve(process.cwd(), "api", `${route}.js`);
@@ -34,6 +35,10 @@ function localApiPlugin() {
         }
 
         try {
+          // Mirror Vercel: populate req.query from the URL (needed for OAuth callback GET).
+          const abs = new URL(url, "http://localhost");
+          req.query = Object.fromEntries(abs.searchParams.entries());
+
           // Use Vite SSR loader so ../server/billing.js and other deps hot-reload
           // (plain dynamic import() keeps a stale ESM cache of billing.js).
           const mod = await server.ssrLoadModule(filePath);

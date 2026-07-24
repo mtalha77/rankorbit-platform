@@ -2,7 +2,7 @@ import { useState } from "react";
 import { T, FONT_D, FONT_B, SHADOW, SHADOW_LG } from "../../../lib/theme";
 import { api } from "../../../lib/api";
 import { downloadBlob, openExternalFile } from "../../../lib/export";
-import { PLANS, popularPlanId, orderPlansPopularCenter, isPlanDowngrade } from "../../../lib/constants";
+import { PLANS, popularPlanId, orderPlansPopularCenter, isPlanDowngrade, planListPrice, planDiscountPct, formatMoney } from "../../../lib/constants";
 import { paymentGraceState } from "../../../lib/helpers";
 import { Badge, Card, Btn, PageHead, SectionTitle, Modal } from "../../atoms";
 import { ProfileGate } from "../ProfileGate";
@@ -308,6 +308,12 @@ export function Billing() {
                   {scheduled && !current && <div style={{ position: "absolute", top: -11, left: "50%", transform: "translateX(-50%)", background: T.brand, color: "#fff", fontSize: 10, fontWeight: 800, padding: "3px 13px", borderRadius: 20, whiteSpace: "nowrap" }}>SCHEDULED</div>}
                   {id === popularId && !current && !scheduled && <div style={{ position: "absolute", top: -11, left: "50%", transform: "translateX(-50%)", background: `linear-gradient(135deg,${T.brand},${T.violet})`, color: "#fff", fontSize: 10, fontWeight: 800, padding: "3px 13px", borderRadius: 20, whiteSpace: "nowrap" }}>MOST POPULAR</div>}
                   <div style={{ fontFamily: FONT_D, fontSize: 16, fontWeight: 800 }}>{p.name}</div>
+                  {(() => { const was = planListPrice(id, cfg || {}); if (was == null) return null; return (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+                      <span style={{ fontSize: 14, fontWeight: 600, textDecoration: "line-through", color: T.faint }}>${formatMoney(was)}</span>
+                      <span style={{ fontSize: 10.5, fontWeight: 800, padding: "2px 7px", borderRadius: 20, background: T.greenSoft, color: T.green }}>{planDiscountPct(id, cfg || {})}% OFF</span>
+                    </div>
+                  ); })()}
                   <div style={{ fontFamily: FONT_D, fontSize: 30, fontWeight: 800, color: p.color, margin: "5px 0 2px" }}>${p.price}<span style={{ fontSize: 13, color: T.faint, fontWeight: 600 }}>/mo</span></div>
                   <div style={{ fontSize: 12, color: T.sub, fontWeight: 700, marginBottom: 14 }}>{p.quota}</div>
                   <div style={{ height: 1, background: T.line, marginBottom: 14 }} />
