@@ -7,6 +7,7 @@ import { todayFull, uid, isBdmRole, isAgentRole, staffRoleLabel } from "../lib/h
 import { Confirm } from "../components/atoms";
 import Shell from "../components/Shell";
 import AccountSettings from "../components/AccountSettings";
+import PushEnableBanner from "../components/PushEnableBanner";
 import { useWindowSize, useToast } from "../hooks";
 
 // Load only when staff uses View-as — keeps /admin chunk smaller.
@@ -330,6 +331,7 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
   return (
     <AdminContext.Provider value={adminCtx}>
       <Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} brandTag={staffRoleLabel(user.role)} badgeCounts={{ notifications: notifBadge, messages: chatUnreadTotal }} settingsPageId="account">
+        <PushEnableBanner toast={toast} />
         {page === "overview" && <Overview />}
         {page === "notifications" && (
           <NotificationsPage user={user} isAdmin={isAdmin} isMobile={isMobile} toast={toast} setNotifBadge={setNotifBadge} setSelClient={setSelClient} setPage={setPage} />

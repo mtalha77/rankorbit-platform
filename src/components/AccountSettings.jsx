@@ -3,6 +3,13 @@ import { useRef, useState, useEffect } from "react";
 import { T, FONT_D } from "../lib/theme";
 import { api } from "../lib/api";
 import { passwordIssues } from "../lib/helpers";
+import {
+  isPushConfigured,
+  permissionState,
+  getExistingSubscription,
+  enablePush,
+  disablePush,
+} from "../lib/push";
 import { Card, Btn, Input, PageHead, SectionTitle } from "./atoms";
 
 export function isAvatarUrl(v) {
@@ -123,11 +130,30 @@ export default function AccountSettings({
   const [notifyDraft, setNotifyDraft] = useState(user?.notifyEmail || user?.notifyEmailPending || "");
   const [savingNotify, setSavingNotify] = useState(false);
   const [showPw, setShowPw] = useState({ next: false, confirm: false });
+  const [pushOn, setPushOn] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const pushAvailable = isPushConfigured();
 
   useEffect(() => {
     // Prefer verified address once confirmed; pending only while waiting.
     setNotifyDraft((user?.notifyEmail || user?.notifyEmailPending || "").trim());
   }, [user?.notifyEmail, user?.notifyEmailPending]);
+
+  useEffect(() => {
+    if (!pushAvailable) {
+      setPushOn(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const perm = await permissionState();
+      const sub = await getExistingSubscription();
+      if (!cancelled) setPushOn(perm === "granted" && !!sub);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pushAvailable, user?.id]);
 
   // Keep local name in sync when parent user updates (after save / reload).
   useEffect(() => {
@@ -456,6 +482,57 @@ export default function AccountSettings({
           )}
         </div>
       </Card>
+
+      {pushAvailable && (
+        <Card style={{ marginBottom: 16 }}>
+          <SectionTitle sub="Alerts on this device even when the tab is in the background">
+            Browser notifications
+          </SectionTitle>
+          <div style={{ fontSize: 12.5, color: T.sub, lineHeight: 1.5, marginBottom: 14 }}>
+            {pushOn
+              ? "Push is on for this browser. You’ll get alerts for messages, calls, and important account updates."
+              : "Turn on to receive push alerts on this device. You can change this anytime."}
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            {pushOn ? (
+              <Btn
+                variant="soft"
+                disabled={pushBusy || readOnly}
+                onClick={async () => {
+                  setPushBusy(true);
+                  const r = await disablePush((endpoint) => api.pushUnsubscribe(endpoint));
+                  setPushBusy(false);
+                  if (r.error) {
+                    toast?.(r.error, "err");
+                    return;
+                  }
+                  setPushOn(false);
+                  toast?.("Browser notifications turned off");
+                }}
+              >
+                {pushBusy ? "Updating…" : "Turn off"}
+              </Btn>
+            ) : (
+              <Btn
+                disabled={pushBusy || readOnly}
+                onClick={async () => {
+                  setPushBusy(true);
+                  const r = await enablePush((subscription) => api.pushSubscribe(subscription));
+                  setPushBusy(false);
+                  if (r.error) {
+                    toast?.(r.error, "err");
+                    return;
+                  }
+                  setPushOn(true);
+                  toast?.("Browser notifications enabled", "ok");
+                }}
+              >
+                {pushBusy ? "Enabling…" : "Enable on this device"}
+              </Btn>
+            )}
+          </div>
+        </Card>
+      )}
 
       <Card>
         <SectionTitle sub="Must be exactly 8 characters with upper, lower, number, and symbol">Password</SectionTitle>

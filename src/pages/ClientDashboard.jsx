@@ -9,6 +9,7 @@ import Shell from "../components/Shell";
 import ChatThread from "../components/ChatThread";
 import BdmConnectPanel from "../components/client/BdmConnectPanel";
 import AccountSettings from "../components/AccountSettings";
+import PushEnableBanner from "../components/PushEnableBanner";
 import UserManual from "./UserManual";
 import HelpFaqs from "./HelpFaqs";
 import { useWindowSize, useToast } from "../hooks";
@@ -617,6 +618,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
                 : null
         }
       >
+        <PushEnableBanner toast={toast} enabled={!impersonating} />
         {showSetupBanner && (
           <div
             style={{
