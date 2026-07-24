@@ -56,9 +56,12 @@ export default async function handler(req, res) {
       staff = a;
     }
 
+    const update = { [field]: staff ? staff.id : null };
+    // Assigning a BDM clears any pending "Connect with your BDM" request.
+    if (kind === "bdm" && staff) update.bdmConnectRequestedAt = null;
     const { error: upErr } = await admin
       .from("profiles")
-      .update({ [field]: staff ? staff.id : null })
+      .update(update)
       .eq("id", clientId);
     if (upErr) return res.status(500).json({ error: upErr.message });
 
@@ -80,8 +83,8 @@ export default async function handler(req, res) {
             userId: clientId,
             clientId,
             type: "bdm_assigned",
-            title: "Your BDM has been assigned",
-            body: `${staff.name || "A Business Development Manager"} is now your dedicated contact. You can book a call or send them a message anytime.`,
+            title: "You are connected with your BDM",
+            body: `You are now connected with ${staff.name || "your Business Development Manager"}. You can chat with your BDM anytime from Messages, or book a call.`,
             meta: { agentId: staff.id },
           });
         }

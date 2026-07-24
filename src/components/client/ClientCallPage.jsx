@@ -4,6 +4,7 @@ import { api } from "../../lib/api";
 import { getPlanEntitlements, planAllowsMessaging } from "../../lib/constants";
 import { isBookingPast, CALL_SLOT_TIMES, isSlotBookable, isBookingWeekday, slotKey } from "../../lib/helpers";
 import { Card, Btn, Confirm, Empty, PageHead, SectionTitle } from "../atoms";
+import BdmConnectPanel from "./BdmConnectPanel";
 
 export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOnly=false,needsPlan=false,initialKind="regular",onInitialKindConsumed}){
   const lockMsg = needsPlan
@@ -35,6 +36,8 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOn
   const[confirm,setConfirm]=useState(null);
   const entitlements=getPlanEntitlements(user.plan);
   const canMessage=planAllowsMessaging(user.plan);
+  // Any subscribed plan (incl. Essentials) with no BDM: request Connect instead of support fallback.
+  const needsBdmConnect=!needsPlan&&!!user.plan&&!user.assignedBdmId;
   useEffect(()=>{
     if(initialKind==="guidance"||initialKind==="regular"){
       setMeetingKind(initialKind);
@@ -169,6 +172,25 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOn
   const statusLabel=(s)=>({pending:"Awaiting BDM confirmation",confirmed:"Confirmed"}[s]||s);
   const statusColor=(s)=>s==="confirmed"?T.green:T.amber;
   const kindPill=(k)=>k==="guidance"?"Guidance":"Regular";
+  if(needsBdmConnect){
+    return(<div>
+      <PageHead isMobile={isMobile} title="Book a Call" sub="30 minutes with your dedicated Business Development Manager"/>
+      {readOnly&&(
+        <div style={{padding:"10px 14px",background:T.amberSoft,borderRadius:11,marginBottom:14,fontSize:12.5,color:T.amber,fontWeight:700}}>
+          {needsPlan
+            ? "View-only — subscribe to a plan to book, reschedule, or cancel meetings."
+            : "Read-only view — booking and cancel are disabled."}
+        </div>
+      )}
+      <BdmConnectPanel
+        pending={!!user.bdmConnectRequestedAt}
+        toast={toast}
+        reload={reload}
+        context="call"
+        readOnly={readOnly}
+      />
+    </div>);
+  }
   return(<div>
     <PageHead isMobile={isMobile} title="Book a Call" sub={bdm?`30 minutes with ${supportPeer?(bdm.name||"our team"):(bdm.name||"your BDM")}`:"30 minutes with your dedicated Business Development Manager"}/>
     {readOnly&&(

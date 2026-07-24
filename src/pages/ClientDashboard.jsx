@@ -7,6 +7,7 @@ import { isPastMeetingNotif, buildLiveGrowthSeries, growthMomTrend, resolveNapSc
 import { Btn, Confirm, PageHead } from "../components/atoms";
 import Shell from "../components/Shell";
 import ChatThread from "../components/ChatThread";
+import BdmConnectPanel from "../components/client/BdmConnectPanel";
 import AccountSettings from "../components/AccountSettings";
 import UserManual from "./UserManual";
 import HelpFaqs from "./HelpFaqs";
@@ -693,15 +694,25 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
               <PageHead isMobile={isMobile} title="Messages" sub="Chat with your Business Development Manager" />
             </div>
             <div style={{ flex: 1, minHeight: 0, marginTop: -8, overflow: "hidden" }}>
-              <ChatThread
-                myId={userId}
-                clientId={impersonating ? userId : undefined}
-                readOnly={viewOnly}
-                toast={toast}
-                onUnreadChange={viewOnly ? undefined : setChatUnread}
-                onOpenCall={() => goPage("call")}
-                fill
-              />
+              {canMessage && !impersonating && !user.assignedBdmId ? (
+                <BdmConnectPanel
+                  pending={!!user.bdmConnectRequestedAt}
+                  toast={toast}
+                  reload={reload}
+                  context="messages"
+                  fill
+                />
+              ) : (
+                <ChatThread
+                  myId={userId}
+                  clientId={impersonating ? userId : undefined}
+                  readOnly={viewOnly}
+                  toast={toast}
+                  onUnreadChange={viewOnly ? undefined : setChatUnread}
+                  onOpenCall={() => goPage("call")}
+                  fill
+                />
+              )}
             </div>
           </div>
         )}

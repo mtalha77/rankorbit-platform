@@ -518,6 +518,38 @@ export const api={
   },
   googleGbpSync(clientId){return this._gbpPost("/api/google-gbp-sync",{clientId});},
   googleGbpDisconnect(clientId){return this._gbpPost("/api/google-gbp-disconnect",{clientId});},
+  /**
+   * Light own-profile read for the BDM connect panel (poll target).
+   * Falls back to assignedBdmId alone when bdm-connect-request.sql hasn't been run.
+   */
+  async myBdmStatus(){
+    if(!supa)return null;
+    const{data:{session}}=await supa.auth.getSession();
+    if(!session?.user)return null;
+    const id=session.user.id;
+    const full=await supa.from("profiles").select("assignedBdmId,bdmConnectRequestedAt").eq("id",id).maybeSingle();
+    if(full.error){
+      const basic=await supa.from("profiles").select("assignedBdmId").eq("id",id).maybeSingle();
+      if(!basic.data)return null;
+      return{assignedBdmId:basic.data.assignedBdmId||null,bdmConnectRequestedAt:null};
+    }
+    if(!full.data)return null;
+    return{
+      assignedBdmId:full.data.assignedBdmId||null,
+      bdmConnectRequestedAt:full.data.bdmConnectRequestedAt||null,
+    };
+  },
+  /** Client asks to be connected with a BDM (Messages / Book a Call, when none assigned). */
+  async requestBdm(){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/request-bdm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not send request"};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
   async createCheckout(planId){
     const token=await this._accessToken();
     if(!token)return{error:"Not signed in"};
