@@ -3,7 +3,7 @@ import { T, FONT_B } from "../lib/theme";
 import { api } from "../lib/api";
 import { Btn } from "./atoms";
 import {
-  isPushConfigured,
+  isPushAvailable,
   isPushPromptDismissed,
   dismissPushPrompt,
   permissionState,
@@ -20,12 +20,17 @@ export default function PushEnableBanner({ toast, enabled = true }) {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!enabled || !isPushConfigured() || isPushPromptDismissed()) {
+    if (!enabled || isPushPromptDismissed()) {
       setShow(false);
       return;
     }
     let cancelled = false;
     (async () => {
+      const available = await isPushAvailable();
+      if (cancelled || !available) {
+        if (!cancelled) setShow(false);
+        return;
+      }
       const perm = await permissionState();
       if (cancelled) return;
       if (perm === "denied" || perm === "unsupported") {

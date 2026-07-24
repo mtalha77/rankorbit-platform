@@ -4,7 +4,7 @@ import { T, FONT_D } from "../lib/theme";
 import { api } from "../lib/api";
 import { passwordIssues } from "../lib/helpers";
 import {
-  isPushConfigured,
+  isPushAvailable,
   permissionState,
   getExistingSubscription,
   enablePush,
@@ -132,7 +132,7 @@ export default function AccountSettings({
   const [showPw, setShowPw] = useState({ next: false, confirm: false });
   const [pushOn, setPushOn] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
-  const pushAvailable = isPushConfigured();
+  const [pushAvailable, setPushAvailable] = useState(false);
 
   useEffect(() => {
     // Prefer verified address once confirmed; pending only while waiting.
@@ -140,12 +140,15 @@ export default function AccountSettings({
   }, [user?.notifyEmail, user?.notifyEmailPending]);
 
   useEffect(() => {
-    if (!pushAvailable) {
-      setPushOn(false);
-      return;
-    }
     let cancelled = false;
     (async () => {
+      const available = await isPushAvailable();
+      if (cancelled) return;
+      setPushAvailable(available);
+      if (!available) {
+        setPushOn(false);
+        return;
+      }
       const perm = await permissionState();
       const sub = await getExistingSubscription();
       if (!cancelled) setPushOn(perm === "granted" && !!sub);
@@ -153,7 +156,7 @@ export default function AccountSettings({
     return () => {
       cancelled = true;
     };
-  }, [pushAvailable, user?.id]);
+  }, [user?.id]);
 
   // Keep local name in sync when parent user updates (after save / reload).
   useEffect(() => {
