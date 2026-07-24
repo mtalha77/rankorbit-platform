@@ -47,7 +47,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
   const user = fromData
     ? {
         ...fromData,
-        ...(["businessName", "phone", "address", "city", "state", "category", "website", "gbpId", "name"].reduce(
+        ...(["businessName", "phone", "address", "city", "state", "zip", "category", "website", "gbpId", "name"].reduce(
           (acc, k) => {
             const from = fromData?.[k];
             const prop = userProp?.[k];
@@ -374,7 +374,8 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
     { id: "notifications", icon: "bell", label: "Notifications" },
     ...(canMessage || needsPlan ? [{ id: "messages", icon: "message", label: "Messages" }] : []),
     { id: "listings", icon: "listing", label: "Listings" },
-    { id: "analytics", icon: "analytics", label: "Analytics" },
+    // Analytics is GMB Pro only (not Essentials $49 or Growth $89).
+    ...(user.plan === "gmb" ? [{ id: "analytics", icon: "analytics", label: "Analytics" }] : []),
     ...(user.plan === "gmb" || needsPlan ? [{ id: "gmb", icon: "globe", label: "GMB" }] : []),
     { id: "billing", icon: "billing", label: "Plan & Billing" },
     { id: "call", icon: "message", label: "Book a Call" },
@@ -503,11 +504,17 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
   const grace = paymentGraceState(user);
   const graceAllowed = new Set(["billing", "settings", "messages", "notifications", "legal", "help"]);
   // Grace expired → billing only. No-plan clients may browse every page (actions locked).
-  const viewPage = grace.expired && !graceAllowed.has(page) ? "billing" : page;
+  // Analytics is GMB Pro only — bounce Essentials/Growth (and no-plan) off that route.
+  const viewPageRaw = grace.expired && !graceAllowed.has(page) ? "billing" : page;
+  const viewPage = viewPageRaw === "analytics" && user.plan !== "gmb" ? "home" : viewPageRaw;
   const goPage = (p) => {
     if (grace.expired && !graceAllowed.has(p)) {
       toast("Update your payment method to restore full access", "info");
       setPage("billing");
+      return;
+    }
+    if (p === "analytics" && user.plan !== "gmb") {
+      toast("Analytics is available on GMB Pro", "info");
       return;
     }
     setPage(p);
@@ -725,7 +732,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
         )}
         {viewPage === "listings" && <Listings />}
         {viewPage === "gmb" && <Gmb />}
-        {viewPage === "analytics" && <Analytics />}
+        {viewPage === "analytics" && user.plan === "gmb" && <Analytics />}
         {viewPage === "billing" && <Billing />}
         {viewPage === "call" && (
           <ClientCallPage

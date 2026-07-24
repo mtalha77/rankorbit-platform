@@ -1,9 +1,9 @@
 // ─── PRODUCT CONSTANTS ───────────────────────────────────────────────────────
 import { T } from "./theme";
 
-export const PLANS={essentials:{name:"Essentials",price:49,quota:"10 listings/mo",color:T.blue,soft:T.blueSoft,features:["10 directory submissions every month","NAP consistency management","Unauthorized edit protection","1 regular + 1 guidance BDM call / billing period","Listing monitoring & alerts","Client dashboard access"]},
-  growth:{name:"Growth",price:89,quota:"20 listings/mo",color:T.brand,soft:T.brandSoft,features:["20 directory submissions every month","Everything in Essentials","2 regular + 1 guidance BDM call / billing period","BDM chat (Messages)","Expanded directory coverage","Monthly coverage report"]},
-  gmb:{name:"GMB Pro",price:99,quota:"15 listings/mo + GMB",color:T.violet,soft:T.violetSoft,features:["15 directory submissions every month","Google Business Profile management","3 regular + 1 guidance BDM call / billing period","BDM chat (Messages)","Monthly GMB posts & Q&A","Engagement analytics (views, calls)"]}};
+export const PLANS={essentials:{name:"Essentials",price:49,quota:"10 listings/mo",color:T.blue,soft:T.blueSoft,features:["10 directory submissions every month","NAP consistency management","Unauthorized edit protection","1 regular + 1 guidance call / billing period","Listing monitoring & alerts","Client dashboard access"]},
+  growth:{name:"Growth",price:89,quota:"20 listings/mo",color:T.brand,soft:T.brandSoft,features:["20 directory submissions every month","Everything in Essentials","BDM chat support (Messages)","2 regular + 1 guidance call / billing period","Expanded directory coverage","Monthly coverage report"]},
+  gmb:{name:"GMB Pro",price:99,quota:"15 listings/mo + GMB",color:T.violet,soft:T.violetSoft,features:["15 directory submissions every month","Google Business Profile management","BDM chat support (Messages)","3 regular + 1 guidance call / billing period","Monthly GMB posts & Q&A","Engagement analytics (views, calls)"]}};
 
 /** Default marketing discount % (charged price stays planPrice; list/was = price ÷ (1 − pct/100)). */
 const DEFAULT_DISCOUNT_PCT={essentials:10,growth:25,gmb:25};
@@ -26,14 +26,17 @@ export const planDiscountOn=(id,cfg={})=>{
   return v===true||v==="true";
 };
 
-/** Pre-discount “was” price for display, or null when discount is off. */
+/**
+ * Pre-discount “was” price for display, or null when discount is off.
+ * pct is true “off” from the list price: $20 @ 50% → was $40 (because 50% of 40 = 20).
+ * Whole dollars only (avoid "$54.44" marketing list prices).
+ */
 export const planListPrice=(id,cfg={})=>{
   if(!planDiscountOn(id,cfg))return null;
   const pct=planDiscountPct(id,cfg);
   if(!pct)return null;
   const now=planPrice(id,cfg);
   if(!now)return null;
-  // Whole dollars only (avoid "$54.44" marketing list prices).
   return Math.round(now/(1-pct/100));
 };
 

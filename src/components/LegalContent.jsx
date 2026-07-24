@@ -50,6 +50,8 @@ export function TermsOfServiceBody({ H = LegalHeading, P = LegalParagraph, co = 
       <P><b>All fees are non-refundable.</b> Due to the nature of the Services, which involve immediate allocation of work, third-party submissions, and labor performed on your behalf, any amount you have already paid is not refundable, in whole or in part, including for partial billing periods, unused quota, or after cancellation. This clause applies to the fullest extent permitted by law.</P>
       <H>6. Client Responsibilities</H>
       <P>You agree to provide accurate business information and to hold the necessary rights to the data you submit. You are responsible for maintaining the confidentiality of your account credentials. Results such as search rankings and visibility depend on third-party platforms and are not guaranteed.</P>
+      <H>6A. Google Business Profile (GMB) management</H>
+      <P>If you subscribe to a plan that includes Google Business Profile management (such as GMB Pro), you agree to grant {co} (or our designated staff) <b>Manager</b> access on your Google Business Profile. Without Manager access we cannot reliably publish posts, update listing details, answer Q&amp;A, or sync performance metrics on your behalf. You may revoke access at any time; doing so may limit or pause GMB-related deliverables until access is restored.</P>
       <H>7. Third-Party Platforms</H>
       <P>The Services interact with third-party directories and platforms (e.g., Google, Apple, Bing). {co} is not responsible for changes, outages, policy decisions, or removals made by those platforms.</P>
       <H>8. Limitation of Liability</H>
@@ -80,7 +82,7 @@ export function PrivacyPolicyBody({ H = LegalHeading, P = LegalParagraph, co = C
       <H>6. Data Retention</H>
       <P>We retain account data for as long as your account is active. Deleted items are held in a recoverable state for 30 days, then permanently purged. You may request export or deletion of your data at any time.</P>
       <H>7. Your Rights</H>
-      <P>You can access, export, or request deletion of your personal data. Use the "Download my data" option in Billing, or contact us. Depending on your jurisdiction, you may have additional rights under laws such as GDPR.</P>
+      <P>You can access, export, or request deletion of your personal data by contacting us. Depending on your jurisdiction, you may have additional rights under laws such as GDPR.</P>
       <H>8. Cookies and Sessions</H>
       <P>We use essential cookies and local session storage to keep you signed in and operate the platform. We do not use them to sell your data.</P>
       <H>9. Changes</H>

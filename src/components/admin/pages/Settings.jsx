@@ -88,7 +88,7 @@ export function Settings() {
         </div>
         <div style={{marginTop:16}}>
           <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:4}}>PLAN DISCOUNTS (shown on landing & client billing)</div>
-          <div style={{fontSize:12,color:T.sub,marginBottom:10,lineHeight:1.5}}>Charged price stays the plan price above. Discount only shows a strikethrough “was” price (marketing). Stripe still charges the real plan price.</div>
+          <div style={{fontSize:12,color:T.sub,marginBottom:10,lineHeight:1.5}}>Charged price stays the plan price above. The % is true “off” from the strikethrough price — e.g. $20 at 50% shows <b>$40</b> crossed out (50% of $40 = $20). Stripe still charges the real plan price.</div>
           {[
             {id:"essentials",label:"Essentials",pctK:"discountEssentials",onK:"discountEssentialsOn"},
             {id:"growth",label:"Growth",pctK:"discountGrowth",onK:"discountGrowthOn"},

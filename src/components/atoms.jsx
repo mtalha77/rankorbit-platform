@@ -24,7 +24,7 @@ export const Btn=({children,onClick,variant="primary",size="md",style={},disable
   const s={sm:{padding:"6px 14px",fontSize:12.5},md:{padding:"10px 20px",fontSize:13.5},lg:{padding:"13px 30px",fontSize:15}};
   return(<button title={title} onClick={disabled?undefined:onClick} disabled={disabled} style={{borderRadius:11,fontWeight:700,cursor:disabled?"not-allowed":"pointer",opacity:disabled?.5:1,fontFamily:FONT_B,...v[variant],...s[size],...style}}>{children}</button>);
 };
-// Input with optional validation. validate="email" | "usphone". Shows inline error, blocks bad input.
+// Input with optional validation. validate="email" | "usphone" | "alpha" | "digits".
 export const Input=({label,value,onChange,placeholder,type="text",style={},validate,required,error:extError,maxLength})=>{
   const[touched,setTouched]=useState(false);
   const fmtPhone=(raw)=>{
@@ -35,8 +35,11 @@ export const Input=({label,value,onChange,placeholder,type="text",style={},valid
     return `(${n.slice(0,3)}) ${n.slice(3,6)}-${n.slice(6,10)}`;
   };
   const handle=(v)=>{
-    if(validate==="usphone")onChange(fmtPhone(v));
-    else onChange(maxLength?v.slice(0,maxLength):v);
+    let next=v;
+    if(validate==="usphone"){onChange(fmtPhone(v));return;}
+    if(validate==="alpha")next=v.replace(/[^A-Za-z\s]/g,"");
+    if(validate==="digits")next=v.replace(/\D/g,"");
+    onChange(maxLength?next.slice(0,maxLength):next);
   };
   const empty=!String(value??"").trim();
   let err="";
@@ -45,12 +48,15 @@ export const Input=({label,value,onChange,placeholder,type="text",style={},valid
   else if(touched&&!empty){
     if(validate==="email"&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))err="Enter a valid email address";
     if(validate==="usphone"&&value.replace(/\D/g,"").length<10)err="Enter a valid US/Canada number";
+    if(validate==="alpha"&&!/^[A-Za-z\s]+$/.test(value))err="Letters only";
+    if(validate==="digits"&&!/^\d+$/.test(value))err="Numbers only";
   }
   // Parent submit error wins (e.g. invalid URL message)
   if(extError)err=extError;
+  const inputMode=validate==="usphone"?"tel":validate==="digits"?"numeric":undefined;
   return(<div style={{marginBottom:14,...style}}>
     {label&&<label style={{fontSize:11.5,color:T.sub,fontWeight:700,display:"block",marginBottom:6,letterSpacing:".4px"}}>{label.toUpperCase()}{required&&<span style={{color:T.red}}> *</span>}</label>}
-    <input type={validate==="email"?"email":type} inputMode={validate==="usphone"?"tel":undefined} value={value??""} onChange={e=>handle(e.target.value)} onBlur={()=>setTouched(true)} placeholder={placeholder} maxLength={maxLength}
+    <input type={validate==="email"?"email":type} inputMode={inputMode} value={value??""} onChange={e=>handle(e.target.value)} onBlur={()=>setTouched(true)} placeholder={placeholder} maxLength={maxLength}
       style={{width:"100%",padding:"11px 15px",background:T.surface,border:`1.5px solid ${err?T.red:T.line}`,borderRadius:11,color:T.ink,fontSize:13.5,boxSizing:"border-box",fontFamily:FONT_B}}/>
     {err&&<div style={{fontSize:11,color:T.red,marginTop:5,fontWeight:600}}>{err}</div>}
   </div>);

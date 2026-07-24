@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { T, FONT_D, FONT_B, SHADOW, SHADOW_LG } from "../../../lib/theme";
 import { api } from "../../../lib/api";
-import { downloadBlob, openExternalFile } from "../../../lib/export";
+import { openExternalFile } from "../../../lib/export";
 import { PLANS, popularPlanId, orderPlansPopularCenter, isPlanDowngrade, planListPrice, planDiscountPct, formatMoney } from "../../../lib/constants";
 import { paymentGraceState } from "../../../lib/helpers";
 import { Badge, Card, Btn, PageHead, SectionTitle, Modal } from "../../atoms";
@@ -375,18 +375,6 @@ export function Billing() {
               </div>
             </Card>
           )}
-          <Card style={{ marginTop: 16 }}>
-            <SectionTitle sub="Download everything we hold about your account, profile, listings, and activity.">Your Data</SectionTitle>
-            <Btn variant="ghost" size="sm" onClick={() => {
-              try {
-                const mine = { profile: user, listings: my, activity: myAct, invoices: invoices || [], exportedAt: new Date().toISOString() };
-                downloadBlob(JSON.stringify(mine, null, 2), `naporbit-my-data-${Date.now()}.json`, "application/json");
-                toast("Your data downloaded");
-              } catch (e) {
-                toast(e.message || "Download failed", "info");
-              }
-            }}>⤓ Download my data (JSON)</Btn>
-          </Card>
         </>
       )}
 
