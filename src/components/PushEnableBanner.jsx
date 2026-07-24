@@ -77,13 +77,20 @@ export default function PushEnableBanner({ toast, enabled = true }) {
           disabled={busy}
           onClick={async () => {
             setBusy(true);
-            const r = await enablePush((subscription) => api.pushSubscribe(subscription));
+            const r = await enablePush(
+              (subscription) => api.pushSubscribe(subscription),
+              () => api.pushTest()
+            );
             setBusy(false);
             if (r.error) {
               toast?.(r.error, "err");
               return;
             }
-            toast?.("Notifications enabled", "ok");
+            if (r.testError || r.warning) {
+              toast?.(r.testError || r.warning, "err");
+            } else {
+              toast?.("Enabled — check for a test notification (Win+N on Windows)", "ok");
+            }
             setShow(false);
           }}
         >

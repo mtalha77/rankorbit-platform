@@ -1,11 +1,19 @@
 {
   "rewrites": [
     {
-      "source": "/((?!api/|llms\\.txt$|robots\\.txt$).*)",
+      "source": "/((?!api/|sw\\.js$|llms\\.txt$|robots\\.txt$|.*\\.(png|ico|webp|svg|jpg|jpeg|gif|txt|xml|js|css|map|woff2?)$).*)",
       "destination": "/index.html"
     }
   ],
   "headers": [
+    {
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Content-Type", "value": "application/javascript; charset=utf-8" },
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" },
+        { "key": "Service-Worker-Allowed", "value": "/" }
+      ]
+    },
     {
       "source": "/llms.txt",
       "headers": [

@@ -1,10 +1,5 @@
-/* NAP Orbit — Web Push service worker
- * Icons MUST be PNG (SVG often fails silently on Windows Chrome).
- */
-const ICON = "/android-chrome-512x512.png";
-const BADGE = "/favicon-32x32.png";
-
-self.addEventListener("install", (event) => {
+/* NAP Orbit — Web Push service worker (no icons — Windows-safe) */
+self.addEventListener("install", () => {
   self.skipWaiting();
 });
 
@@ -22,7 +17,8 @@ self.addEventListener("push", (event) => {
     } catch { /* ignore */ }
   }
 
-  const title = data.title || "NAP Orbit";
+  const title = String(data.title || "NAP Orbit");
+  const body = String(data.body || "");
   const origin = self.location.origin;
   const targetUrl = data.url
     ? data.url.startsWith("http")
@@ -30,26 +26,14 @@ self.addEventListener("push", (event) => {
       : origin + (data.url.startsWith("/") ? data.url : "/" + data.url)
     : origin + "/";
 
-  const options = {
-    body: data.body || "",
-    icon: origin + ICON,
-    badge: origin + BADGE,
-    data: { url: targetUrl },
-    // Unique tag so each alert shows (same type no longer replaces prior toast)
-    tag: "nap-" + (data.type || "info") + "-" + Date.now(),
-    renotify: true,
-    requireInteraction: false,
-  };
-
+  // Bare notification only — no icon/badge (Windows Chrome is picky).
   event.waitUntil(
-    self.registration.showNotification(title, options).catch(() =>
-      // Windows can reject bad icon options — retry bare notification
-      self.registration.showNotification(title, {
-        body: data.body || "",
-        data: { url: targetUrl },
-        tag: options.tag,
-      })
-    )
+    self.registration.showNotification(title, {
+      body,
+      data: { url: targetUrl },
+      tag: "nap-" + Date.now(),
+      renotify: true,
+    })
   );
 });
 
