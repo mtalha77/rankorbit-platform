@@ -155,52 +155,10 @@ export function dismissPushPrompt(days = 7) {
 }
 
 /**
- * Local OS toast via Notification API (NO service worker / NO server).
- * If this fails or doesn't appear, Windows/Chrome is blocking — push will never show.
- */
-export async function showLocalTestNotification(
-  title = "NAP Orbit (local test)",
-  body = "If you see this, Windows notifications work for Chrome."
-) {
-  if (!("Notification" in window)) {
-    return { ok: false, error: "This browser has no Notification API" };
-  }
-  let perm = Notification.permission;
-  if (perm !== "granted") {
-    perm = await Notification.requestPermission();
-  }
-  if (perm !== "granted") {
-    return {
-      ok: false,
-      error:
-        "Chrome blocked notifications. Click the lock icon near the URL → Notifications → Allow. Also check Windows Settings → System → Notifications → Google Chrome = On.",
-    };
-  }
-  try {
-    // Page-level Notification — most reliable check on Windows (does not need SW).
-    const n = new Notification(title, {
-      body,
-      tag: "nap-local-" + Date.now(),
-      requireInteraction: true,
-    });
-    n.onclick = () => {
-      try {
-        window.focus();
-        n.close();
-      } catch { /* ignore */ }
-    };
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e?.message || "Could not create local notification" };
-  }
-}
-
-/**
- * Enable push on THIS browser/device, save subscription, then server test-push.
+ * Enable push on THIS browser/device and save subscription.
  * @param {(sub: object) => Promise<{error?: string}>} saveFn
- * @param {() => Promise<{error?: string, ok?: boolean, sent?: number}>} [testFn]
  */
-export async function enablePush(saveFn, testFn) {
+export async function enablePush(saveFn) {
   if (!isPushSupported()) return { error: "Push is not available in this browser" };
   const publicKey = await resolveVapidPublicKey();
   if (!publicKey) {
@@ -246,38 +204,11 @@ export async function enablePush(saveFn, testFn) {
   const r = await saveFn(json);
   if (r?.error) return { error: r.error };
 
-  // Local toast (proves OS notifications work on this PC — not server push yet)
-  try {
-    await reg.showNotification("NAP Orbit", {
-      body: "This browser is subscribed. Sending server test…",
-      tag: "nap-enabled-" + Date.now(),
-    });
-  } catch { /* ignore */ }
-
-  let test = null;
-  if (typeof testFn === "function") {
-    try {
-      test = await testFn();
-    } catch (e) {
-      test = { error: e?.message || "Test push failed" };
-    }
-  }
-
   try {
     localStorage.removeItem(DISMISS_KEY);
   } catch { /* ignore */ }
 
-  if (test?.error) {
-    return {
-      ok: true,
-      subscription: json,
-      testError: test.error,
-      warning:
-        "Saved on this browser, but server test push failed. Check VAPID keys / redeploy, then use Send test.",
-    };
-  }
-
-  return { ok: true, subscription: json, testSent: test?.sent || 0 };
+  return { ok: true, subscription: json };
 }
 
 export async function disablePush(unsubFn) {

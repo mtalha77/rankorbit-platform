@@ -9,7 +9,6 @@ import {
   getExistingSubscription,
   enablePush,
   disablePush,
-  showLocalTestNotification,
 } from "../lib/push";
 import { Card, Btn, Input, PageHead, SectionTitle } from "./atoms";
 
@@ -494,62 +493,10 @@ export default function AccountSettings({
           </SectionTitle>
           <div style={{ fontSize: 12.5, color: T.sub, lineHeight: 1.5, marginBottom: 14 }}>
             {pushOn
-              ? "Push is on for this browser. Use Local test first — if that doesn’t appear, Windows is blocking Chrome (not a server issue)."
+              ? "Push is on for this browser. You’ll get alerts for messages, calls, and important account updates."
               : "Turn on to receive push alerts on this device. You can change this anytime."}
           </div>
-          <div style={{ fontSize: 12, color: T.faint, lineHeight: 1.45, marginBottom: 12 }}>
-            Windows: Settings → System → Notifications → On, and Google Chrome = On. Turn off Do not disturb. Then press Win+N.
-          </div>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
-            <Btn
-              variant="ghost"
-              disabled={pushBusy || readOnly}
-              onClick={async () => {
-                setPushBusy(true);
-                const r = await showLocalTestNotification();
-                setPushBusy(false);
-                if (!r.ok) {
-                  toast?.(r.error, "err");
-                  return;
-                }
-                toast?.(
-                  "Code OK — that green toast is NOT the Windows alert. Press Win+N now. If empty, fix Windows → Notifications → Chrome.",
-                  "ok"
-                );
-              }}
-            >
-              Local test
-            </Btn>
-            {pushOn && (
-              <Btn
-                variant="ghost"
-                disabled={pushBusy || readOnly}
-                onClick={async () => {
-                  setPushBusy(true);
-                  const local = await showLocalTestNotification(
-                    "NAP Orbit (local)",
-                    "Local OK. Now sending server push…"
-                  );
-                  if (!local.ok) {
-                    setPushBusy(false);
-                    toast?.(local.error, "err");
-                    return;
-                  }
-                  const r = await api.pushTest();
-                  setPushBusy(false);
-                  if (r.error) {
-                    toast?.(r.error, "err");
-                    return;
-                  }
-                  toast?.(
-                    `Server accepted push (sent=${r.sent || 0}). If still nothing, check Win+N — banners may be off.`,
-                    "ok"
-                  );
-                }}
-              >
-                Send test
-              </Btn>
-            )}
             {pushOn ? (
               <Btn
                 variant="soft"
@@ -573,21 +520,14 @@ export default function AccountSettings({
                 disabled={pushBusy || readOnly}
                 onClick={async () => {
                   setPushBusy(true);
-                  const r = await enablePush(
-                    (subscription) => api.pushSubscribe(subscription),
-                    () => api.pushTest()
-                  );
+                  const r = await enablePush((subscription) => api.pushSubscribe(subscription));
                   setPushBusy(false);
                   if (r.error) {
                     toast?.(r.error, "err");
                     return;
                   }
                   setPushOn(true);
-                  if (r.testError || r.warning) {
-                    toast?.(r.testError || r.warning, "err");
-                  } else {
-                    toast?.("Enabled — run Local test if you still see nothing on Windows.", "ok");
-                  }
+                  toast?.("Browser notifications enabled", "ok");
                 }}
               >
                 {pushBusy ? "Enabling…" : "Enable on this device"}
