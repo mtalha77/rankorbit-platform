@@ -23,6 +23,26 @@ const Loading=({label="Loading platform…"})=>(
   </div>
 );
 
+/** Mobile push click: SW postMessage → SPA navigate (client.navigate often missing on Android). */
+function PushNavigateListener(){
+  const nav=useNavigate();
+  useEffect(()=>{
+    if(typeof navigator==="undefined"||!navigator.serviceWorker)return;
+    const onMsg=(event)=>{
+      const data=event?.data;
+      if(!data||data.type!=="PUSH_NAVIGATE"||!data.url)return;
+      try{
+        const u=new URL(data.url,window.location.origin);
+        if(u.origin!==window.location.origin)return;
+        nav(u.pathname+u.search+u.hash,{replace:false});
+      }catch{/* ignore */}
+    };
+    navigator.serviceWorker.addEventListener("message",onMsg);
+    return()=>navigator.serviceWorker.removeEventListener("message",onMsg);
+  },[nav]);
+  return null;
+}
+
 const urlLooksLikeRecovery=()=>{
   if(typeof window==="undefined")return false;
   const hash=window.location.hash||"";
@@ -467,6 +487,7 @@ export default function App(){
   const shared={user:currentUser,data,reload,onLogin,onLogout,passwordRecovery,onUserUpdate};
   return(<><GlobalStyle/>
     <BrowserRouter>
+      <PushNavigateListener/>
       <StaffGate user={currentUser}>
         <Suspense fallback={<Loading/>}>
           <Routes>

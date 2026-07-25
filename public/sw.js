@@ -24,9 +24,8 @@ self.addEventListener("push", (event) => {
     ? data.url.startsWith("http")
       ? data.url
       : origin + (data.url.startsWith("/") ? data.url : "/" + data.url)
-    : origin + "/";
+    : origin + "/dashboard";
 
-  // Bare notification only — no icon/badge (Windows Chrome is picky).
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
@@ -39,17 +38,51 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = (event.notification.data && event.notification.data.url) || self.location.origin + "/";
+  const origin = self.location.origin;
+  let url =
+    (event.notification.data && event.notification.data.url) || origin + "/dashboard";
+  // Same-origin only (block accidental external links)
+  try {
+    const u = new URL(url, origin);
+    if (u.origin !== origin) url = origin + "/dashboard";
+    else url = u.href;
+  } catch {
+    url = origin + "/dashboard";
+  }
+
   event.waitUntil(
-    clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (list) => {
-      for (const c of list) {
-        if (!c.url || !("focus" in c)) continue;
+    (async () => {
+      const list = await clients.matchAll({ type: "window", includeUncontrolled: true });
+      const ours = list.filter((c) => {
         try {
-          if (typeof c.navigate === "function") await c.navigate(url);
-        } catch { /* ignore */ }
-        return c.focus();
+          return c.url && new URL(c.url).origin === origin;
+        } catch {
+          return false;
+        }
+      });
+
+      for (const client of ours) {
+        try {
+          // Desktop Chrome often supports navigate; many mobile browsers do not.
+          if (typeof client.navigate === "function") {
+            await client.navigate(url);
+          } else {
+            // SPA fallback: tell the open tab to change route
+            client.postMessage({ type: "PUSH_NAVIGATE", url });
+          }
+          if (typeof client.focus === "function") {
+            await client.focus();
+          }
+          return;
+        } catch {
+          /* try next client / openWindow */
+        }
       }
-      if (clients.openWindow) return clients.openWindow(url);
-    })
+
+      // Mobile: no usable tab — must open a window (or nothing happens)
+      if (clients.openWindow) {
+        return clients.openWindow(url);
+      }
+    })()
   );
 });
