@@ -124,7 +124,10 @@ export function readRawBody(req) {
   });
 }
 
-/** Decode JWT payload (no network). Returns { sub, exp } or null. */
+/**
+ * Decode JWT payload only (no signature check). Prefer verifyAccessToken for auth.
+ * Kept for rare non-auth helpers that only need claims after verification elsewhere.
+ */
 export function decodeJwt(token) {
   try {
     const cleanTok = String(token).replace(/[^A-Za-z0-9._-]/g, "");
@@ -139,15 +142,37 @@ export function decodeJwt(token) {
   }
 }
 
+/**
+ * Cryptographically verify a Supabase access token (signature + expiry + revocation).
+ * Uses Auth API — forged/edited JWTs are rejected.
+ */
+export async function verifyAccessToken(admin, token) {
+  if (!admin) return { error: "Server not configured", status: 500 };
+  if (!token || typeof token !== "string") return { error: "Not authenticated", status: 401 };
+  const cleanTok = String(token).replace(/[^A-Za-z0-9._-]/g, "").trim();
+  if (!cleanTok || cleanTok.split(".").length !== 3) {
+    return { error: "Session expired or invalid", status: 401 };
+  }
+  try {
+    const { data, error } = await admin.auth.getUser(cleanTok);
+    if (error || !data?.user?.id) {
+      return { error: "Session expired or invalid", status: 401 };
+    }
+    return { user: data.user, userId: data.user.id };
+  } catch (e) {
+    console.warn("verifyAccessToken:", e?.message || e);
+    return { error: "Session expired or invalid", status: 401 };
+  }
+}
+
 /** Verify staff JWT (super_admin | manager | bdm | agent) and load profile. */
 export async function requireStaff(admin, token, { roles } = {}) {
-  if (!token) return { error: "Not authenticated", status: 401 };
-  const payload = decodeJwt(token);
-  if (!payload?.sub) return { error: "Session expired or invalid", status: 401 };
+  const auth = await verifyAccessToken(admin, token);
+  if (auth.error) return { error: auth.error, status: auth.status || 401 };
   const { data: profile, error } = await admin
     .from("profiles")
     .select("*")
-    .eq("id", payload.sub)
+    .eq("id", auth.userId)
     .maybeSingle();
   if (error) return { error: "Profile lookup failed: " + error.message, status: 500 };
   if (!profile) return { error: "No profile found", status: 401 };
@@ -156,18 +181,17 @@ export async function requireStaff(admin, token, { roles } = {}) {
   if (!allowed.includes(profile.role)) {
     return { error: "Staff access required", status: 403 };
   }
-  return { profile };
+  return { profile, user: auth.user };
 }
 
 /** Verify client JWT and load profile. */
 export async function requireClient(admin, token) {
-  if (!token) return { error: "Not authenticated", status: 401 };
-  const payload = decodeJwt(token);
-  if (!payload?.sub) return { error: "Session expired or invalid", status: 401 };
+  const auth = await verifyAccessToken(admin, token);
+  if (auth.error) return { error: auth.error, status: auth.status || 401 };
   const { data: profile, error } = await admin
     .from("profiles")
     .select("*")
-    .eq("id", payload.sub)
+    .eq("id", auth.userId)
     .maybeSingle();
   if (error) return { error: "Profile lookup failed: " + error.message, status: 500 };
   if (!profile) return { error: "No profile found", status: 401 };
@@ -175,7 +199,7 @@ export async function requireClient(admin, token) {
   if (["super_admin", "manager", "bdm", "agent"].includes(profile.role)) {
     return { error: "Staff accounts cannot purchase plans here", status: 403 };
   }
-  return { profile };
+  return { profile, user: auth.user };
 }
 
 export async function ensureStripeCustomer(stripe, admin, profile) {
