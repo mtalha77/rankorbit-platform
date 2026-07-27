@@ -150,8 +150,7 @@ export function ClientDetail() {
               {!c.assignedBdmId&&c.plan&&<Badge type="pending" label="Needs BDM"/>}
             </div>
           </Card>
-          {isAdmin&&(
-            <Card>
+          <Card>
               <SectionTitle sub="Backend ops — listings, GMB, reports">Assigned Agent</SectionTitle>
               <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
                 <select
@@ -168,7 +167,6 @@ export function ClientDetail() {
                 {assignedAgent&&<span style={{fontSize:12.5,color:T.sub}}>{assignedAgent.email}</span>}
               </div>
             </Card>
-          )}
         </div>
       )}
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16,marginBottom:18}}>

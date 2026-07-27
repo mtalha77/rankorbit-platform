@@ -46,7 +46,7 @@ export function Team() {
       const memberActs=activity.filter(a=>a.by===m.name);
       const assignField=isAgentRole(m.role)?"assignedAgentId":"assignedBdmId";
       const assigned=allClients.filter(c=>c[assignField]===m.id);
-      const canManageAssign=(isBdmRole(m.role)&&isStaffMgr)||(isAgentRole(m.role)&&isAdmin);
+      const canManageAssign=(isBdmRole(m.role)||isAgentRole(m.role))&&isStaffMgr;
       return(<div>
         <button onClick={()=>setTeamView(null)} style={{background:"none",border:"none",color:T.brand,fontWeight:700,fontSize:13,cursor:"pointer",marginBottom:14,fontFamily:FONT_B}}>← Back to Team</button>
         <div style={{display:"flex",gap:14,alignItems:"center",marginBottom:20,flexWrap:"wrap"}}>
@@ -100,8 +100,8 @@ export function Team() {
         <div style={{fontSize:11,fontWeight:800,color:T.faint,marginBottom:10,letterSpacing:".6px"}}>ROLE PERMISSIONS</div>
         {[
           ["Super Admin",T.brand,"Full access; assigns BDMs and Agents; finance, settings, audit"],
-          ["Manager",T.amber,"Clients, listings, GMB; assign BDMs; team logs. Account view if granted."],
-          ["BDM",T.blue,"Client-facing chat/calls for assigned clients. Listings/GMB only if Super Admin grants access."],
+          ["Manager",T.amber,"Clients, listings, GMB; assign BDMs & Agents; team logs. Account/Finance view if granted."],
+          ["BDM",T.blue,"Client-facing chat/calls for assigned clients. Listings/GMB only if granted."],
           ["Agent",T.violet||T.blue,"Backend ops on assigned clients — listings, NAP, GMB. Team chat yes; no client chat."],
         ].map(([r,c,p])=>(
           <div key={r} style={{display:"flex",gap:9,marginBottom:8,alignItems:"flex-start"}}><span style={{width:8,height:8,borderRadius:3,background:c,marginTop:5,flexShrink:0}}/><div style={{fontSize:12.5}}><b style={{color:c}}>{r}:</b> <span style={{color:T.sub}}>{p}</span></div></div>))}

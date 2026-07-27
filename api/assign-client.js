@@ -6,7 +6,7 @@ import { isBdmRole, isAgentRole } from "../server/roles.js";
  * Assign (or unassign) a client to a BDM or Agent.
  * Body: { token, clientId, staffId|null, kind?: "bdm"|"agent" }
  * - kind "bdm" (default): sets assignedBdmId — Super Admin + Manager
- * - kind "agent": sets assignedAgentId — Super Admin only
+ * - kind "agent": sets assignedAgentId — Super Admin + Manager
  */
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -21,7 +21,7 @@ export default async function handler(req, res) {
   const kind = body.kind === "agent" ? "agent" : "bdm";
   if (!clientId) return res.status(400).json({ error: "clientId required" });
 
-  const allowedRoles = kind === "agent" ? ["super_admin"] : ["super_admin", "manager"];
+  const allowedRoles = ["super_admin", "manager"];
   const auth = await requireStaff(admin, token, { roles: allowedRoles });
   if (auth.error) return res.status(auth.status).json({ error: auth.error });
 

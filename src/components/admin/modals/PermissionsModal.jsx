@@ -22,9 +22,9 @@ export function PermissionsModal({ member: memberProp, onClose }) {
     member.role === "super_admin"
       ? ["Full platform access", "Manage clients, listings, and GMB", "Manage team, finance, and settings", "Read-only client account view", "View activity logs"]
         : member.role === "manager"
-        ? ["Manage clients, listings, and GMB", "Assign clients to BDMs", "View team activity logs", "Finance only if Super Admin grants below"]
+        ? ["Manage clients, listings, and GMB", "Assign clients to BDMs and Agents", "Invite BDMs and Agents", "View team activity logs", "Finance / account view only if Super Admin grants below"]
         : isBdmMember
-          ? ["Client-facing chat, calls, meetings", "Listings / GMB only if Super Admin grants access below"]
+          ? ["Client-facing chat, calls, meetings", "Listings / GMB only if granted access below"]
           : ["Backend ops on assigned clients", "Listings, NAP, GMB for assigned accounts"];
 
   const agentPermDefs = [
@@ -62,7 +62,7 @@ export function PermissionsModal({ member: memberProp, onClose }) {
   };
 
   const canAssign =
-    canEdit && ((isBdmMember && isStaffMgr) || (isAgentMember && isAdmin));
+    canEdit && (isBdmMember || isAgentMember) && isStaffMgr;
 
   const save = async () => {
     if (!canEdit || !dirty) return;

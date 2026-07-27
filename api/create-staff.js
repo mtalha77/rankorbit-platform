@@ -8,7 +8,7 @@
 
 import { getAdmin, readJson, requireStaff } from "../server/billing.js";
 import { notifySuperAdmins, sendNotifyEmails } from "../server/assign.js";
-import { isBdmRole, staffRoleLabel } from "../server/roles.js";
+import { isBdmRole, isAgentRole, staffRoleLabel } from "../server/roles.js";
 import { appBaseUrl } from "../server/emailTemplate.js";
 
 function appBase() {
@@ -31,7 +31,9 @@ export default async function handler(req, res) {
 
   if (!name || !email || !role) return res.status(400).json({ error: "Missing name, email, or role" });
   if (!["super_admin", "manager", "bdm", "agent"].includes(role)) return res.status(400).json({ error: "Invalid role" });
-  if (callerRole === "manager" && !isBdmRole(role)) return res.status(403).json({ error: "Managers can only invite BDMs" });
+  if (callerRole === "manager" && !isBdmRole(role) && !isAgentRole(role)) {
+    return res.status(403).json({ error: "Managers can only invite BDMs and Agents" });
+  }
 
   const emailNorm = String(email).trim().toLowerCase();
 

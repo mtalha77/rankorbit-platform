@@ -49,7 +49,10 @@ export function TeamModal({ onClose }) {
         { value: "bdm", label: "BDM" },
         { value: "agent", label: "Agent" },
       ]
-    : [{ value: "bdm", label: "BDM" }];
+    : [
+        { value: "bdm", label: "BDM" },
+        { value: "agent", label: "Agent" },
+      ];
 
   return (
     <Modal open onClose={onClose} title="Invite Team Member">
