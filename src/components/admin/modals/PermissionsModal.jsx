@@ -21,8 +21,8 @@ export function PermissionsModal({ member: memberProp, onClose }) {
   const rolePerms =
     member.role === "super_admin"
       ? ["Full platform access", "Manage clients, listings, and GMB", "Manage team, finance, and settings", "Read-only client account view", "View activity logs"]
-      : member.role === "manager"
-        ? ["Manage clients, listings, and GMB", "Assign clients to BDMs", "View team activity logs"]
+        : member.role === "manager"
+        ? ["Manage clients, listings, and GMB", "Assign clients to BDMs", "View team activity logs", "Finance only if Super Admin grants below"]
         : isBdmMember
           ? ["Client-facing chat, calls, meetings", "Listings / GMB only if Super Admin grants access below"]
           : ["Backend ops on assigned clients", "Listings, NAP, GMB for assigned accounts"];
@@ -43,6 +43,7 @@ export function PermissionsModal({ member: memberProp, onClose }) {
     ...(member.perms || {}),
   });
   const [canViewAccounts, setCanViewAccounts] = useState(!!member.canImpersonate);
+  const [canViewFinance, setCanViewFinance] = useState(!!member.canViewFinance);
   const [saving, setSaving] = useState(false);
   const canGrantBroadcast = isAdmin && (member.role === "manager" || isBdmMember || isAgentMember);
   const dirtyOps =
@@ -51,7 +52,9 @@ export function PermissionsModal({ member: memberProp, onClose }) {
   const dirtyBroadcast =
     canGrantBroadcast &&
     !!perms.broadcastClients !== !!member.perms?.broadcastClients;
-  const dirtyMgr = member.role === "manager" && canViewAccounts !== !!member.canImpersonate;
+  const dirtyMgr =
+    member.role === "manager" &&
+    (canViewAccounts !== !!member.canImpersonate || canViewFinance !== !!member.canViewFinance);
   const dirty = dirtyOps || dirtyMgr || dirtyBroadcast;
   const togglePerm = (k) => {
     if (!canEdit) return;
@@ -94,6 +97,15 @@ export function PermissionsModal({ member: memberProp, onClose }) {
           targetId: member.id,
           targetName: member.name,
           detail: canViewAccounts ? "granted" : "revoked",
+        });
+      }
+      if (member.role === "manager" && isAdmin && canViewFinance !== !!member.canViewFinance) {
+        await api.setFinanceGrant(member.id, canViewFinance);
+        await audit("grant.finance", {
+          targetType: "staff",
+          targetId: member.id,
+          targetName: member.name,
+          detail: canViewFinance ? "granted" : "revoked",
         });
       }
       await reload();
@@ -207,7 +219,7 @@ export function PermissionsModal({ member: memberProp, onClose }) {
               border: `1.5px solid ${canViewAccounts ? T.green : T.line}`,
               borderRadius: 11,
               cursor: canEdit && isAdmin ? "pointer" : "default",
-              marginBottom: 16,
+              marginBottom: 10,
             }}
           >
             <input
@@ -220,6 +232,35 @@ export function PermissionsModal({ member: memberProp, onClose }) {
             <div>
               <div style={{ fontSize: 12.5, fontWeight: 800, color: canViewAccounts ? T.green : T.sub }}>Can view client accounts</div>
               <div style={{ fontSize: 11, color: T.faint, marginTop: 2 }}>Open client dashboards in read-only mode</div>
+            </div>
+          </label>
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 9,
+              padding: "11px 13px",
+              background: canViewFinance ? T.greenSoft : T.surface2,
+              border: `1.5px solid ${canViewFinance ? T.green : T.line}`,
+              borderRadius: 11,
+              cursor: canEdit && isAdmin ? "pointer" : "default",
+              marginBottom: 16,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={canViewFinance}
+              disabled={!canEdit || !isAdmin}
+              onChange={() => canEdit && isAdmin && setCanViewFinance((v) => !v)}
+              style={{ width: 15, height: 15, accentColor: T.green }}
+            />
+            <div>
+              <div style={{ fontSize: 12.5, fontWeight: 800, color: canViewFinance ? T.green : T.sub }}>
+                Can view Finance & monthly revenue
+              </div>
+              <div style={{ fontSize: 11, color: T.faint, marginTop: 2 }}>
+                Finance page, Overview revenue card, and MRR chart
+              </div>
             </div>
           </label>
         </>

@@ -6,8 +6,9 @@ import { UserAvatar } from "../../AccountSettings";
 import { useAdmin } from "../AdminContext";
 
 export function Overview() {
-  const { isMobile, user, isAdmin, notifBadge, setPage, setSelClient, revenue, clients, listings, totalLive, totalPending, totalFlagged, actionNeeded, flat, PLANSV } = useAdmin();
+  const { isMobile, user, canViewFinance, notifBadge, setPage, setSelClient, revenue, clients, listings, totalLive, totalPending, totalFlagged, actionNeeded, flat, PLANSV } = useAdmin();
   const plans = PLANSV || {};
+  const showRevenue = !!canViewFinance;
 
   // Current MRR only — no invented past months (Stripe history not stored yet).
   const revMonth = new Date().toLocaleString("en-US", { month: "short" });
@@ -21,16 +22,16 @@ export function Overview() {
         sub={`Welcome back, ${user.name.split(" ")[0]}`}
         right={notifBadge > 0 ? <Btn variant="soft" size="sm" onClick={() => setPage("notifications")}>🔔 {notifBadge} new</Btn> : null}
       />
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : `repeat(${isAdmin ? 4 : 3},1fr)`, gap: 14, marginBottom: 20 }}>
-        {isAdmin && <StatCard label="Monthly Revenue" value={`$${revenue}`} sub={`${clients.length} active subscriptions`} icon="💰" color={T.green} soft={T.greenSoft} delay={0} />}
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : `repeat(${showRevenue ? 4 : 3},1fr)`, gap: 14, marginBottom: 20 }}>
+        {showRevenue && <StatCard label="Monthly Revenue" value={`$${revenue}`} sub={`${clients.length} active subscriptions`} icon="💰" color={T.green} soft={T.greenSoft} delay={0} />}
         <StatCard label="Clients" value={clients.length} sub="Across all plans" icon="👥" delay={70} />
         <StatCard label="Listings Live" value={totalLive} sub={`${totalPending} pending`} icon="🌐" color={T.blue} soft={T.blueSoft} delay={140} />
         <StatCard label="Needs Attention" value={totalFlagged} sub={`${actionNeeded} awaiting client action`} icon="🚩" color={T.red} soft={T.redSoft} delay={210} />
       </div>
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.7fr 1fr", gap: 16, marginBottom: 16 }}>
-        {isAdmin ? (
+        {showRevenue ? (
           <Card>
-            <SectionTitle sub="Current MRR from active plans (Super Admin only)">Revenue</SectionTitle>
+            <SectionTitle sub="Current MRR from active plans">Revenue</SectionTitle>
             <ResponsiveContainer width="100%" height={190}>
               <AreaChart data={revData}>
                 <defs>

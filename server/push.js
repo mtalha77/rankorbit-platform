@@ -44,7 +44,7 @@ function ensureVapid() {
 export function pushPathFor(type, role) {
   const staff = role && role !== "client";
   if (staff) {
-    if (type === "needs_bdm" || type === "client_assigned") return "/admin";
+    if (type === "needs_bdm" || type === "client_assigned" || type === "support_billing" || type === "support_technical" || type === "support_it") return "/admin";
     if (type === "staff_message" || type === "chat_message") return "/admin";
     if (type === "call_booked" || type === "meeting") return "/admin";
     return "/admin";

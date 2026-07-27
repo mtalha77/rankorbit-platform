@@ -1,6 +1,6 @@
 import { isPastMeetingNotif } from "../../lib/helpers";
 
-/** Super admin: team-chat, payment_failed, plan purchase / needs BDM. Others: all live staff notifs. */
+/** Super admin: team-chat, billing alerts, plan / BDM / billing support. Others: all live staff notifs. */
 export function filterVisibleStaffNotifs(rows, role) {
   const live = (rows || []).filter((x) => !isPastMeetingNotif(x));
   if (role !== "super_admin") return live;
@@ -8,7 +8,8 @@ export function filterVisibleStaffNotifs(rows, role) {
     x.type === "staff_message" ||
     x.type === "payment_failed" ||
     x.type === "plan_subscribed" ||
-    x.type === "needs_bdm"
+    x.type === "needs_bdm" ||
+    x.type === "support_billing"
   );
 }
 

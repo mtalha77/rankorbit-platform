@@ -559,12 +559,12 @@ export const api={
       bdmConnectRequestedAt:full.data.bdmConnectRequestedAt||null,
     };
   },
-  /** Client asks to be connected with a BDM (Messages / Book a Call, when none assigned). */
-  async requestBdm(){
+  /** Client support request: supportType "billing" | "technical" (alias "it"). */
+  async requestBdm(supportType){
     const token=await this._accessToken();
     if(!token)return{error:"Not signed in"};
     try{
-      const r=await fetch("/api/request-bdm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token})});
+      const r=await fetch("/api/request-bdm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,supportType})});
       const j=await r.json().catch(()=>({}));
       if(!r.ok)return{error:j.error||"Could not send request"};
       return{ok:true,...j};
@@ -1039,6 +1039,11 @@ export const api={
   async setImpersonateGrant(managerId,allowed){
     if(supa){const{error}=await supa.from("profiles").update({canImpersonate:!!allowed}).eq("id",managerId);if(error)throw error;return;}
     const us=LS("ro3_users")||[];const i=us.findIndex(x=>x.id===managerId);if(i>=0){us[i].canImpersonate=!!allowed;LSet("ro3_users",us);}
+  },
+  /** Super Admin: grant/revoke Finance + monthly revenue for a manager. */
+  async setFinanceGrant(managerId,allowed){
+    if(supa){const{error}=await supa.from("profiles").update({canViewFinance:!!allowed}).eq("id",managerId);if(error)throw error;return;}
+    const us=LS("ro3_users")||[];const i=us.findIndex(x=>x.id===managerId);if(i>=0){us[i].canViewFinance=!!allowed;LSet("ro3_users",us);}
   },
   // Audit log: every sensitive staff action records who/what/when. Fire-and-forget
   // (never throw — missing audit table must not break listing/assign saves).

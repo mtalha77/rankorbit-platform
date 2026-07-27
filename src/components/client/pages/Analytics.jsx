@@ -12,7 +12,7 @@ export function Analytics() {
       <Card><Empty icon="📈" title="Analytics not connected yet" sub="Your account manager will connect Google Analytics or add your numbers soon."/></Card>
     </div>);
     return(<div>
-      <PageHead isMobile={isMobile} title="Website Analytics" sub="Traffic and engagement from your website" right={<Badge type={a.source==="connected"?"connected":"manual"}/>}/>
+      <PageHead isMobile={isMobile} title="Website Analytics" sub="Traffic and engagement from your website" right={a.source==="connected"?<Badge type="connected"/>:null}/>
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:14,marginBottom:20}}>
         <StatCard label="Sessions" value={a.sessions||0} icon="👣" color={T.green} soft={T.greenSoft} delay={0}/>
         <StatCard label="Users" value={a.users||0} icon="👤" delay={70}/>

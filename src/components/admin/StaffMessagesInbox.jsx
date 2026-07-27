@@ -5,8 +5,10 @@ import { Card, Empty, PageHead } from "../atoms";
 import ChatThread from "../ChatThread";
 
 export function StaffMessagesInbox({user,clients,selClient,setSelClient,setChatUnreadTotal,toast,isMobile,isAdmin,isAgent}){
-  // Super admin + Agent: team chat only (no client threads). BDM/manager can see clients.
-  const teamOnly=Boolean(isAdmin||isAgent);
+  // Agents: team chat only. Super admin + BDM/manager: client threads + team.
+  // Super admin sees all client chats (monitor/reply) but client unread does not drive nav badge/notifs.
+  const teamOnly=Boolean(isAgent);
+  const quietClientUnread=Boolean(isAdmin);
   const[clientThreads,setClientThreads]=useState([]);
   const[staffThreads,setStaffThreads]=useState([]);
   const[loading,setLoading]=useState(true);
@@ -14,7 +16,7 @@ export function StaffMessagesInbox({user,clients,selClient,setSelClient,setChatU
   const[active,setActive]=useState(!teamOnly&&selClient?{kind:"client",id:selClient}:null);
 
   const syncTotal=(cT,sT)=>{
-    const cu=teamOnly?0:(cT||[]).reduce((s,t)=>s+(t.unread||0),0);
+    const cu=teamOnly||quietClientUnread?0:(cT||[]).reduce((s,t)=>s+(t.unread||0),0);
     const su=(sT||[]).reduce((s,t)=>s+(t.unread||0),0);
     setChatUnreadTotal(cu+su);
   };
@@ -32,11 +34,13 @@ export function StaffMessagesInbox({user,clients,selClient,setSelClient,setChatU
       const cT=cr.error?[]:(cr.threads||[]);
       const sT=sr.error?[]:(sr.threads||[]);
       if(sr.error&&(teamOnly||cr.error)){toast(sr.error,"info");}
+      else if(cr.error&&!teamOnly){toast(cr.error,"info");}
       setClientThreads(cT);
       setStaffThreads(sT);
       syncTotal(cT,sT);
       if(!active){
-        if(sT[0])setActive({kind:"staff",id:sT[0].staffId});
+        if(!teamOnly&&selClient&&cT.some(t=>t.clientId===selClient))setActive({kind:"client",id:selClient});
+        else if(sT[0])setActive({kind:"staff",id:sT[0].staffId});
         else if(!teamOnly&&cT[0])setActive({kind:"client",id:cT[0].clientId});
       }
     })();
@@ -63,6 +67,12 @@ export function StaffMessagesInbox({user,clients,selClient,setSelClient,setChatU
     <div style={{padding:"9px 14px",fontSize:10.5,fontWeight:800,color:T.faint,letterSpacing:".6px",background:T.surface2,borderBottom:`1px solid ${T.line}`}}>{children}</div>
   );
 
+  const pageSub=isAdmin
+    ?"All client chats (view & reply) plus team chat — client messages won’t ping your notifications"
+    :teamOnly
+      ?"Team chat only — message managers, BDMs, agents, and admins"
+      :"Chat with teammates and your assigned clients";
+
   return(
   <div style={{
     height:isMobile?"calc(100dvh - 140px)":"calc(100vh - 100px)",
@@ -74,7 +84,7 @@ export function StaffMessagesInbox({user,clients,selClient,setSelClient,setChatU
     boxSizing:"border-box",
   }}>
     <div style={{flexShrink:0}}>
-      <PageHead isMobile={isMobile} title="Messages" sub={teamOnly?"Team chat only — message managers, BDMs, agents, and admins":"Chat with teammates and your assigned clients"}/>
+      <PageHead isMobile={isMobile} title="Messages" sub={pageSub}/>
     </div>
     <div style={{flex:1,minHeight:0,marginTop:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"280px 1fr",gap:16,alignItems:"stretch"}}>
       <Card style={{padding:0,overflow:"auto",height:"100%",minHeight:0}}>
@@ -94,9 +104,9 @@ export function StaffMessagesInbox({user,clients,selClient,setSelClient,setChatU
                 onClick={()=>setActive({kind:"staff",id:t.staffId})}/>
             ))}
             {!teamOnly&&(<>
-              <SectionLabel>Clients</SectionLabel>
+              <SectionLabel>{isAdmin?"All clients":"Clients"}</SectionLabel>
               {clientThreads.length===0?(
-                <div style={{padding:24}}><Empty icon="💬" title="No client chats yet" sub="When a client messages you, it appears here."/></div>
+                <div style={{padding:24}}><Empty icon="💬" title="No client chats yet" sub={isAdmin?"When clients message their BDM or support, threads appear here.":"When a client messages you, it appears here."}/></div>
               ):clientThreads.map(t=>(
                 <ThreadRow key={`c_${t.clientId}`}
                   label={t.clientName}
@@ -137,7 +147,7 @@ export function StaffMessagesInbox({user,clients,selClient,setSelClient,setChatU
             }}
           />
         ):(
-          <Card style={{height:"100%"}}><Empty icon="💬" title="Select a conversation" sub="Pick a teammate on the left."/></Card>
+          <Card style={{height:"100%"}}><Empty icon="💬" title="Select a conversation" sub={teamOnly?"Pick a teammate on the left.":"Pick a teammate or client on the left."}/></Card>
         )}
       </div>
     </div>
