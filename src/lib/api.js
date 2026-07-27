@@ -114,7 +114,19 @@ export const api={
     const{data:{session}}=await supa.auth.getSession();
     if(!session?.user)return null;
     let{data}=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
-    if(data)return data;
+    if(data){
+      if(data.role==="client"&&!data.plan){
+        try{
+          const sync=await this.syncMyBilling();
+          if(sync?.profile)return sync.profile;
+          if(sync?.linked){
+            const r=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
+            if(r.data)return r.data;
+          }
+        }catch{}
+      }
+      return data;
+    }
     const m=session.user.user_metadata||{};
     const name=m.full_name||m.name||session.user.email?.split("@")[0]||"there";
     const metaRole=m.role;
@@ -128,7 +140,18 @@ export const api={
       status:"active",
     },{onConflict:"id"});
     const r=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
-    return r.data||null;
+    const prof=r.data||null;
+    if(prof?.role==="client"&&!prof.plan){
+      try{
+        const sync=await this.syncMyBilling();
+        if(sync?.profile)return sync.profile;
+        if(sync?.linked){
+          const again=await supa.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
+          if(again.data)return again.data;
+        }
+      }catch{}
+    }
+    return prof;
   },
   // remember=true → durable localStorage session; false → tab-only sessionStorage.
   setRemember(remember){
@@ -159,6 +182,17 @@ export const api={
       }
       if(!prof){await supa.auth.signOut();return{error:"Account profile missing. Try again in a moment."};}
       if(prof.status==="suspended"){await supa.auth.signOut();return{error:"This account is suspended. Contact your account manager."};}
+      // Pay-first: if they paid then signed up/logged in later, attach Stripe plan by email.
+      if(prof.role==="client"&&!prof.plan){
+        try{
+          const sync=await this.syncMyBilling();
+          if(sync?.profile)return{user:sync.profile};
+          if(sync?.linked){
+            const{data:fresh}=await supa.from("profiles").select("*").eq("id",prof.id).maybeSingle();
+            if(fresh)return{user:fresh};
+          }
+        }catch{}
+      }
       return{user:prof};
     }
     const u=(LS("ro3_users")||[]).find(x=>x.email===email&&x.password===password);
@@ -590,6 +624,36 @@ export const api={
       const j=await r.json().catch(()=>({}));
       if(!r.ok)return{error:j.error||"Could not start checkout"};
       return{url:j.url};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
+  /** Guest landing pay-first: details form → Stripe (no JWT). Account created after payment. */
+  async landingCheckout(fields){
+    try{
+      const returnOrigin=typeof window!=="undefined"?window.location.origin:undefined;
+      const r=await fetch("/api/landing-checkout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...fields,returnOrigin})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not start checkout",accountExists:!!j.accountExists};
+      return{url:j.url};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
+  /** After Stripe return: attach plan + ensure account (session_id from success URL). */
+  async claimLandingCheckout(sessionId,{resend=false}={}){
+    try{
+      const r=await fetch("/api/claim-landing-checkout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId,resend:!!resend})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not confirm payment"};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
+  /** Logged-in client without plan: pull active Stripe sub for same email. */
+  async syncMyBilling(){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/sync-my-billing",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not sync billing"};
+      return{ok:true,...j};
     }catch(e){return{error:e.message||"Network error"};}
   },
   async changeSubscription(planId,{when="now"}={}){

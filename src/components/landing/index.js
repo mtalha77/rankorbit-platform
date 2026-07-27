@@ -8,5 +8,7 @@ export { LandingHowItWorks } from "./LandingHowItWorks";
 export { LandingDashboardTour } from "./LandingDashboardTour";
 export { LandingStories } from "./LandingStories";
 export { LandingPricing } from "./LandingPricing";
+export { LandingCheckoutModal } from "./LandingCheckoutModal";
+export { LandingPostPayGate } from "./LandingPostPayGate";
 export { LandingFinalCta } from "./LandingFinalCta";
 export { LandingFooter } from "./LandingFooter";

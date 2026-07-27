@@ -20,6 +20,7 @@ import {
   planLabel,
 } from "../server/assign.js";
 import { onboardingHelpLine } from "../server/emailTemplate.js";
+import { fulfillLandingCheckoutSession } from "../server/landingPayfirst.js";
 
 export const config = { api: { bodyParser: false } };
 
@@ -37,7 +38,11 @@ async function findProfileId(admin, { userId, customerId, email }) {
     if (data?.id) return data.id;
   }
   if (email) {
-    const { data } = await admin.from("profiles").select("id").eq("email", email).maybeSingle();
+    const { data } = await admin
+      .from("profiles")
+      .select("id")
+      .eq("email", String(email).trim().toLowerCase())
+      .maybeSingle();
     if (data?.id) return data.id;
   }
   return null;
@@ -47,7 +52,8 @@ async function syncSubscription(admin, stripe, sub, hintPlan, { logActivity = fa
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
   const metaUser = sub.metadata?.supabase_user_id;
   const planId = hintPlan || sub.metadata?.plan_id || planFromPriceId(sub.items?.data?.[0]?.price?.id);
-  const profileId = await findProfileId(admin, { userId: metaUser, customerId });
+  const email = sub.metadata?.email || null;
+  const profileId = await findProfileId(admin, { userId: metaUser, customerId, email });
   if (!profileId) {
     console.warn("No profile for subscription", sub.id);
     return null;
@@ -160,11 +166,23 @@ export default async function handler(req, res) {
       case "checkout.session.completed": {
         const session = event.data.object;
         if (session.mode !== "subscription") break;
-        const userId = session.client_reference_id || session.metadata?.supabase_user_id;
+
+        const isLandingPayfirst = session.metadata?.source === "landing_payfirst";
+        let userId = session.client_reference_id || session.metadata?.supabase_user_id || null;
         const planId = session.metadata?.plan_id;
         const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
         const subId =
           typeof session.subscription === "string" ? session.subscription : session.subscription?.id;
+
+        // Guest landing path: provision + attach plan (also claimable from success URL).
+        if (isLandingPayfirst) {
+          try {
+            const fulfilled = await fulfillLandingCheckoutSession(admin, stripe, session);
+            if (fulfilled.profileId) userId = fulfilled.profileId;
+          } catch (e) {
+            console.warn("landing_payfirst fulfill:", e.message);
+          }
+        }
 
         if (userId && customerId) {
           await admin
@@ -179,10 +197,24 @@ export default async function handler(req, res) {
           });
           if (userId && !sub.metadata?.supabase_user_id) {
             await stripe.subscriptions.update(subId, {
-              metadata: { ...(sub.metadata || {}), supabase_user_id: userId, plan_id: planId || "" },
+              metadata: {
+                ...(sub.metadata || {}),
+                supabase_user_id: userId,
+                plan_id: planId || "",
+                ...(isLandingPayfirst ? { source: "landing_payfirst" } : {}),
+              },
             });
           }
-          const profileId = await syncSubscription(admin, stripe, sub, planId, { logActivity: true });
+          if (userId) {
+            sub.metadata = {
+              ...(sub.metadata || {}),
+              supabase_user_id: userId,
+              plan_id: planId || sub.metadata?.plan_id || "",
+            };
+          }
+          const profileId = await syncSubscription(admin, stripe, sub, planId, {
+            logActivity: !isLandingPayfirst,
+          });
 
           // Persist the first invoice immediately (don't wait only on invoice.* webhooks).
           if (profileId) {
@@ -228,7 +260,7 @@ export default async function handler(req, res) {
                   type: "needs_bdm",
                   title: "Assign a BDM — new plan purchase",
                   body: `${who} purchased ${planName}. Assign a BDM from the client page.`,
-                  meta: { planId: planId || buyer?.plan || null, source: "checkout" },
+                  meta: { planId: planId || buyer?.plan || null, source: isLandingPayfirst ? "landing_payfirst" : "checkout" },
                 });
               } else {
                 await notifySuperAdminsInApp(admin, {
@@ -236,7 +268,25 @@ export default async function handler(req, res) {
                   type: "plan_subscribed",
                   title: `New subscription · ${planName}`,
                   body: `${who} purchased ${planName}.`,
-                  meta: { planId: planId || buyer?.plan || null, source: "checkout" },
+                  meta: { planId: planId || buyer?.plan || null, source: isLandingPayfirst ? "landing_payfirst" : "checkout" },
+                });
+              }
+              if (isLandingPayfirst) {
+                const title = "Client details ready — payment complete";
+                const body = `${who} completed landing checkout and paid for ${planName}.`;
+                await notifyManagersInApp(admin, {
+                  clientId: profileId,
+                  type: "profile_complete",
+                  title,
+                  body,
+                  meta: { source: "landing_payfirst", paymentPending: false },
+                });
+                await notifySuperAdminsInApp(admin, {
+                  clientId: profileId,
+                  type: "profile_complete",
+                  title,
+                  body,
+                  meta: { source: "landing_payfirst", paymentPending: false },
                 });
               }
             } catch (e) {

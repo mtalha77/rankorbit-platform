@@ -1,6 +1,6 @@
 // ─── LANDING PAGE ────────────────────────────────────────────────────────────
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { T, FONT_B } from "../lib/theme";
 import { api } from "../lib/api";
 import { planPrice } from "../lib/constants";
@@ -17,17 +17,26 @@ import {
   LandingDashboardTour,
   LandingStories,
   LandingPricing,
+  LandingCheckoutModal,
+  LandingPostPayGate,
   LandingFinalCta,
   LandingFooter,
 } from "../components/landing";
 
 export default function LandingPage({ user = null, focusPricing = false, billingFlag = null }) {
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
   const w = useWindowSize();
   const isMobile = w < 768;
   const isTab = w >= 768 && w < 1024;
   const [planBusy, setPlanBusy] = useState(null);
   const [planErr, setPlanErr] = useState("");
+  const [checkoutPlanId, setCheckoutPlanId] = useState(null);
+  const [claimMsg, setClaimMsg] = useState("");
+  const [claimEmail, setClaimEmail] = useState("");
+  const [claimBusy, setClaimBusy] = useState(false);
+  const [claimError, setClaimError] = useState("");
+  const [showPostPayGate, setShowPostPayGate] = useState(false);
   const isStaff = !!(user && STAFF_ROLES.includes(user.role));
   const scrollPricing = () => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth", block: "start" });
   const goLogin = () => nav("/login");
@@ -38,14 +47,17 @@ export default function LandingPage({ user = null, focusPricing = false, billing
     if (user) nav("/dashboard");
     else scrollPricing();
   };
-  // Guest → signup with plan intent. Logged-in (no/other plan) → dashboard billing.
-  // Staff never buy plans from the marketing site.
+  // Guest → landing details modal → Stripe. Logged-in → dashboard billing.
+  // Staff never buy plans from the marketing site. Get started / signup CTAs unchanged.
   const goPlan = async (planId) => {
     setPlanErr("");
     if (isStaff) { nav("/admin"); return; }
     if (user?.plan === planId) { nav("/dashboard"); return; }
     try { sessionStorage.setItem("ro_pending_plan", planId); } catch {}
-    if (!user) { nav(`/signup?plan=${encodeURIComponent(planId)}`); return; }
+    if (!user) {
+      setCheckoutPlanId(planId);
+      return;
+    }
     nav("/dashboard");
   };
   useEffect(() => {
@@ -53,7 +65,7 @@ export default function LandingPage({ user = null, focusPricing = false, billing
   }, [isStaff, nav]);
   useEffect(() => {
     if (isStaff) return;
-    if (focusPricing || billingFlag === "cancel") {
+    if (focusPricing || billingFlag === "cancel" || billingFlag === "success") {
       const t = setTimeout(scrollPricing, 120);
       return () => clearTimeout(t);
     }
@@ -64,6 +76,39 @@ export default function LandingPage({ user = null, focusPricing = false, billing
       }
     } catch {}
   }, [focusPricing, billingFlag, user, isStaff]);
+
+  // After Stripe: blocking gate + claim session (account+plan). Password email deduped server-side.
+  useEffect(() => {
+    if (billingFlag !== "success") return;
+    setShowPostPayGate(true);
+    const sessionId = searchParams.get("session_id");
+    if (!sessionId) {
+      setClaimMsg("Payment received. Check your email to set your password, then sign in. Do not Sign up again with this email.");
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setClaimBusy(true);
+      setClaimError("");
+      const r = await api.claimLandingCheckout(sessionId, { resend: false });
+      if (cancelled) return;
+      setClaimBusy(false);
+      if (r.error) {
+        setClaimError(r.error);
+        setClaimEmail(r.email || "");
+        return;
+      }
+      setClaimEmail(r.email || "");
+      setClaimMsg(
+        r.message ||
+          "Check your email to set your password and confirm access, then sign in."
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [billingFlag, searchParams]);
+
   const displayName = (user?.name || user?.email || "Account").split(" ")[0];
   const avatarLetter = (user?.avatar || displayName?.[0] || "U").toString().slice(0, 1).toUpperCase();
   // Load which plans are live + price overrides from Control Panel (settings.config in DB).
@@ -106,6 +151,9 @@ export default function LandingPage({ user = null, focusPricing = false, billing
   // Don't flash marketing / plan CTAs while bouncing staff to /admin.
   if (isStaff) return null;
 
+  const sessionId = searchParams.get("session_id") || "";
+  const planFromUrl = searchParams.get("plan") || "";
+
   return (
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: FONT_B, color: T.ink, overflowX: "hidden" }}>
       <LandingNav isMobile={isMobile} navSolid={navSolid} user={user} isStaff={isStaff} avatarLetter={avatarLetter} displayName={displayName} goDash={goDash} goLogin={goLogin} goSignup={goSignup} />
@@ -118,10 +166,39 @@ export default function LandingPage({ user = null, focusPricing = false, billing
         <LandingHowItWorks isMobile={isMobile} />
         <LandingDashboardTour isMobile={isMobile} />
         <LandingStories isMobile={isMobile} />
-        <LandingPricing isMobile={isMobile} isTab={isTab} w={w} user={user} cfg={cfg} lprice={lprice} goPlan={goPlan} planBusy={planBusy} planErr={planErr} billingFlag={billingFlag} />
+        <LandingPricing
+          isMobile={isMobile}
+          isTab={isTab}
+          w={w}
+          user={user}
+          cfg={cfg}
+          lprice={lprice}
+          goPlan={goPlan}
+          planBusy={planBusy}
+          planErr={planErr}
+          billingFlag={billingFlag}
+        />
         <LandingFinalCta isMobile={isMobile} user={user} goDash={goDash} goSignup={goSignup} />
       </main>
       <LandingFooter isMobile={isMobile} isTab={isTab} user={user} nav={nav} goDash={goDash} goLogin={goLogin} goSignup={goSignup} scrollPricing={scrollPricing} />
+      {checkoutPlanId && (
+        <LandingCheckoutModal
+          planId={checkoutPlanId}
+          cfg={cfg}
+          isMobile={isMobile}
+          onClose={() => setCheckoutPlanId(null)}
+        />
+      )}
+      {showPostPayGate && (
+        <LandingPostPayGate
+          busy={claimBusy}
+          email={claimEmail}
+          message={claimMsg}
+          error={claimError}
+          sessionId={sessionId}
+          planId={planFromUrl}
+        />
+      )}
     </div>
   );
 }

@@ -299,8 +299,8 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
     if (!n.roles.includes(user.role)) return false;
     if (n.requiresBroadcast && !canUseBroadcast(user)) return false;
     if (n.requiresFinance && !canViewFinance) return false;
-    return true;
-  });
+      return true;
+    });
 
   const adminCtx = {
     user, data, reload, onLogout, onUserUpdate,
@@ -326,7 +326,7 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
           <div style={{ fontSize: 13, fontWeight: 700 }}>👁️ Viewing {c.businessName || c.name}'s account (read-only). Changes are disabled.</div>
           <button onClick={() => setViewAs(null)} style={{ background: "rgba(255,255,255,.25)", border: "none", color: "#fff", padding: "6px 16px", borderRadius: 8, fontWeight: 800, cursor: "pointer", fontFamily: FONT_B, fontSize: 12.5 }}>Exit view</button>
         </div>
-        <div>
+                <div>
           <Suspense fallback={<div style={{ padding: 40, textAlign: "center", color: T.sub, fontFamily: FONT_B }}>Loading client view…</div>}>
             <ClientDashboard user={c} data={data} reload={reload} onLogout={() => setViewAs(null)} impersonating />
           </Suspense>
@@ -360,7 +360,7 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
           <AccountSettings user={user} toast={toast} reload={reload} onUserUpdate={onUserUpdate} isMobile={isMobile} title="My Account" sub="Update your name, photo, password, and notification email" />
         )}
         {page === "settings" && <Settings />}
-      </Shell>
+  </Shell>
       {modal?.type === "clientForm" && <ClientFormModal client={modal.client} onClose={() => setModal(null)} />}
       {modal?.type === "team" && <TeamModal onClose={() => setModal(null)} />}
       {modal?.type === "permissions" && <PermissionsModal member={modal.member} onClose={() => setModal(null)} />}
