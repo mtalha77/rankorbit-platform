@@ -119,6 +119,8 @@ export function ProfileGate({ user, onSaved, toast, isMobile }) {
     try {
       await api.patchProfile(user.id, { ...f, zip: zipDigits });
       setDirty(false);
+      // Fire-and-forget: SA + managers — details filled, payment still pending (once).
+      api.notifyProfileComplete().catch(() => {});
       await onSaved();
       toast("Business profile saved");
     } catch (e) {

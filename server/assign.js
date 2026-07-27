@@ -270,6 +270,7 @@ const SUPER_ADMIN_INAPP_TYPES = new Set([
   "plan_subscribed",
   "needs_bdm",
   "support_billing",
+  "profile_complete",
 ]);
 
 /** Notify any user (client or staff) in-app only (+ web push when subscribed). */

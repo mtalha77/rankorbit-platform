@@ -38,8 +38,8 @@ export function Team() {
     teamView, setTeamView, setModal, setConfirm, R, audit, toast, setPage, setSelClient,
   } = useAdmin();
 
-    // Managers see BDMs + themselves (not super-admins / agents), and cannot manage grants/removal.
-    const visibleStaff=isAdmin?staff:staff.filter(m=>isBdmRole(m.role)||m.id===user.id);
+    // Super admin + manager both see the full team. Remove / sensitive grants stay SA-only below.
+    const visibleStaff=staff;
     if(teamView){
       const m=staff.find(x=>x.id===teamView);
       if(!m){setTeamView(null);return null;}
