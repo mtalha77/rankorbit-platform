@@ -174,7 +174,7 @@ export async function provisionLandingPayfirstClient(admin, session) {
           const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
             type: "recovery",
             email,
-            options: { redirectTo: `${appBaseUrl()}/login` },
+            options: { redirectTo: `${appBaseUrl()}/reset-password` },
           });
           if (linkErr || !linkData?.user?.id) {
             console.error("landing_payfirst resolve existing user:", linkErr?.message || msg);
@@ -217,7 +217,7 @@ export async function sendLandingSetPasswordEmail(admin, email, name) {
     type: "recovery",
     email,
     options: {
-      redirectTo: `${appBaseUrl()}/login`,
+      redirectTo: `${appBaseUrl()}/reset-password`,
     },
   });
   if (linkErr) throw new Error(linkErr.message || "Could not create set-password link");

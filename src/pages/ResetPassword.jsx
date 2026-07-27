@@ -50,8 +50,14 @@ export default function ResetPassword({hasSession,onDone}){
     if(r.error){setError(r.error);return;}
     clearPasswordRecovery();
     try{sessionStorage.setItem("ro_pw_updated","1");}catch{}
-    onDone?.();
-    nav("/login",{replace:true});
+    // Wait for sign-out before leaving — otherwise a brief session still looks
+    // logged-in and /login redirects to /dashboard (flash), then lands on login.
+    try{
+      await onDone?.();
+    }catch(e){
+      console.warn("post-password cleanup:",e);
+      nav("/login",{replace:true});
+    }
   };
 
   const w=useWindowSize();const isMobile=w<860;

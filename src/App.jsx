@@ -100,6 +100,17 @@ function useStableData(data){
 function ClientAuth({mode="login",user,onLogin,passwordRecovery}){
   const nav=useNavigate();
   if(passwordRecovery)return <Navigate to="/reset-password" replace/>;
+  // Just finished set-password: never flash dashboard if session hasn't cleared yet.
+  // Leave ro_pw_updated for AuthScreen to show "Password updated. Sign in…"
+  let justUpdatedPw=false;
+  try{justUpdatedPw=sessionStorage.getItem("ro_pw_updated")==="1";}catch{}
+  if(justUpdatedPw&&user){
+    return <AuthScreen key="login-after-pw" portal="client" initialMode="login" onLogin={async(u)=>{
+      await onLogin(u);
+      if(STAFF_ROLES.includes(u?.role))nav("/admin",{replace:true});
+      else nav("/dashboard",{replace:true});
+    }}/>;
+  }
   if(user&&STAFF_ROLES.includes(user.role))return <Navigate to="/admin" replace/>;
   if(user)return <Navigate to="/dashboard" replace/>;
   return <AuthScreen key={mode} portal="client" initialMode={mode} onLogin={async(u)=>{
@@ -179,7 +190,11 @@ function ResetPasswordRoute({user,passwordRecovery,onClearRecovery,onLogout}){
   return(
     <ResetPassword
       hasSession={!!user||passwordRecovery}
-      onDone={async()=>{onClearRecovery();await onLogout("/login");}}
+      onDone={async()=>{
+        onClearRecovery();
+        // Hard navigate to login after clearing session — no dashboard flash.
+        await onLogout("/login");
+      }}
     />
   );
 }
