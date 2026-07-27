@@ -263,8 +263,14 @@ export async function createNotification(admin, row) {
   return payload;
 }
 
-/** Types super_admin may receive in-app (besides peer chat). */
-const SUPER_ADMIN_INAPP_TYPES = new Set(["staff_message", "payment_failed", "plan_subscribed", "needs_bdm"]);
+/** Types super_admin may receive in-app (besides peer chat). No client chat_message. */
+const SUPER_ADMIN_INAPP_TYPES = new Set([
+  "staff_message",
+  "payment_failed",
+  "plan_subscribed",
+  "needs_bdm",
+  "support_billing",
+]);
 
 /** Notify any user (client or staff) in-app only (+ web push when subscribed). */
 export async function notifyUser(admin, { userId, clientId, type, title, body, meta }) {
@@ -285,8 +291,10 @@ export async function notifyUser(admin, { userId, clientId, type, title, body, m
   return row;
 }
 
-/** Ping every active super_admin in-app (billing alerts). */
+/** Ping every active super_admin in-app (billing / related alerts only — never client chat). */
 export async function notifySuperAdminsInApp(admin, { clientId, type, title, body, meta }) {
+  // Hard block client chat pings even if a caller passes chat_message.
+  if (type === "chat_message" || type === "bdm_message") return 0;
   const { data: admins } = await admin
     .from("profiles")
     .select("id,status,deletedAt")

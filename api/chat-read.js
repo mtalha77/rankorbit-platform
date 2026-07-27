@@ -54,6 +54,11 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, marked: 0 });
     }
 
+    // Super admin can view any client thread without clearing unread for the assigned BDM/manager.
+    if (staff && !staff.error && staff.profile.role === "super_admin" && peer.id !== myId) {
+      return res.status(200).json({ ok: true, marked: 0, skipped: true });
+    }
+
     const now = new Date().toISOString();
     // Mark unread messages in the current BDM thread only (never prior assignees).
     const { data, error } = await admin

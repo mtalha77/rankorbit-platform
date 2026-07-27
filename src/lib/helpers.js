@@ -466,6 +466,7 @@ export const auditActionLabel=(action)=>{
     "staff.perms":"Update permissions",
     "staff.delete":"Remove team member",
     "grant.impersonate":"Account view access",
+    "grant.finance":"Finance access",
     "settings.update":"Update settings",
     "client.impersonate":"View client account",
     "client.suspend":"Suspend client",

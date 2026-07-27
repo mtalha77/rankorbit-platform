@@ -21,6 +21,7 @@ create table profiles (
   "assignedBdmId" uuid references profiles(id) on delete set null,
   "assignedAgentId" uuid references profiles(id) on delete set null,
   "canImpersonate" boolean default false,
+  "canViewFinance" boolean default false,
   perms jsonb default '{}'::jsonb,
   "deletedAt" timestamptz,
   "napHistory" jsonb default '[]'::jsonb,
@@ -207,6 +208,7 @@ begin
   new.status := old.status;
   new.perms := old.perms;
   new."canImpersonate" := old."canImpersonate";
+  new."canViewFinance" := old."canViewFinance";
   new."assignedAgentId" := old."assignedAgentId";
   new."assignedBdmId" := old."assignedBdmId";
   new."deletedAt" := old."deletedAt";

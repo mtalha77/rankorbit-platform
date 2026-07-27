@@ -28,7 +28,7 @@ export function Gmb() {
     const fromGoogle=d.source==="google"||d.source==="connected";
     const lastSync=d.syncedAt?(()=>{try{return new Date(d.syncedAt).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});}catch{return d.syncedAt;}})():null;
     return(<div>
-      <PageHead isMobile={isMobile} title="GMB Management" sub={fromGoogle&&lastSync?`Last synced ${lastSync}`:"Your Google Business Profile, actively managed"} right={<Badge type={fromGoogle?"connected":"manual"} label={fromGoogle?"Synced from Google":undefined}/>}/>
+      <PageHead isMobile={isMobile} title="GMB Management" sub={fromGoogle&&lastSync?`Last synced ${lastSync}`:"Your Google Business Profile, actively managed"} right={fromGoogle?<Badge type="connected" label="Synced from Google"/>:null}/>
       {fromGoogle&&(
         <div style={{padding:"10px 14px",background:T.greenSoft,borderRadius:12,marginBottom:14,fontSize:12.5,color:T.green,lineHeight:1.5}}>
           Metrics pull automatically from your Google Business Profile{lastSync?` · Last sync ${lastSync}`:""}.

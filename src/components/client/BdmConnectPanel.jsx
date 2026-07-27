@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { T, FONT_D } from "../../lib/theme";
+import { T, FONT_D, FONT_B } from "../../lib/theme";
 import { api } from "../../lib/api";
 import { Card, Btn } from "../atoms";
 
 /**
- * Subscribed client with no assigned BDM — request connect.
- * Messages: Growth / GMB Pro only. Book a Call: every paid plan.
+ * Subscribed client with no assigned BDM — request support.
+ * Step 1: Request → Step 2: Billing (super admin) or Technical (managers).
  * pending = profiles.bdmConnectRequestedAt already set.
  */
 export default function BdmConnectPanel({
@@ -17,7 +17,7 @@ export default function BdmConnectPanel({
   readOnly = false,
 }) {
   const [busy, setBusy] = useState(false);
-  // Optimistic: flip to "pending" on click without waiting for the dashboard reload.
+  const [step, setStep] = useState("choose"); // "choose" | "pick"
   const [justRequested, setJustRequested] = useState(false);
   const isPending = pending || justRequested;
   const pendingRef = useRef(isPending);
@@ -25,8 +25,6 @@ export default function BdmConnectPanel({
   const reloadRef = useRef(reload);
   reloadRef.current = reload;
 
-  // This panel only renders while no BDM is assigned, so poll here instead of app-wide:
-  // once a manager assigns one (or a request lands in another tab), refresh and unmount.
   useEffect(() => {
     let cancelled = false;
     const pull = async () => {
@@ -51,8 +49,56 @@ export default function BdmConnectPanel({
 
   const actionLabel =
     context === "call"
-      ? "once a Business Development Manager is assigned, you can book a call with them here."
-      : "once a Business Development Manager is assigned, you can chat with them right here.";
+      ? "once a team member is assigned, you can book a call with them here."
+      : "once a team member is assigned, you can chat with them right here.";
+
+  const submit = async (supportType) => {
+    if (busy || readOnly) return;
+    setBusy(true);
+    const r = await api.requestBdm(supportType);
+    setBusy(false);
+    if (r.error) {
+      toast?.(r.error, "err");
+      return;
+    }
+    if (!r.alreadyAssigned) setJustRequested(true);
+    toast?.(
+      r.alreadyAssigned
+        ? "You already have a BDM assigned."
+        : supportType === "billing"
+          ? "Billing request sent — our team will follow up."
+          : "Technical support request sent — a manager will follow up.",
+      "ok"
+    );
+    reload?.();
+  };
+
+  const choiceBtn = (opts) => (
+    <button
+      key={opts.id}
+      type="button"
+      disabled={busy || readOnly}
+      onClick={() => submit(opts.id)}
+      style={{
+        display: "block",
+        width: "100%",
+        textAlign: "left",
+        padding: "14px 16px",
+        marginBottom: 10,
+        borderRadius: 12,
+        border: `1.5px solid ${T.line}`,
+        background: T.surface,
+        cursor: busy || readOnly ? "not-allowed" : "pointer",
+        fontFamily: FONT_B,
+        opacity: busy || readOnly ? 0.6 : 1,
+      }}
+    >
+      <div style={{ fontSize: 14, fontWeight: 800, color: T.ink, marginBottom: 4 }}>
+        {opts.icon} {opts.title}
+      </div>
+      <div style={{ fontSize: 12.5, color: T.sub, lineHeight: 1.45 }}>{opts.sub}</div>
+    </button>
+  );
 
   const inner = (
     <Card style={{ maxWidth: 460, textAlign: "center", padding: "32px 26px", width: "100%" }}>
@@ -66,37 +112,47 @@ export default function BdmConnectPanel({
             We’ve notified our team. You’ll be updated soon — {actionLabel}
           </div>
         </>
+      ) : step === "pick" ? (
+        <>
+          <div style={{ fontFamily: FONT_D, fontSize: 20, color: T.ink, marginBottom: 8 }}>
+            What do you need help with?
+          </div>
+          <div style={{ color: T.sub, lineHeight: 1.6, marginBottom: 16 }}>
+            Choose a support type so we can route your request to the right team.
+          </div>
+          {choiceBtn({
+            id: "billing",
+            icon: "💳",
+            title: "Billing support",
+            sub: "Plans, invoices, payments, and subscription questions.",
+          })}
+          {choiceBtn({
+            id: "technical",
+            icon: "🛠️",
+            title: "Technical support",
+            sub: "Listings, account setup, technical help — goes to a manager.",
+          })}
+          <Btn
+            variant="ghost"
+            size="sm"
+            style={{ marginTop: 4 }}
+            onClick={() => setStep("choose")}
+            disabled={busy}
+          >
+            ← Back
+          </Btn>
+        </>
       ) : (
         <>
           <div style={{ fontFamily: FONT_D, fontSize: 20, color: T.ink, marginBottom: 8 }}>
-            Connect with your BDM
+            Need help from our team?
           </div>
           <div style={{ color: T.sub, lineHeight: 1.6, marginBottom: 18 }}>
-            You don’t have a Business Development Manager yet. Send a request and our team will
-            assign one to you. You’ll be notified when you’re connected.
+            You don’t have a Business Development Manager yet. Send a request and choose Billing or
+            Technical support so we can route it correctly.
           </div>
-          <Btn
-            onClick={async () => {
-              if (busy || readOnly) return;
-              setBusy(true);
-              const r = await api.requestBdm();
-              setBusy(false);
-              if (r.error) {
-                toast?.(r.error, "err");
-                return;
-              }
-              if (!r.alreadyAssigned) setJustRequested(true);
-              toast?.(
-                r.alreadyAssigned
-                  ? "You already have a BDM assigned."
-                  : "Request sent — we’ll update you soon.",
-                "ok"
-              );
-              reload?.();
-            }}
-            disabled={busy || readOnly}
-          >
-            {busy ? "Sending…" : "Connect with your BDM"}
+          <Btn onClick={() => setStep("pick")} disabled={busy || readOnly}>
+            Request support
           </Btn>
         </>
       )}

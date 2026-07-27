@@ -56,6 +56,8 @@ function ChatThreadInner({
 }) {
   const [messages, setMessages] = useState([]);
   const [agent, setAgent] = useState(null);
+  const [clientProfile, setClientProfile] = useState(null);
+  const [viewerIsStaff, setViewerIsStaff] = useState(false);
   const [support, setSupport] = useState(false);
   const [needsBdm, setNeedsBdm] = useState(false);
   const [noPeer, setNoPeer] = useState(false);
@@ -133,6 +135,8 @@ function ChatThreadInner({
         setMessages(Array.isArray(data.messages) ? data.messages : []);
         const peer = data.agent || data.peer || null;
         setAgent(peer);
+        if (data.client) setClientProfile(data.client);
+        setViewerIsStaff(!!data.isStaff || (!!clientId && !isStaffVariant));
         setSupport(!!data.support || data.kind === "support");
         setNeedsBdm(!!data.needsBdm);
         setNoPeer(!peer && !isStaffVariant);
@@ -189,6 +193,8 @@ function ChatThreadInner({
           setAgent(peer);
           setNoPeer(false);
         }
+        if (data.client) setClientProfile(data.client);
+        if (data.isStaff != null) setViewerIsStaff(!!data.isStaff || (!!clientId && !isStaffVariant));
         setSupport(!!data.support || data.kind === "support");
         setNeedsBdm(!!data.needsBdm);
       } catch {
@@ -266,6 +272,26 @@ function ChatThreadInner({
       ? agent?.name || "Team support"
       : agent?.name || agent?.email) ||
     (isStaffVariant ? "Admin / Support" : clientId ? "Client" : "Your BDM");
+
+  /** Who sent this bubble — critical for super admin monitoring Client vs BDM. */
+  const senderMeta = (m) => {
+    if (!m) return { label: null, show: false };
+    if (m.senderId === myId) {
+      return { label: "You", show: viewerIsStaff && !isStaffVariant };
+    }
+    if (m.senderLabel) return { label: m.senderLabel, show: viewerIsStaff && !isStaffVariant };
+    const cid = clientProfile?.id || clientId;
+    if (cid && m.senderId === cid) {
+      const n = clientProfile?.businessName || clientProfile?.name || peerLabel || "Client";
+      return { label: `Client · ${n}`, show: viewerIsStaff && !isStaffVariant };
+    }
+    if (agent?.id && m.senderId === agent.id) {
+      const tag = agent.role === "manager" ? "Manager" : support ? "Support" : "BDM";
+      const n = agent.name || agent.email || tag;
+      return { label: `${tag} · ${n}`, show: viewerIsStaff && !isStaffVariant };
+    }
+    return { label: "Team", show: viewerIsStaff && !isStaffVariant };
+  };
 
   const cardHeight = fill
     ? "100%"
@@ -362,6 +388,7 @@ function ChatThreadInner({
         ) : (
           messages.map((m) => {
             const mine = m.senderId === myId;
+            const meta = senderMeta(m);
             return (
               <div
                 key={m.id}
@@ -371,37 +398,55 @@ function ChatThreadInner({
                   marginBottom: 10,
                 }}
               >
-                <div
-                  style={{
-                    maxWidth: "78%",
-                    padding: "10px 13px",
-                    borderRadius: mine ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
-                    background: mine ? T.brand : "#fff",
-                    color: mine ? "#fff" : T.ink,
-                    boxShadow: "0 1px 2px rgba(0,0,0,.06)",
-                    border: mine ? "none" : `1px solid ${T.line}`,
-                  }}
-                >
+                <div style={{ maxWidth: "78%" }}>
+                  {meta.show && meta.label && (
+                    <div
+                      style={{
+                        fontSize: 10.5,
+                        fontWeight: 800,
+                        color: T.faint,
+                        letterSpacing: ".3px",
+                        marginBottom: 4,
+                        paddingLeft: mine ? 0 : 4,
+                        paddingRight: mine ? 4 : 0,
+                        textAlign: mine ? "right" : "left",
+                        fontFamily: FONT_B,
+                      }}
+                    >
+                      {meta.label}
+                    </div>
+                  )}
                   <div
                     style={{
-                      fontSize: 13.5,
-                      lineHeight: 1.45,
-                      whiteSpace: "pre-wrap",
-                      wordBreak: "break-word",
+                      padding: "10px 13px",
+                      borderRadius: mine ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
+                      background: mine ? T.brand : "#fff",
+                      color: mine ? "#fff" : T.ink,
+                      boxShadow: "0 1px 2px rgba(0,0,0,.06)",
+                      border: mine ? "none" : `1px solid ${T.line}`,
                     }}
                   >
-                    {m.body}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 10.5,
-                      marginTop: 5,
-                      opacity: mine ? 0.75 : 1,
-                      color: mine ? "#fff" : T.faint,
-                      textAlign: "right",
-                    }}
-                  >
-                    {fmtTime(m.createdAt)}
+                    <div
+                      style={{
+                        fontSize: 13.5,
+                        lineHeight: 1.45,
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {m.body}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 10.5,
+                        marginTop: 5,
+                        opacity: mine ? 0.75 : 1,
+                        color: mine ? "#fff" : T.faint,
+                        textAlign: "right",
+                      }}
+                    >
+                      {fmtTime(m.createdAt)}
+                    </div>
                   </div>
                 </div>
               </div>

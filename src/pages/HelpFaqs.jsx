@@ -30,7 +30,7 @@ const FAQS = [
   },
   {
     q: "When does Google Business / analytics data update?",
-    a: "When your profile is connected, stats sync from Google on a regular cadence. If you see \"manual data,\" your manager is updating those numbers for you until a full sync is available.",
+    a: "When your profile is connected, stats sync from Google on a regular cadence. Your manager can also keep metrics updated for you until a full sync is available.",
   },
 ];
 

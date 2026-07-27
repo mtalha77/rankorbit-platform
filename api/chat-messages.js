@@ -100,15 +100,51 @@ export default async function handler(req, res) {
       });
     }
 
+    const rows = data || [];
     const myId = profile.id;
-    const unread = (data || []).filter((m) => !m.readAt && m.senderId !== myId).length;
+    const unread = rows.filter((m) => !m.readAt && m.senderId !== myId).length;
+
+    // Enrich sender labels so staff (esp. super admin) can tell Client vs BDM vs other staff.
+    const senderIds = [...new Set(rows.map((m) => m.senderId).filter(Boolean))];
+    let senderMap = {};
+    if (senderIds.length) {
+      const { data: senders } = await admin
+        .from("profiles")
+        .select("id,name,businessName,email,role")
+        .in("id", senderIds);
+      senderMap = Object.fromEntries((senders || []).map((p) => [p.id, p]));
+    }
+
+    const roleTag = (role) => {
+      if (role === "client") return "Client";
+      if (role === "bdm" || role === "agent") return "BDM";
+      if (role === "manager") return "Manager";
+      if (role === "super_admin") return "Super Admin";
+      return "Staff";
+    };
+
+    const messages = rows.map((m) => {
+      const s = senderMap[m.senderId];
+      const role = s?.role || (m.senderId === targetClientId ? "client" : m.senderId === peer?.id ? (peer.role || "bdm") : null);
+      const name =
+        role === "client"
+          ? (s?.businessName || s?.name || client?.businessName || client?.name || "Client")
+          : (s?.name || s?.email || (m.senderId === peer?.id ? peer?.name : null) || "Staff");
+      const tag = roleTag(role);
+      return {
+        ...m,
+        senderRole: role || null,
+        senderName: name,
+        senderLabel: role === "client" ? `Client · ${name}` : `${tag} · ${name}`,
+      };
+    });
 
     return res.status(200).json({
       ok: true,
-      messages: data || [],
+      messages,
       unread,
       agent: peer
-        ? { id: peer.id, name: peer.name, email: peer.email }
+        ? { id: peer.id, name: peer.name, email: peer.email, role: peer.role || null }
         : null,
       kind,
       needsBdm: !!needsBdm,
@@ -119,6 +155,7 @@ export default async function handler(req, res) {
             name: client.name,
             businessName: client.businessName,
             email: client.email,
+            role: "client",
           }
         : null,
       isStaff,

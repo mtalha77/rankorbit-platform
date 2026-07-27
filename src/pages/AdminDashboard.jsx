@@ -116,7 +116,13 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
     return String(c.businessName || c.name || c.email || "Unknown client").trim() || "Unknown client";
   };
   const canImpersonate = isAdmin || (user.role === "manager" && user.canImpersonate);
+  const canViewFinance = isAdmin || (user.role === "manager" && !!user.canViewFinance);
   const [viewAs, setViewAs] = useState(null);
+
+  // If Finance access was revoked (or never granted), don't leave a blank page.
+  useEffect(() => {
+    if (page === "finance" && !canViewFinance) setPage("overview");
+  }, [page, canViewFinance, setPage]);
   const acfg = settings?.config || {};
   const livePlans = livePlanEntries(acfg);
   const PLANSV = plansWithPrices(acfg);
@@ -286,12 +292,13 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
     { id: "gmb", icon: "globe", label: "GMB", roles: ["super_admin", "manager", "agent", "bdm"] },
     { id: "team", icon: "team", label: "Team", roles: ["super_admin", "manager"] },
     { id: "activity", icon: "activity", label: "Activity Logs", roles: ["super_admin", "manager"] },
-    { id: "finance", icon: "bag", label: "Finance", roles: ["super_admin"] },
+    { id: "finance", icon: "bag", label: "Finance", roles: ["super_admin", "manager"], requiresFinance: true },
     { id: "trash", icon: "database", label: "Trash", roles: ["super_admin"] },
     { id: "settings", icon: "settings", label: "Control Panel", roles: ["super_admin"] },
   ].filter((n) => {
     if (!n.roles.includes(user.role)) return false;
     if (n.requiresBroadcast && !canUseBroadcast(user)) return false;
+    if (n.requiresFinance && !canViewFinance) return false;
     return true;
   });
 
@@ -300,7 +307,7 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
     page, setPage, selClient, setSelClient, modal, setModal, confirm, setConfirm,
     toast, isMobile, users, listings, gmb, analytics, activity, settings,
     allClients, staff, isAdmin, isStaffMgr, isBdm, isAgent, clients, labelForClientId,
-    canImpersonate, viewAs, setViewAs, acfg, livePlans, PLANSV, revenue, flat,
+    canImpersonate, canViewFinance, viewAs, setViewAs, acfg, livePlans, PLANSV, revenue, flat,
     totalLive, totalPending, totalFlagged, actionNeeded,
     addActivity, audit, notifyManagersIfAgent, R,
     notifBadge, setNotifBadge, chatUnreadTotal, setChatUnreadTotal,
@@ -347,7 +354,7 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
         {page === "gmb" && <GmbAdmin />}
         {page === "team" && <Team />}
         {(page === "activity" || page === "audit") && <Activity />}
-        {page === "finance" && <Finance />}
+        {page === "finance" && canViewFinance && <Finance />}
         {page === "trash" && <Trash />}
         {page === "account" && (
           <AccountSettings user={user} toast={toast} reload={reload} onUserUpdate={onUserUpdate} isMobile={isMobile} title="My Account" sub="Update your name, photo, password, and notification email" />

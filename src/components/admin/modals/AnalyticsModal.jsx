@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { T } from "../../../lib/theme";
 import { api } from "../../../lib/api";
-import { Modal, Input, Btn, Badge } from "../../atoms";
+import { Modal, Input, Btn } from "../../atoms";
 import { useAdmin } from "../AdminContext";
 
 export function AnalyticsModal({ client,onClose }) {
@@ -11,8 +11,8 @@ export function AnalyticsModal({ client,onClose }) {
     const[f,setF]=useState({sessions:ex.sessions,users:ex.users,pageviews:ex.pageviews,avgTime:ex.avgTime});
     const set=(k,v)=>setF(x=>({...x,[k]:v}));
     return(<Modal open onClose={onClose} title={`Analytics · ${client.businessName}`} width={520}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-        <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px"}}>MANUAL ANALYTICS ENTRY</div><Badge type="manual"/>
+      <div style={{marginBottom:12}}>
+        <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px"}}>ANALYTICS ENTRY</div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
         <Input label="Sessions" value={f.sessions} onChange={v=>set("sessions",v)} type="number"/>

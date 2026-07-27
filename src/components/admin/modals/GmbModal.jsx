@@ -2,7 +2,7 @@ import { useState } from "react";
 import { T, FONT_B } from "../../../lib/theme";
 import { api } from "../../../lib/api";
 import { today } from "../../../lib/helpers";
-import { Modal, Input, Select, Btn, Badge } from "../../atoms";
+import { Modal, Input, Select, Btn } from "../../atoms";
 import { useAdmin } from "../AdminContext";
 
 export function GmbModal({ client,onClose }) {
@@ -12,9 +12,8 @@ export function GmbModal({ client,onClose }) {
     const[f,setF]=useState({views:ex.views,calls:ex.calls,directions:ex.directions,postTitle:"",postType:"update",postContent:"",postScheduled:false,postDate:"",qaQ:"",qaA:""});
     const set=(k,v)=>setF(x=>({...x,[k]:v}));
     return(<Modal open onClose={onClose} title={`GMB Update · ${client.businessName}`} width={580}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-        <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px"}}>ENGAGEMENT METRICS (MANUAL)</div>
-        <Badge type="manual"/>
+      <div style={{marginBottom:12}}>
+        <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px"}}>ENGAGEMENT METRICS</div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
         <Input label="Views" value={f.views} onChange={v=>set("views",v)} type="number"/>

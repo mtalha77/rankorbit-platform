@@ -84,7 +84,7 @@ export function IntegrationsModal({ client,onClose,pickLocation }) {
               </div>
               {conn?.lastError&&<div style={{fontSize:11,color:T.red,marginTop:4}}>{conn.lastError}</div>}
             </div>
-            <Badge type={conn?.hasLocation?"connected":conn?"pending":"manual"} label={conn?.hasLocation?"Connected":conn?"Pick location":"Disconnected"}/>
+            <Badge type={conn?.hasLocation?"connected":conn?"pending":"suspended"} label={conn?.hasLocation?"Connected":conn?"Pick location":"Disconnected"}/>
           </div>
           <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
             {!conn&&configured&&(
