@@ -66,11 +66,14 @@ export function buildNotifyEmail({ subject, body, ctaUrl = null, ctaLabel = "Ope
   const cta = ctaUrl || null;
   const year = new Date().getFullYear();
 
+  const helpLine = onboardingHelpLine();
+  const helpPhone = ONBOARDING_HELP_PHONE;
+
   const textParts = [title, "", textBody];
   if (cta) {
     textParts.push("", `${ctaLabel}: ${cta}`);
   }
-  textParts.push("", "— NAP Orbit", base);
+  textParts.push("", helpLine, "", "— NAP Orbit", base);
   const text = textParts.filter((p, i, arr) => !(p === "" && arr[i - 1] === "")).join("\n");
 
   const ctaBlock = cta
@@ -132,6 +135,10 @@ export function buildNotifyEmail({ subject, body, ctaUrl = null, ctaLabel = "Ope
           </tr>
           <tr>
             <td style="padding:8px 32px 28px;font-family:Inter,Segoe UI,Helvetica,Arial,sans-serif;">
+              <p style="margin:0 0 12px;font-size:13px;line-height:1.55;color:#171732;font-weight:600;">
+                Need help? Call us at
+                <a href="tel:${escapeHtml(helpPhone.replace(/\D/g, ""))}" style="color:#5B5BD6;text-decoration:none;font-weight:800;">${escapeHtml(helpPhone)}</a>
+              </p>
               <p style="margin:0;font-size:12px;line-height:1.5;color:#9CA0B8;">
                 You’re receiving this because you have a NAP Orbit account.
                 <a href="${escapeHtml(base)}" style="color:#5B5BD6;text-decoration:none;font-weight:600;">nap.rankorbit.com</a>
@@ -140,7 +147,7 @@ export function buildNotifyEmail({ subject, body, ctaUrl = null, ctaLabel = "Ope
           </tr>
         </table>
         <p style="margin:20px 0 0;font-family:Inter,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;color:#9CA0B8;">
-          © ${year} NAP Orbit · RankOrbit
+          © ${year} NAP Orbit · RankOrbit · ${escapeHtml(helpPhone)}
         </p>
       </td>
     </tr>

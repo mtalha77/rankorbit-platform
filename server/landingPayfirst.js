@@ -3,7 +3,7 @@
  * provision client after checkout.session.completed (source=landing_payfirst only).
  */
 import { sendNotifyEmails } from "./assign.js";
-import { appBaseUrl } from "./emailTemplate.js";
+import { appBaseUrl, onboardingHelpLine } from "./emailTemplate.js";
 import {
   planFromPriceId,
   subscriptionFieldsFromStripe,
@@ -228,7 +228,7 @@ export async function sendLandingSetPasswordEmail(admin, email, name) {
   const result = await sendNotifyEmails(
     [email],
     "Set your NAP Orbit password",
-    `Hi ${who} — your payment went through and your NAP Orbit account is ready. Click below to set your password, then sign in to open your dashboard.`,
+    `Hi ${who} — your payment went through and your NAP Orbit account is ready. Click below to set your password, then sign in to open your dashboard.\n\n${onboardingHelpLine()}`,
     { ctaUrl: actionLink, ctaLabel: "Set password & sign in" }
   );
   if (!result.sent) {
