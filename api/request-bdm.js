@@ -1,8 +1,8 @@
 /**
  * Client support / BDM connect request (Messages or Book a Call when none assigned).
  * Body: { token, supportType: "billing" | "technical" | "it" }
- * - billing → notify super admins only
- * - technical (alias: it) → notify managers only
+ * - billing → notify managers + super admins
+ * - technical (alias: it) → notify managers
  * Marks profiles.bdmConnectRequestedAt once (no spam on repeat clicks).
  */
 import { getAdmin, readJson, requireClient } from "../server/billing.js";
@@ -52,13 +52,15 @@ export default async function handler(req, res) {
       if (kind === "billing") {
         const title = "Billing support request";
         const body = `${business} requested Billing support from Messages. Review their plan, invoices, or payment issues.`;
-        await notifySuperAdminsInApp(admin, {
+        const billingPayload = {
           clientId: profile.id,
           type: "support_billing",
           title,
           body,
           meta: { source: "connect_request", supportType: "billing" },
-        });
+        };
+        await notifyManagersInApp(admin, billingPayload);
+        await notifySuperAdminsInApp(admin, billingPayload);
         await notifyStaffRoute(admin, { kind: "system", title, body });
       } else {
         const title = "Technical support request";

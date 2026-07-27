@@ -87,6 +87,8 @@ export function buildNotifyEmail({ subject, body, ctaUrl = null, ctaLabel = "Ope
       </table>`
     : "";
 
+  const logoUrl = `${base}/favicon-source.png`;
+
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -100,15 +102,24 @@ export function buildNotifyEmail({ subject, body, ctaUrl = null, ctaLabel = "Ope
       <td align="center">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;background:#ffffff;border-radius:20px;overflow:hidden;border:1px solid #E7E9F2;">
           <tr>
-            <td style="background:linear-gradient(135deg,#5B5BD6 0%,#4646C4 55%,#8A4FD8 100%);padding:28px 32px;">
+            <td style="background:#ffffff;padding:24px 32px 18px;border-bottom:1px solid #E7E9F2;">
               <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                 <tr>
-                  <td style="width:36px;height:36px;border-radius:12px;background:rgba(255,255,255,0.2);text-align:center;vertical-align:middle;font-size:18px;line-height:36px;color:#ffffff;font-family:Sora,Inter,Helvetica,Arial,sans-serif;font-weight:800;">N</td>
-                  <td style="padding-left:12px;font-family:Sora,Inter,Helvetica,Arial,sans-serif;font-size:20px;font-weight:800;color:#ffffff;letter-spacing:-0.3px;">NAP Orbit</td>
+                  <td style="vertical-align:middle;padding:0;">
+                    <a href="${escapeHtml(base)}" style="text-decoration:none;">
+                      <img src="${escapeHtml(logoUrl)}" alt="" width="40" height="40" style="display:block;width:40px;height:40px;border:0;outline:none;"/>
+                    </a>
+                  </td>
+                  <td style="vertical-align:middle;padding-left:12px;">
+                    <a href="${escapeHtml(base)}" style="text-decoration:none;font-family:Sora,Inter,Helvetica,Arial,sans-serif;font-size:20px;font-weight:800;color:#171732;letter-spacing:-0.3px;">NAP Orbit</a>
+                  </td>
                 </tr>
               </table>
-              <p style="margin:10px 0 0;font-family:Inter,Segoe UI,Helvetica,Arial,sans-serif;font-size:12px;font-weight:600;color:rgba(255,255,255,0.78);letter-spacing:0.4px;">Local visibility platform</p>
+              <p style="margin:10px 0 0;font-family:Inter,Segoe UI,Helvetica,Arial,sans-serif;font-size:12px;font-weight:600;color:#9CA0B8;letter-spacing:0.4px;">Local visibility platform</p>
             </td>
+          </tr>
+          <tr>
+            <td style="height:4px;line-height:4px;font-size:0;background:linear-gradient(90deg,#5B5BD6 0%,#8A4FD8 100%);">&nbsp;</td>
           </tr>
           <tr>
             <td style="padding:32px 32px 12px;font-family:Inter,Segoe UI,Helvetica,Arial,sans-serif;">
