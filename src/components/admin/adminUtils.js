@@ -10,7 +10,12 @@ export function filterVisibleStaffNotifs(rows, role) {
     x.type === "plan_subscribed" ||
     x.type === "needs_bdm" ||
     x.type === "support_billing" ||
-    x.type === "profile_complete"
+    x.type === "profile_complete" ||
+    x.type === "call_booked" ||
+    x.type === "meeting_confirmed" ||
+    x.type === "meeting_cancelled" ||
+    x.type === "meeting_transferred" ||
+    x.type === "meeting_link_shared"
   );
 }
 

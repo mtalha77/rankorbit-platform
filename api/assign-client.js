@@ -1,6 +1,7 @@
 import { getAdmin, readJson, requireStaff } from "../server/billing.js";
-import { notifyBdm, notifySuperAdmins, notifyClient, notifyUser } from "../server/assign.js";
+import { notifyBdm, notifySuperAdmins, notifyClient, notifyUser, notifyMeetingOps } from "../server/assign.js";
 import { isBdmRole, isAgentRole } from "../server/roles.js";
+import { isBookingPast } from "../server/bookingTime.js";
 
 /**
  * Assign (or unassign) a client to a BDM or Agent.
@@ -87,6 +88,74 @@ export default async function handler(req, res) {
             body: `You are now connected with ${staff.name || "your Business Development Manager"}. You can chat with your BDM anytime from Messages, or book a call.`,
             meta: { agentId: staff.id },
           });
+        }
+
+        // Shift open meetings to the new BDM (pending + confirmed).
+        try {
+          const { data: openMeetings } = await admin
+            .from("call_bookings")
+            .select("id,agentId,slotDate,slotTime,status,meetingUrl,kind")
+            .eq("clientId", clientId)
+            .in("status", ["pending", "confirmed"]);
+          const toMove = (openMeetings || []).filter(
+            (m) =>
+              m.agentId !== staff.id &&
+              !isBookingPast(m.slotDate, m.slotTime)
+          );
+          for (const m of toMove) {
+            await admin
+              .from("call_bookings")
+              .update({ agentId: staff.id })
+              .eq("id", m.id);
+
+            const when = `${m.slotDate} at ${m.slotTime}`;
+            const needsZoom = m.status === "confirmed" && !m.meetingUrl;
+            await notifyMeetingOps(admin, {
+              agentId: staff.id,
+              clientId,
+              type: "meeting_transferred",
+              title: needsZoom
+                ? "Meeting transferred — add Zoom link"
+                : "Meeting transferred to you",
+              body: needsZoom
+                ? `${business}'s ${m.status} meeting on ${when} is now yours. Please add a Zoom / join link.`
+                : `${business}'s ${m.status} meeting on ${when} was moved to you by ${byWhom}.`,
+              meta: {
+                bookingId: m.id,
+                slotDate: m.slotDate,
+                slotTime: m.slotTime,
+                status: m.status,
+                meetingUrl: m.meetingUrl || null,
+                needsZoom: !!needsZoom,
+                transferredBy: auth.profile.id,
+              },
+            });
+
+            try {
+              const { data: notifs } = await admin
+                .from("notifications")
+                .select("id,meta")
+                .eq("type", "call_booked")
+                .contains("meta", { bookingId: m.id });
+              for (const n of notifs || []) {
+                await admin
+                  .from("notifications")
+                  .update({
+                    meta: {
+                      ...(n.meta || {}),
+                      agentId: staff.id,
+                      transferredAt: new Date().toISOString(),
+                      transferredTo: staff.id,
+                    },
+                  })
+                  .eq("id", n.id);
+              }
+            } catch {
+              /* optional */
+            }
+          }
+        } catch (e) {
+          console.warn("assign-client meeting transfer:", e.message);
         }
       } else {
         await notifyUser(admin, {

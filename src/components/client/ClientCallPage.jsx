@@ -4,7 +4,6 @@ import { api } from "../../lib/api";
 import { getPlanEntitlements, planAllowsMessaging } from "../../lib/constants";
 import { isBookingPast, CALL_SLOT_TIMES, isSlotBookable, isBookingWeekday, slotKey } from "../../lib/helpers";
 import { Card, Btn, Confirm, Empty, PageHead, SectionTitle } from "../atoms";
-import BdmConnectPanel from "./BdmConnectPanel";
 
 export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOnly=false,needsPlan=false,initialKind="regular",onInitialKindConsumed}){
   const lockMsg = needsPlan
@@ -36,8 +35,7 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOn
   const[confirm,setConfirm]=useState(null);
   const entitlements=getPlanEntitlements(user.plan);
   const canMessage=planAllowsMessaging(user.plan);
-  // Any subscribed plan (incl. Essentials) with no BDM: request Connect instead of support fallback.
-  const needsBdmConnect=!needsPlan&&!!user.plan&&!user.assignedBdmId;
+  // Meetings can be booked without a BDM; Messages still wait for assignment elsewhere.
   useEffect(()=>{
     if(initialKind==="guidance"||initialKind==="regular"){
       setMeetingKind(initialKind);
@@ -92,7 +90,7 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOn
   const activeBooking=upcomingBookings.find(b=>b.status==="confirmed")||upcomingBookings.find(b=>b.status==="pending")||null;
   const showCalendar=!loadingCall&&(showScheduler||!activeBooking);
   const times=CALL_SLOT_TIMES;
-  const bdmLabel=supportPeer?(bdm?.name||"a team member"):(bdm?.name||bdm?.email||"your BDM");
+  const bdmLabel=user.assignedBdmId?(bdm?.name||bdm?.email||"your BDM"):"our team";
   const slotDateLabel=selDay?`${monthName} ${selDay}, ${viewY}`:"";
   const takenKeys=new Set((takenSlots||[]).map(s=>slotKey(s.slotDate,s.slotTime)));
   // While rescheduling, keep the current slot selectable until the new booking replaces it.
@@ -138,22 +136,22 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOn
     if(r.agent){setBdm(r.agent);setSupportPeer(!!r.support||!!r.needsBdm);}
     toast(rescheduleId
       ?"Rescheduled — waiting for confirmation"
-      :(r.support||supportPeer)
-        ?"Request sent — a team member will confirm"
-        :"Request sent — waiting for your BDM to confirm");
+      :(r.support||supportPeer||!user.assignedBdmId)
+        ?"Request sent — our team will confirm"
+        :"Request sent — waiting for confirmation");
     setSelDay(null);setSelTime(null);setNote("");
     setShowScheduler(false);
     setRescheduleId(null);
     await loadCall();
     await reload();
   };
-  const cancelMeeting=async()=>{
+  const cancelMeeting=async(cancelReason)=>{
     if(readOnly){toast(lockMsg,"info");return;}
     if(!activeBooking?.id)return;
     setBusy(true);
-    const r=await api.cancelCall({bookingId:activeBooking.id});
+    const r=await api.cancelCall({bookingId:activeBooking.id,cancelReason});
     setBusy(false);
-    if(r.error){toast(r.error,"info");return;}
+    if(r.error){toast(r.error,"info");throw new Error(r.error);}
     toast("Meeting cancelled");
     setShowScheduler(false);
     setRescheduleId(null);
@@ -169,30 +167,11 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOn
     setSelDay(null);
     setSelTime(null);
   };
-  const statusLabel=(s)=>({pending:"Awaiting BDM confirmation",confirmed:"Confirmed"}[s]||s);
+  const statusLabel=(s)=>({pending:"Awaiting confirmation",confirmed:"Confirmed"}[s]||s);
   const statusColor=(s)=>s==="confirmed"?T.green:T.amber;
   const kindPill=(k)=>k==="guidance"?"Guidance":"Regular";
-  if(needsBdmConnect){
-    return(<div>
-      <PageHead isMobile={isMobile} title="Book a Call" sub="30 minutes with your dedicated Business Development Manager"/>
-      {readOnly&&(
-        <div style={{padding:"10px 14px",background:T.amberSoft,borderRadius:11,marginBottom:14,fontSize:12.5,color:T.amber,fontWeight:700}}>
-          {needsPlan
-            ? "View-only — subscribe to a plan to book, reschedule, or cancel meetings."
-            : "Read-only view — booking and cancel are disabled."}
-        </div>
-      )}
-      <BdmConnectPanel
-        pending={!!user.bdmConnectRequestedAt}
-        toast={toast}
-        reload={reload}
-        context="call"
-        readOnly={readOnly}
-      />
-    </div>);
-  }
   return(<div>
-    <PageHead isMobile={isMobile} title="Book a Call" sub={bdm?`30 minutes with ${supportPeer?(bdm.name||"our team"):(bdm.name||"your BDM")}`:"30 minutes with your dedicated Business Development Manager"}/>
+    <PageHead isMobile={isMobile} title="Book a Call" sub={user.assignedBdmId&&bdm?`30 minutes with ${bdm.name||"your BDM"}`:"Book a 30-minute call with our team"}/>
     {readOnly&&(
       <div style={{padding:"10px 14px",background:T.amberSoft,borderRadius:11,marginBottom:14,fontSize:12.5,color:T.amber,fontWeight:700}}>
         {needsPlan
@@ -223,16 +202,11 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOn
       </Card>
     )}
 
-    {!loadingCall&&bdm&&(<Card style={{marginBottom:16,padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+    {!loadingCall&&bdm&&user.assignedBdmId&&(<Card style={{marginBottom:16,padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
       <div>
-        <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".7px"}}>{supportPeer?"YOUR TEAM CONTACT":"YOUR BDM"}</div>
-        <div style={{fontFamily:FONT_D,fontSize:16,fontWeight:800}}>{bdm.name||(supportPeer?"Team support":"Assigned manager")}</div>
+        <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".7px"}}>YOUR BDM</div>
+        <div style={{fontFamily:FONT_D,fontSize:16,fontWeight:800}}>{bdm.name||"Assigned BDM"}</div>
         {bdm.email&&<div style={{fontSize:12.5,color:T.sub}}>{bdm.email}</div>}
-      </div>
-      <div style={{fontSize:12,color:T.sub}}>
-        {supportPeer
-          ?"No dedicated BDM yet — a manager can take this call and assign one."
-          :"You'll get matched automatically when you subscribe if you don't have one yet."}
       </div>
     </Card>)}
 
@@ -260,16 +234,16 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOn
             {statusLabel(activeBooking.status)}
           </span>
         </div>
-        <div style={{fontSize:13.5,color:T.ink,marginBottom:6}}>
-          With <b>{activeBooking.agent?.name||bdmLabel}</b>
-          {activeBooking.agent?.email?` · ${activeBooking.agent.email}`:""}
-        </div>
+        {user.assignedBdmId&&(
+          <div style={{fontSize:13.5,color:T.ink,marginBottom:6}}>
+            With <b>{activeBooking.agent?.name||bdmLabel}</b>
+            {activeBooking.agent?.email?` · ${activeBooking.agent.email}`:""}
+          </div>
+        )}
         {activeBooking.note&&<div style={{fontSize:12.5,color:T.sub,marginBottom:10}}>Note: {activeBooking.note}</div>}
         {activeBooking.status==="pending"&&(
           <div style={{fontSize:12.5,color:T.sub,marginBottom:12}}>
-            {supportPeer
-              ?"A team member will confirm and share a Zoom link here. Your dedicated BDM is being assigned."
-              :"Your BDM will confirm and share a Zoom link here."}
+            Waiting for confirmation. The join link will appear here when it is added.
           </div>
         )}
         {activeBooking.meetingUrl?(
@@ -284,17 +258,12 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOn
             </button>
           </div>
         ):activeBooking.status==="confirmed"?(
-          <div style={{padding:"12px 14px",background:T.amberSoft,borderRadius:12,marginBottom:12}}>
-            <div style={{fontSize:12.5,color:T.amber,fontWeight:700,marginBottom:8}}>Confirmed — join link not shared yet.</div>
-            <div style={{fontSize:12,color:T.sub,marginBottom:12,lineHeight:1.45}}>
-              {canMessage
-                ?"Message your BDM and ask for the Zoom link, or refresh this page after they send it."
-                :"Refresh this page after your BDM shares the Zoom link."}
+          <div style={{padding:"12px 14px",background:T.greenSoft,borderRadius:12,marginBottom:12}}>
+            <div style={{fontSize:12.5,color:T.green,fontWeight:700,marginBottom:8}}>Confirmed</div>
+            <div style={{fontSize:12,color:T.sub,lineHeight:1.45}}>
+              Your meeting is confirmed. The join link will show here as soon as it is added.
             </div>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              {canMessage&&typeof onOpenMessages==="function"&&(
-                <Btn size="sm" onClick={onOpenMessages}>Message BDM →</Btn>
-              )}
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:10}}>
               <Btn variant="soft" size="sm" onClick={()=>loadCall()}>Refresh</Btn>
             </div>
           </div>
@@ -303,9 +272,12 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOn
           <Btn variant="soft" size="sm" disabled={busy||readOnly} onClick={startReschedule}>Reschedule</Btn>
           <Btn variant="danger" size="sm" disabled={busy||readOnly} onClick={()=>setConfirm({
             title:"Cancel this meeting?",
-            msg:`Cancel ${activeBooking.slotDate} at ${activeBooking.slotTime}? Your BDM will be notified.`,
+            msg:`Cancel ${activeBooking.slotDate} at ${activeBooking.slotTime}? Managers and your team will be notified.`,
             danger:true,
             yes:"Cancel meeting",
+            reasonRequired:true,
+            reasonLabel:"Reason (required)",
+            reasonPlaceholder:"Tell us why you are cancelling",
             onYes:cancelMeeting,
           })}>Cancel meeting</Btn>
         </div>

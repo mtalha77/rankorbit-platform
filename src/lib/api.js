@@ -730,11 +730,11 @@ export const api={
       return{ok:true,...j};
     }catch(e){return{error:e.message||"Network error"};}
   },
-  async cancelCall({bookingId}={}){
+  async cancelCall({bookingId,cancelReason}={}){
     const token=await this._accessToken();
     if(!token)return{error:"Not signed in"};
     try{
-      const r=await fetch("/api/cancel-call",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,bookingId})});
+      const r=await fetch("/api/cancel-call",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,bookingId,cancelReason})});
       const j=await r.json().catch(()=>({}));
       if(!r.ok)return{error:j.error||"Could not cancel meeting"};
       return{ok:true,...j};
@@ -948,11 +948,11 @@ export const api={
     if(!supa||!ids?.length)return;
     await supa.from("notifications").update({read:true}).in("id",ids);
   },
-  async respondCall({bookingId,action,notificationId,meetingUrl}={}){
+  async respondCall({bookingId,action,notificationId,meetingUrl,cancelReason}={}){
     const token=await this._accessToken();
     if(!token)return{error:"Not signed in"};
     try{
-      const r=await fetch("/api/respond-call",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,bookingId,action,notificationId,meetingUrl})});
+      const r=await fetch("/api/respond-call",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,bookingId,action,notificationId,meetingUrl,cancelReason})});
       const j=await r.json().catch(()=>({}));
       if(!r.ok)return{error:j.error||"Could not update meeting"};
       return{ok:true,...j};

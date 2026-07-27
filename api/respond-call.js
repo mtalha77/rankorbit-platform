@@ -1,5 +1,5 @@
 import { getAdmin, readJson, requireStaff } from "../server/billing.js";
-import { notifyClient } from "../server/assign.js";
+import { notifyClient, notifyMeetingOps } from "../server/assign.js";
 import { randomUUID } from "crypto";
 
 function uid(prefix = "a") {
@@ -10,12 +10,13 @@ function uid(prefix = "a") {
   }
 }
 
-async function stampBookingNotifs(admin, { bookingId, notificationId, status, meetingUrl }) {
+async function stampBookingNotifs(admin, { bookingId, notificationId, status, meetingUrl, cancelReason }) {
   const stamp = {
     status,
     meetingUrl: meetingUrl || null,
     respondedAt: new Date().toISOString(),
   };
+  if (cancelReason) stamp.cancelReason = cancelReason;
   if (notificationId) {
     const { data: one } = await admin
       .from("notifications")
@@ -49,9 +50,9 @@ async function stampBookingNotifs(admin, { bookingId, notificationId, status, me
 }
 
 /**
- * Agent confirms/cancels a booking, or shares a Zoom link after confirm.
- * Body: { token, bookingId, action: "confirm"|"cancel"|"share_link", notificationId?, meetingUrl? }
- * Confirm and share_link require a valid https meetingUrl so clients never wait without a link.
+ * Staff confirms/cancels a booking, or shares a Zoom link after confirm.
+ * Confirm: Zoom optional (manager / SA / BDM). share_link: Zoom required.
+ * Cancel: cancelReason required for everyone.
  */
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -59,7 +60,7 @@ export default async function handler(req, res) {
   const admin = getAdmin();
   if (!admin) return res.status(500).json({ error: "Server not configured" });
 
-  const { token, bookingId, action, notificationId, meetingUrl } = await readJson(req);
+  const { token, bookingId, action, notificationId, meetingUrl, cancelReason: reasonRaw } = await readJson(req);
   if (!bookingId) return res.status(400).json({ error: "bookingId required" });
   if (!["confirm", "cancel", "share_link"].includes(action)) {
     return res.status(400).json({ error: "action must be confirm, cancel, or share_link" });
@@ -77,8 +78,14 @@ export default async function handler(req, res) {
       return null;
     }
   })();
-  if ((action === "confirm" || action === "share_link") && !cleanMeetingUrl) {
+
+  if (action === "share_link" && !cleanMeetingUrl) {
     return res.status(400).json({ error: "A Zoom / meeting link is required (https://…)" });
+  }
+
+  const cancelReason = String(reasonRaw || "").trim().slice(0, 1000);
+  if (action === "cancel" && cancelReason.length < 3) {
+    return res.status(400).json({ error: "A cancel reason is required (at least 3 characters)" });
   }
 
   const auth = await requireStaff(admin, token, { roles: ["bdm", "manager", "super_admin"] });
@@ -98,7 +105,8 @@ export default async function handler(req, res) {
     }
 
     const when = `${booking.slotDate} at ${booking.slotTime}`;
-    const agentName = auth.profile.name || "Your BDM";
+    const agentName = auth.profile.name || "Your team";
+    const role = auth.profile.role;
 
     if (action === "share_link") {
       if (booking.status !== "confirmed") {
@@ -130,6 +138,20 @@ export default async function handler(req, res) {
           meetingUrl: cleanMeetingUrl,
         },
       });
+      await notifyMeetingOps(admin, {
+        agentId: booking.agentId !== auth.profile.id ? booking.agentId : null,
+        clientId: booking.clientId,
+        type: "meeting_link_shared",
+        title: "Zoom link added to meeting",
+        body: `${agentName} added a join link for ${when}.`,
+        meta: {
+          bookingId,
+          slotDate: booking.slotDate,
+          slotTime: booking.slotTime,
+          status: "confirmed",
+          meetingUrl: cleanMeetingUrl,
+        },
+      });
       return res.status(200).json({
         ok: true,
         status: "confirmed",
@@ -144,38 +166,92 @@ export default async function handler(req, res) {
 
     const nextStatus = action === "confirm" ? "confirmed" : "cancelled";
     const update = { status: nextStatus };
-    if (action === "confirm") update.meetingUrl = cleanMeetingUrl;
-    const { error: upErr } = await admin
-      .from("call_bookings")
-      .update(update)
-      .eq("id", bookingId);
+    if (action === "confirm" && cleanMeetingUrl) update.meetingUrl = cleanMeetingUrl;
+    if (action === "cancel") update.cancelReason = cancelReason;
+
+    let { error: upErr } = await admin.from("call_bookings").update(update).eq("id", bookingId);
+    // Older DBs may not have cancelReason yet.
+    if (upErr && action === "cancel" && /cancelReason/i.test(upErr.message || "")) {
+      ({ error: upErr } = await admin
+        .from("call_bookings")
+        .update({ status: "cancelled" })
+        .eq("id", bookingId));
+    }
     if (upErr) return res.status(500).json({ error: upErr.message });
 
-    const link = action === "confirm" ? cleanMeetingUrl : null;
+    const link = action === "confirm" ? cleanMeetingUrl || null : null;
     await stampBookingNotifs(admin, {
       bookingId,
       notificationId,
       status: nextStatus,
       meetingUrl: link || booking.meetingUrl || null,
+      cancelReason: action === "cancel" ? cancelReason : undefined,
     });
 
-    await notifyClient(admin, {
-      userId: booking.clientId,
-      clientId: booking.clientId,
-      type: action === "confirm" ? "meeting_confirmed" : "meeting_cancelled",
-      title: action === "confirm" ? "Your meeting is confirmed" : "Your meeting was cancelled",
-      body:
-        action === "confirm"
+    if (action === "confirm") {
+      await notifyClient(admin, {
+        userId: booking.clientId,
+        clientId: booking.clientId,
+        type: "meeting_confirmed",
+        title: "Your meeting is confirmed",
+        body: link
           ? `${agentName} confirmed your call for ${when}. Join link: ${link}`
-          : `${agentName} cancelled your call for ${when}. Please book another time if you still need to talk.`,
-      meta: {
-        bookingId,
-        slotDate: booking.slotDate,
-        slotTime: booking.slotTime,
-        status: nextStatus,
-        meetingUrl: link,
-      },
-    });
+          : `${agentName} confirmed your call for ${when}. The join link will appear here when it is added.`,
+        meta: {
+          bookingId,
+          slotDate: booking.slotDate,
+          slotTime: booking.slotTime,
+          status: "confirmed",
+          meetingUrl: link,
+        },
+      });
+      await notifyMeetingOps(admin, {
+        agentId: booking.agentId !== auth.profile.id ? booking.agentId : null,
+        clientId: booking.clientId,
+        type: "meeting_confirmed",
+        title: link ? "Meeting confirmed with Zoom link" : "Meeting confirmed (no Zoom link yet)",
+        body: `${agentName} (${role}) confirmed the call for ${when}.${link ? "" : " Zoom link still needed."}`,
+        meta: {
+          bookingId,
+          slotDate: booking.slotDate,
+          slotTime: booking.slotTime,
+          status: "confirmed",
+          meetingUrl: link,
+          confirmedBy: auth.profile.id,
+        },
+      });
+    } else {
+      await notifyClient(admin, {
+        userId: booking.clientId,
+        clientId: booking.clientId,
+        type: "meeting_cancelled",
+        title: "Your meeting was cancelled",
+        body: `${agentName} cancelled your call for ${when}. Reason: ${cancelReason}`,
+        meta: {
+          bookingId,
+          slotDate: booking.slotDate,
+          slotTime: booking.slotTime,
+          status: "cancelled",
+          cancelReason,
+          cancelledBy: role,
+        },
+      });
+      await notifyMeetingOps(admin, {
+        agentId: booking.agentId !== auth.profile.id ? booking.agentId : null,
+        clientId: booking.clientId,
+        type: "meeting_cancelled",
+        title: "Meeting cancelled",
+        body: `${agentName} (${role}) cancelled the call for ${when}. Reason: ${cancelReason}`,
+        meta: {
+          bookingId,
+          slotDate: booking.slotDate,
+          slotTime: booking.slotTime,
+          status: "cancelled",
+          cancelReason,
+          cancelledBy: role,
+        },
+      });
+    }
 
     try {
       await admin.from("activity").insert({
@@ -184,8 +260,8 @@ export default async function handler(req, res) {
         type: "submitted",
         desc:
           action === "confirm"
-            ? `Meeting confirmed · ${when}`
-            : `Meeting cancelled · ${when}`,
+            ? `Meeting confirmed · ${when}${link ? "" : " (no Zoom yet)"}`
+            : `Meeting cancelled · ${when} · ${cancelReason}`,
         date: new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }),
         by: agentName,
       });
@@ -198,6 +274,7 @@ export default async function handler(req, res) {
       status: nextStatus,
       bookingId,
       meetingUrl: link || booking.meetingUrl || null,
+      cancelReason: action === "cancel" ? cancelReason : null,
     });
   } catch (e) {
     console.error("respond-call:", e.message);

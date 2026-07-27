@@ -1,10 +1,8 @@
 import { getAdmin, readJson, requireClient } from "../server/billing.js";
 import {
   resolveClientChatPeer,
-  notifyBdm,
   notifyClient,
-  notifyManagersInApp,
-  notifyStaffRoute,
+  notifyMeetingOps,
 } from "../server/assign.js";
 import {
   CALL_SLOT_TIMES,
@@ -28,7 +26,7 @@ function uid(prefix = "bk") {
   }
 }
 
-/** Client books a 30-min call with BDM, or a manager if no agent is available yet. */
+/** Client books a 30-min call — works with or without an assigned BDM. */
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
@@ -54,12 +52,11 @@ export default async function handler(req, res) {
     const agent = peer;
     if (!agent) {
       return res.status(503).json({
-        error: "Our team is briefly unavailable. Please try again in a few minutes or use Messages.",
+        error: "Our team is briefly unavailable. Please try again in a few minutes.",
       });
     }
     const support = peerKind === "support";
 
-    // One active upcoming booking per client — unless replacing that booking (reschedule).
     let { data: mine, error: mineErr } = await admin
       .from("call_bookings")
       .select("id,slotDate,slotTime,status,kind,createdAt")
@@ -86,13 +83,21 @@ export default async function handler(req, res) {
           error: "Nothing to reschedule. Cancelled or past meetings cannot be replaced.",
         });
       }
-      // Reschedule keeps the same kind and does not consume an extra quota slot.
       meetingKind = target.kind === "guidance" ? "guidance" : "regular";
-      await admin
-        .from("call_bookings")
-        .update({ status: "cancelled" })
-        .eq("id", replaceBookingId)
-        .eq("clientId", client.id);
+      {
+        let { error: cancelUpErr } = await admin
+          .from("call_bookings")
+          .update({ status: "cancelled", cancelReason: "Client rescheduled" })
+          .eq("id", replaceBookingId)
+          .eq("clientId", client.id);
+        if (cancelUpErr && /cancelReason/i.test(cancelUpErr.message || "")) {
+          await admin
+            .from("call_bookings")
+            .update({ status: "cancelled" })
+            .eq("id", replaceBookingId)
+            .eq("clientId", client.id);
+        }
+      }
       try {
         const { data: oldNotifs } = await admin
           .from("notifications")
@@ -122,7 +127,6 @@ export default async function handler(req, res) {
       });
     }
 
-    // Period quota (skip increase check on reschedule — same kind, cancelled old first).
     if (!replaceBookingId) {
       const planId = client.plan || "essentials";
       const entitlements = getEntitlements(planId);
@@ -196,7 +200,6 @@ export default async function handler(req, res) {
       kind: meetingKind,
     };
     let { error: bErr } = await admin.from("call_bookings").insert(row);
-    // Older DBs may not have kind yet — retry without it.
     if (bErr && /kind/i.test(bErr.message || "")) {
       const { kind: _k, ...basic } = row;
       ({ error: bErr } = await admin.from("call_bookings").insert(basic));
@@ -212,37 +215,19 @@ export default async function handler(req, res) {
     }
 
     const who = client.businessName || client.name || client.email;
-    const peerLabel = support ? agent.name || "a team member" : agent.name || "your BDM";
+    const peerLabel = support ? "our team" : agent.name || "your BDM";
     const kindLabel = meetingKind === "guidance" ? "guidance call" : "call";
-    const notified = await notifyBdm(admin, {
+
+    const notified = await notifyMeetingOps(admin, {
       agentId: agent.id,
       clientId: client.id,
       type: "call_booked",
       title: support
-        ? "Support meeting — confirm or cancel (no BDM yet)"
+        ? "Meeting booked — no BDM yet (confirm / assign)"
         : `Meeting scheduled (${kindLabel}) — confirm or cancel`,
-      body: `${who} requested a 30-min ${kindLabel} on ${slotDate} at ${slotTime}.${note ? ` Note: ${note}` : ""} Open Notifications to confirm or cancel.${support ? " Assign a BDM when ready." : ""}`,
-      meta: { bookingId, slotDate, slotTime, status: "pending", support, kind: meetingKind },
+      body: `${who} requested a 30-min ${kindLabel} on ${slotDate} at ${slotTime}.${note ? ` Note: ${note}` : ""}${support ? " Assign a BDM when ready — the meeting will move to them." : ""}`,
+      meta: { bookingId, slotDate, slotTime, status: "pending", support, kind: meetingKind, needsBdm: !!needsBdm },
     });
-
-    if (support) {
-      await notifyManagersInApp(admin, {
-        clientId: client.id,
-        type: "call_booked",
-        title: `Call request from ${who}`,
-        body: `${who} booked ${slotDate} at ${slotTime} with support — assign a BDM when ready.`,
-        meta: { bookingId, slotDate, slotTime, status: "pending", support: true, peerId: agent.id, kind: meetingKind },
-      });
-      try {
-        await notifyStaffRoute(admin, {
-          kind: "system",
-          title: "Client booked a call — no BDM assigned",
-          body: `${who} booked ${slotDate} at ${slotTime}. A manager should confirm and assign a BDM.`,
-        });
-      } catch {
-        /* optional */
-      }
-    }
 
     await notifyClient(admin, {
       userId: client.id,
@@ -250,7 +235,7 @@ export default async function handler(req, res) {
       type: "meeting_pending",
       title: "Meeting request sent",
       body: support
-        ? `You requested a 30-min ${kindLabel} on ${slotDate} at ${slotTime}. A team member will confirm — your dedicated BDM is being assigned.`
+        ? `You requested a 30-min ${kindLabel} on ${slotDate} at ${slotTime}. Our team will confirm — your dedicated BDM will be assigned soon.`
         : `You requested a 30-min ${kindLabel} with ${peerLabel} on ${slotDate} at ${slotTime}. We'll notify you when they confirm or cancel.`,
       meta: {
         bookingId,
@@ -270,7 +255,7 @@ export default async function handler(req, res) {
         clientId: client.id,
         type: "submitted",
         desc: support
-          ? `${meetingKind === "guidance" ? "Guidance call" : "Call"} booked with support (${agent.name || "manager"}) · ${slotDate} ${slotTime}`
+          ? `${meetingKind === "guidance" ? "Guidance call" : "Call"} booked (awaiting BDM) · ${slotDate} ${slotTime}`
           : `${meetingKind === "guidance" ? "Guidance call" : "Call"} booked with ${agent.name || "BDM"} · ${slotDate} ${slotTime}`,
         date: new Date().toLocaleDateString("en-US", {
           year: "numeric",

@@ -46,12 +46,26 @@ export function pushPathFor(type, role) {
   if (staff) {
     if (type === "needs_bdm" || type === "client_assigned" || type === "support_billing" || type === "support_technical" || type === "support_it" || type === "profile_complete") return "/admin";
     if (type === "staff_message" || type === "chat_message") return "/admin";
-    if (type === "call_booked" || type === "meeting") return "/admin";
+    if (
+      type === "call_booked" ||
+      type === "meeting" ||
+      type === "meeting_confirmed" ||
+      type === "meeting_cancelled" ||
+      type === "meeting_transferred" ||
+      type === "meeting_link_shared"
+    ) return "/admin";
     return "/admin";
   }
   if (type === "payment_failed" || type === "plan_subscribed") return "/dashboard";
   if (type === "bdm_assigned" || type === "staff_message" || type === "chat_message") return "/dashboard";
-  if (type === "call_confirmed" || type === "call_booked" || type === "meeting") return "/dashboard";
+  if (
+    type === "call_confirmed" ||
+    type === "call_booked" ||
+    type === "meeting" ||
+    type === "meeting_pending" ||
+    type === "meeting_confirmed" ||
+    type === "meeting_cancelled"
+  ) return "/dashboard";
   return "/dashboard";
 }
 

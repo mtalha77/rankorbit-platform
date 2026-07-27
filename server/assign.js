@@ -271,7 +271,110 @@ const SUPER_ADMIN_INAPP_TYPES = new Set([
   "needs_bdm",
   "support_billing",
   "profile_complete",
+  "call_booked",
+  "meeting_confirmed",
+  "meeting_cancelled",
+  "meeting_transferred",
+  "meeting_link_shared",
 ]);
+
+/**
+ * Meeting ops fan-out: peer (BDM/manager) + all managers + all super admins.
+ * In-app + web push + email (when email !== false).
+ */
+export async function notifyMeetingOps(admin, {
+  clientId,
+  type,
+  title,
+  body,
+  meta,
+  agentId = null,
+  email: sendEmail = true,
+}) {
+  if (!admin || !title) return { notified: false };
+  const exclude = new Set();
+
+  if (agentId) {
+    const peer = await notifyBdm(admin, {
+      agentId,
+      clientId,
+      type,
+      title,
+      body,
+      meta,
+      email: sendEmail,
+    });
+    if (peer?.notified) exclude.add(agentId);
+  }
+
+  const staffEmails = new Set();
+
+  try {
+    const { data: managers } = await admin
+      .from("profiles")
+      .select("id,email,name,notifyEmail,status,deletedAt")
+      .eq("role", "manager");
+    for (const m of managers || []) {
+      if (!m?.id || m.deletedAt || m.status === "suspended" || exclude.has(m.id)) continue;
+      try {
+        await createNotification(admin, {
+          userId: m.id,
+          clientId: clientId || null,
+          type: type || "call_booked",
+          title,
+          body,
+          meta: { ...(meta || {}), audience: "manager" },
+        });
+        await maybePush(admin, m.id, { type: type || "call_booked", title, body, meta });
+        exclude.add(m.id);
+        if (sendEmail !== false) {
+          const em = deliveryEmail(m);
+          if (em) staffEmails.add(em);
+        }
+      } catch (e) {
+        console.warn("notifyMeetingOps manager:", e.message);
+      }
+    }
+  } catch (e) {
+    console.warn("notifyMeetingOps managers query:", e.message);
+  }
+
+  try {
+    await notifySuperAdminsInApp(admin, {
+      clientId,
+      type: type || "call_booked",
+      title,
+      body,
+      meta,
+    });
+  } catch (e) {
+    console.warn("notifyMeetingOps SA in-app:", e.message);
+  }
+
+  if (sendEmail !== false) {
+    try {
+      const { data: sas } = await admin
+        .from("profiles")
+        .select("id,email,name,notifyEmail,status,deletedAt")
+        .eq("role", "super_admin");
+      for (const a of sas || []) {
+        if (!a?.id || a.deletedAt || a.status === "suspended") continue;
+        const em = deliveryEmail(a);
+        if (em) staffEmails.add(em);
+      }
+    } catch (e) {
+      console.warn("notifyMeetingOps SA emails:", e.message);
+    }
+    if (staffEmails.size) {
+      await sendNotifyEmails([...staffEmails], title, body, {
+        ctaUrl: `${appBaseUrl()}/admin`,
+        ctaLabel: "Open admin",
+      });
+    }
+  }
+
+  return { notified: true };
+}
 
 /** Notify any user (client or staff) in-app only (+ web push when subscribed). */
 export async function notifyUser(admin, { userId, clientId, type, title, body, meta }) {

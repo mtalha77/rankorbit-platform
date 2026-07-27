@@ -13,6 +13,8 @@ export function NotificationsPage({user,isAdmin,isMobile,toast,setNotifBadge,set
   const[openId,setOpenId]=useState(null);
   const[zoomByNotif,setZoomByNotif]=useState({});
   const[zoomErr,setZoomErr]=useState({});
+  const[cancelReasonByNotif,setCancelReasonByNotif]=useState({});
+  const[cancelErr,setCancelErr]=useState({});
   const[from,setFrom]=useState("");
   const[to,setTo]=useState("");
   const load=async()=>{
@@ -44,7 +46,7 @@ export function NotificationsPage({user,isAdmin,isMobile,toast,setNotifBadge,set
     const bookingId=n.meta?.bookingId;
     if(!bookingId){toast("This notification has no booking linked","info");return;}
     const meetingUrl=(zoomByNotif[n.id]||"").trim();
-    if(action==="confirm"||action==="share_link"){
+    if(action==="share_link"){
       if(!meetingUrl){
         setZoomErr(prev=>({...prev,[n.id]:"Zoom / meeting link is required"}));
         return;
@@ -54,40 +56,79 @@ export function NotificationsPage({user,isAdmin,isMobile,toast,setNotifBadge,set
         return;
       }
     }
+    if(action==="confirm"&&meetingUrl){
+      try{new URL(meetingUrl);}catch{
+        setZoomErr(prev=>({...prev,[n.id]:"Enter a valid Zoom link (https://…)"}));
+        return;
+      }
+    }
+    let cancelReason;
+    if(action==="cancel"){
+      cancelReason=(cancelReasonByNotif[n.id]||"").trim();
+      if(cancelReason.length<3){
+        setCancelErr(prev=>({...prev,[n.id]:"A cancel reason is required (at least 3 characters)"}));
+        return;
+      }
+    }
     setZoomErr(prev=>({...prev,[n.id]:""}));
+    setCancelErr(prev=>({...prev,[n.id]:""}));
     setBusyId(n.id+action);
-    const r=await api.respondCall({bookingId,action,notificationId:n.id,meetingUrl:(action==="confirm"||action==="share_link")?meetingUrl:undefined});
+    const r=await api.respondCall({
+      bookingId,
+      action,
+      notificationId:n.id,
+      meetingUrl:(action==="confirm"||action==="share_link")?(meetingUrl||undefined):undefined,
+      cancelReason:action==="cancel"?cancelReason:undefined,
+    });
     setBusyId(null);
     if(r.error){toast(r.error,"info");return;}
     toast(action==="confirm"
-      ?"Meeting confirmed — Zoom link shared with client"
+      ?(r.meetingUrl?"Meeting confirmed — Zoom link shared":"Meeting confirmed")
       :action==="share_link"
       ?"Zoom link shared with client"
-      :"Meeting cancelled — client notified");
+      :"Meeting cancelled — client and team notified");
     setNotifs(prev=>prev.map(x=>{
       if(x.id!==n.id&&x.meta?.bookingId!==bookingId)return x;
-      return{...x,read:true,meta:{...(x.meta||{}),status:r.status||x.meta?.status,meetingUrl:r.meetingUrl||meetingUrl||null,respondedAt:new Date().toISOString()}};
+      return{...x,read:true,meta:{
+        ...(x.meta||{}),
+        status:r.status||x.meta?.status,
+        meetingUrl:r.meetingUrl||meetingUrl||x.meta?.meetingUrl||null,
+        cancelReason:r.cancelReason||cancelReason||x.meta?.cancelReason||null,
+        respondedAt:new Date().toISOString(),
+      }};
     }));
   };
   const typeIcon=(t)=>({
     staff_created:"🔑",client_assigned:"👤",client_unassigned:"👤",call_booked:"📅",
     bdm_message:"💬",chat_message:"💬",staff_message:"💬",meeting_confirmed:"✅",meeting_cancelled:"❌",
+    meeting_transferred:"↪️",meeting_link_shared:"🔗",
     payment_failed:"⚠️",plan_subscribed:"💳",needs_bdm:"👤",support_billing:"💳",support_technical:"🛠️",support_it:"🛠️",profile_complete:"📋",
   }[t]||"🔔");
   const typeLabel=(t)=>({
     staff_created:"Staff",client_assigned:"Assignment",client_unassigned:"Assignment",call_booked:"Meeting",
     bdm_message:"Message",chat_message:"Chat",staff_message:"Team chat",meeting_confirmed:"Meeting",meeting_cancelled:"Meeting",
+    meeting_transferred:"Meeting",meeting_link_shared:"Meeting",
     payment_failed:"Billing",plan_subscribed:"Plan",needs_bdm:"Assign BDM",support_billing:"Billing support",support_technical:"Technical support",support_it:"Technical support",profile_complete:"Profile ready",
   }[t]||"Update");
-  const canRespond=(n)=>!isAdmin&&n.type==="call_booked"&&n.meta?.bookingId&&(!n.meta?.status||n.meta.status==="pending")&&!n.meta?.reportOnly&&!isBookingPast(n.meta?.slotDate,n.meta?.slotTime);
+  const canRespond=(n)=>
+    (n.type==="call_booked"||n.type==="meeting_transferred")&&
+    n.meta?.bookingId&&
+    (!n.meta?.status||n.meta.status==="pending")&&
+    !n.meta?.reportOnly&&
+    !isBookingPast(n.meta?.slotDate,n.meta?.slotTime);
+  const canShareLink=(n)=>
+    (n.type==="call_booked"||n.type==="meeting_transferred")&&
+    n.meta?.status==="confirmed"&&
+    !n.meta?.meetingUrl&&
+    !isBookingPast(n.meta?.slotDate,n.meta?.slotTime);
   const emptySub=isAdmin
-    ?"Team chat, billing support, plan purchases, and payment-failed alerts show here."
+    ?"Team chat, meetings, billing support, plan purchases, and payment-failed alerts show here."
     :"When a client is assigned to you or schedules a meeting, it appears here.";
   const filtered=useMemo(()=>notifs.filter(n=>notifMatchesDateRange(n,from,to)),[notifs,from,to]);
   const hasFilter=!!(from||to);
   return(<div>
     <PageHead isMobile={isMobile} title="Notifications"
-      sub={isAdmin?"Team chat, billing support, plan purchases, and payment alerts":"Client assignments, meeting requests, and messages"}
+      sub={isAdmin?"Team chat, meetings, billing support, plan purchases, and payment alerts":"Client assignments, meeting requests, and messages"}
       right={
         <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",justifyContent:"flex-end",marginTop:isMobile?28:34}}>
           <NotifDateFilters
@@ -126,25 +167,36 @@ export function NotificationsPage({user,isAdmin,isMobile,toast,setNotifBadge,set
                     {n.createdAt?` · ${new Date(n.createdAt).toLocaleString()}`:""}
                     {n.meta?.status&&n.meta.status!=="pending"?` · ${n.meta.status}`:""}
                     {canRespond(n)?" · Action needed":""}
-                    {isAdmin&&n.type==="call_booked"&&(!n.meta?.status||n.meta.status==="pending")&&!isBookingPast(n.meta?.slotDate,n.meta?.slotTime)?" · Awaiting agent":""}
+                    {canShareLink(n)?" · Add Zoom link":""}
                   </div>
                 </div>
               </div>
               {openId===n.id&&canRespond(n)&&(
                 <div style={{padding:"0 6px 14px 54px"}}>
                   <div style={{marginBottom:10}}>
-                    <div style={{fontSize:11.5,fontWeight:700,color:T.sub,marginBottom:6}}>Zoom / meeting link (required)</div>
+                    <div style={{fontSize:11.5,fontWeight:700,color:T.sub,marginBottom:6}}>Zoom / meeting link (optional to confirm)</div>
                     <input
                       value={zoomByNotif[n.id]||""}
                       onChange={e=>{setZoomByNotif(prev=>({...prev,[n.id]:e.target.value}));setZoomErr(prev=>({...prev,[n.id]:""}));}}
-                      placeholder="https://zoom.us/j/…"
+                      placeholder="https://zoom.us/j/… (optional)"
                       style={{width:"100%",maxWidth:420,padding:"10px 12px",borderRadius:10,border:`1.5px solid ${zoomErr[n.id]?T.red:T.line}`,background:T.surface,color:T.ink,fontSize:13,fontFamily:FONT_B,boxSizing:"border-box"}}
                     />
                     {zoomErr[n.id]&&<div style={{fontSize:11,color:T.red,marginTop:5,fontWeight:600}}>{zoomErr[n.id]}</div>}
                   </div>
+                  <div style={{marginBottom:10}}>
+                    <div style={{fontSize:11.5,fontWeight:700,color:T.sub,marginBottom:6}}>Cancel reason (required to cancel)</div>
+                    <textarea
+                      value={cancelReasonByNotif[n.id]||""}
+                      onChange={e=>{setCancelReasonByNotif(prev=>({...prev,[n.id]:e.target.value}));setCancelErr(prev=>({...prev,[n.id]:""}));}}
+                      placeholder="Why is this meeting being cancelled?"
+                      rows={2}
+                      style={{width:"100%",maxWidth:420,padding:"10px 12px",borderRadius:10,border:`1.5px solid ${cancelErr[n.id]?T.red:T.line}`,background:T.surface,color:T.ink,fontSize:13,fontFamily:FONT_B,boxSizing:"border-box",resize:"vertical"}}
+                    />
+                    {cancelErr[n.id]&&<div style={{fontSize:11,color:T.red,marginTop:5,fontWeight:600}}>{cancelErr[n.id]}</div>}
+                  </div>
                   <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                     <Btn variant="green" size="sm" disabled={!!busyId} onClick={()=>respond(n,"confirm")}>
-                      {busyId===n.id+"confirm"?"Confirming…":"Confirm + share link"}
+                      {busyId===n.id+"confirm"?"Confirming…":"Confirm meeting"}
                     </Btn>
                     <Btn variant="danger" size="sm" disabled={!!busyId} onClick={()=>respond(n,"cancel")}>
                       {busyId===n.id+"cancel"?"Cancelling…":"Cancel meeting"}
@@ -152,9 +204,9 @@ export function NotificationsPage({user,isAdmin,isMobile,toast,setNotifBadge,set
                   </div>
                 </div>
               )}
-              {openId===n.id&&n.type==="call_booked"&&n.meta?.status==="confirmed"&&!n.meta?.meetingUrl&&!isAdmin&&(
+              {openId===n.id&&canShareLink(n)&&(
                 <div style={{padding:"0 6px 14px 54px"}}>
-                  <div style={{fontSize:12.5,color:T.amber,fontWeight:700,marginBottom:10}}>Confirmed without a join link — share one so the client can join.</div>
+                  <div style={{fontSize:12.5,color:T.amber,fontWeight:700,marginBottom:10}}>Confirmed — add a Zoom link so the client can join.</div>
                   <div style={{marginBottom:10}}>
                     <input
                       value={zoomByNotif[n.id]||""}
@@ -169,17 +221,22 @@ export function NotificationsPage({user,isAdmin,isMobile,toast,setNotifBadge,set
                   </Btn>
                 </div>
               )}
-              {openId===n.id&&n.type==="call_booked"&&n.meta?.status&&n.meta.status!=="pending"&&!(n.meta.status==="confirmed"&&!n.meta?.meetingUrl&&!isAdmin)&&(
+              {openId===n.id&&n.meta?.status&&n.meta.status!=="pending"&&!canShareLink(n)&&(
                 <div style={{padding:"0 6px 14px 54px",fontSize:12.5,color:n.meta.status==="confirmed"?T.green:T.amber,fontWeight:700}}>
-                  Meeting {n.meta.status}.{isAdmin?"":" Client has been notified."}
+                  Meeting {n.meta.status}. Client has been notified.
                   {n.meta.meetingUrl&&(
                     <div style={{marginTop:6,fontWeight:600}}>
                       Link: <a href={n.meta.meetingUrl} target="_blank" rel="noreferrer" style={{color:T.brand}}>{n.meta.meetingUrl}</a>
                     </div>
                   )}
+                  {n.meta.cancelReason&&(
+                    <div style={{marginTop:6,fontWeight:600,color:T.sub}}>
+                      Reason: {n.meta.cancelReason}
+                    </div>
+                  )}
                 </div>
               )}
-              {openId===n.id&&(n.type==="client_assigned"||n.type==="client_unassigned"||n.type==="call_booked"||n.type==="bdm_message"||n.type==="chat_message"||n.type==="meeting_confirmed"||n.type==="meeting_cancelled"||n.type==="payment_failed"||n.type==="plan_subscribed"||n.type==="needs_bdm"||n.type==="support_billing"||n.type==="support_it"||n.type==="support_technical"||n.type==="profile_complete")&&n.clientId&&(
+              {openId===n.id&&(n.type==="client_assigned"||n.type==="client_unassigned"||n.type==="call_booked"||n.type==="meeting_transferred"||n.type==="bdm_message"||n.type==="chat_message"||n.type==="meeting_confirmed"||n.type==="meeting_cancelled"||n.type==="meeting_link_shared"||n.type==="payment_failed"||n.type==="plan_subscribed"||n.type==="needs_bdm"||n.type==="support_billing"||n.type==="support_it"||n.type==="support_technical"||n.type==="profile_complete")&&n.clientId&&(
                 <div style={{padding:"0 6px 14px 54px",display:"flex",gap:8,flexWrap:"wrap"}}>
                   <Btn variant="soft" size="sm" onClick={()=>{setSelClient(n.clientId);setPage("clientDetail");}}>
                     {n.type==="needs_bdm"||n.type==="support_it"||n.type==="support_technical"?"Assign BDM →":n.type==="support_billing"?"Review billing →":n.type==="profile_complete"?"View client →":"Open client →"}

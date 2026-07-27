@@ -1,5 +1,5 @@
 import { getAdmin, readJson, requireClient } from "../server/billing.js";
-import { notifyBdm, notifyClient } from "../server/assign.js";
+import { notifyClient, notifyMeetingOps } from "../server/assign.js";
 import { isBookingPast } from "../server/bookingTime.js";
 import { randomUUID } from "crypto";
 
@@ -13,7 +13,7 @@ function uid(prefix = "a") {
 
 /**
  * Client cancels their own pending/confirmed booking.
- * Body: { token, bookingId }
+ * Body: { token, bookingId, cancelReason }
  */
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -21,8 +21,13 @@ export default async function handler(req, res) {
   const admin = getAdmin();
   if (!admin) return res.status(500).json({ error: "Server not configured" });
 
-  const { token, bookingId } = await readJson(req);
+  const { token, bookingId, cancelReason: reasonRaw } = await readJson(req);
   if (!bookingId) return res.status(400).json({ error: "bookingId required" });
+
+  const cancelReason = String(reasonRaw || "").trim().slice(0, 1000);
+  if (cancelReason.length < 3) {
+    return res.status(400).json({ error: "A cancel reason is required (at least 3 characters)" });
+  }
 
   const auth = await requireClient(admin, token);
   if (auth.error) return res.status(auth.status).json({ error: auth.error });
@@ -48,10 +53,16 @@ export default async function handler(req, res) {
       return res.status(409).json({ error: "This meeting has already ended" });
     }
 
-    const { error: upErr } = await admin
+    let { error: upErr } = await admin
       .from("call_bookings")
-      .update({ status: "cancelled" })
+      .update({ status: "cancelled", cancelReason })
       .eq("id", bookingId);
+    if (upErr && /cancelReason/i.test(upErr.message || "")) {
+      ({ error: upErr } = await admin
+        .from("call_bookings")
+        .update({ status: "cancelled" })
+        .eq("id", bookingId));
+    }
     if (upErr) return res.status(500).json({ error: upErr.message });
 
     const when = `${booking.slotDate} at ${booking.slotTime}`;
@@ -72,6 +83,7 @@ export default async function handler(req, res) {
               ...(n.meta || {}),
               status: "cancelled",
               cancelledBy: "client",
+              cancelReason,
               respondedAt: new Date().toISOString(),
             },
           })
@@ -81,18 +93,19 @@ export default async function handler(req, res) {
       /* optional */
     }
 
-    await notifyBdm(admin, {
+    await notifyMeetingOps(admin, {
       agentId: booking.agentId,
       clientId: booking.clientId,
       type: "meeting_cancelled",
       title: "Client cancelled the meeting",
-      body: `${who} cancelled the call for ${when}.`,
+      body: `${who} cancelled the call for ${when}. Reason: ${cancelReason}`,
       meta: {
         bookingId,
         slotDate: booking.slotDate,
         slotTime: booking.slotTime,
         status: "cancelled",
         cancelledBy: "client",
+        cancelReason,
       },
     });
 
@@ -101,13 +114,14 @@ export default async function handler(req, res) {
       clientId: booking.clientId,
       type: "meeting_cancelled",
       title: "Meeting cancelled",
-      body: `You cancelled your call for ${when}. You can book a new time anytime.`,
+      body: `You cancelled your call for ${when}. Reason: ${cancelReason}`,
       meta: {
         bookingId,
         slotDate: booking.slotDate,
         slotTime: booking.slotTime,
         status: "cancelled",
         cancelledBy: "client",
+        cancelReason,
       },
     });
 
@@ -116,7 +130,7 @@ export default async function handler(req, res) {
         id: uid("a"),
         clientId: booking.clientId,
         type: "submitted",
-        desc: `Meeting cancelled by client · ${when}`,
+        desc: `Meeting cancelled by client · ${when} · ${cancelReason}`,
         date: new Date().toLocaleDateString("en-US", {
           year: "numeric",
           month: "short",
@@ -128,7 +142,7 @@ export default async function handler(req, res) {
       /* optional */
     }
 
-    return res.status(200).json({ ok: true, status: "cancelled", bookingId });
+    return res.status(200).json({ ok: true, status: "cancelled", bookingId, cancelReason });
   } catch (e) {
     console.error("cancel-call:", e.message);
     return res.status(500).json({ error: e.message || "Could not cancel meeting" });

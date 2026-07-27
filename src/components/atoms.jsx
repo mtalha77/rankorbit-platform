@@ -82,14 +82,36 @@ export const Modal=({open,onClose,title,children,width=500})=>{
   </div>);
 };
 export const Confirm=({data,onClose})=>{
+  const[reason,setReason]=useState("");
+  const[reasonErr,setReasonErr]=useState("");
   if(!data)return null;
+  const needsReason=!!data.reasonRequired;
   return(<Modal open onClose={onClose} title={data.title} width={420}>
-    <div style={{fontSize:13.5,color:T.sub,lineHeight:1.6,marginBottom:20}}>{data.msg}</div>
+    <div style={{fontSize:13.5,color:T.sub,lineHeight:1.6,marginBottom:needsReason?14:20}}>{data.msg}</div>
+    {needsReason&&(
+      <div style={{marginBottom:18}}>
+        <div style={{fontSize:11.5,fontWeight:700,color:T.sub,marginBottom:6}}>{data.reasonLabel||"Reason (required)"}</div>
+        <textarea
+          value={reason}
+          onChange={e=>{setReason(e.target.value);setReasonErr("");}}
+          placeholder={data.reasonPlaceholder||"Explain why this meeting is being cancelled"}
+          rows={3}
+          style={{width:"100%",padding:"10px 12px",borderRadius:11,border:`1.5px solid ${reasonErr?T.red:T.line}`,background:T.surface,color:T.ink,fontSize:13,fontFamily:FONT_B,resize:"vertical",boxSizing:"border-box"}}
+        />
+        {reasonErr&&<div style={{fontSize:11,color:T.red,marginTop:5,fontWeight:600}}>{reasonErr}</div>}
+      </div>
+    )}
     <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
       <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
       <Btn variant={data.danger?"danger":"primary"} onClick={async()=>{
         try{
-          await data.onYes();
+          if(needsReason){
+            const trimmed=reason.trim();
+            if(trimmed.length<3){setReasonErr("Please enter at least 3 characters");return;}
+            await data.onYes(trimmed);
+          }else{
+            await data.onYes();
+          }
           onClose();
         }catch{
           /* keep open on failure — caller should toast */
