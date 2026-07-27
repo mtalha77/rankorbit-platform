@@ -44,8 +44,13 @@ export function TermsOfServiceBody({ H = LegalHeading, P = LegalParagraph, co = 
       <P>{co} provides local business visibility services, including directory listing submissions and management, NAP (Name, Address, Phone) consistency monitoring, unauthorized-edit protection, and, on eligible plans, Google Business Profile management. Deliverables and volumes depend on your selected plan.</P>
       <H>3. Subscriptions and Billing</H>
       <P>Services are billed as recurring monthly subscriptions via our payment processor (Stripe). Your subscription renews automatically each month until cancelled. By subscribing, you authorize {co} to charge your payment method on each renewal date.</P>
-      <H>4. Cancellation</H>
-      <P>You may cancel at any time from your billing dashboard. Cancellation takes effect at the end of your current billing period: you retain full access until that date, and you will not be charged for the following period. To avoid the next charge, you must cancel before your renewal date.</P>
+      <H>4. Cancellation Policy</H>
+      <P><b>How to cancel.</b> You may cancel your subscription at any time from your account billing dashboard (or by contacting us at sales@naporbit.com). Cancellation must be initiated by the account holder or an authorized user of the account.</P>
+      <P><b>When cancellation takes effect.</b> Cancellation is scheduled for the end of your current billing period ("cancel at period end"). You keep full access to the Services until that date. You will not be charged for the next billing period. To avoid the upcoming renewal charge, you must cancel before your renewal date.</P>
+      <P><b>What happens after cancellation.</b> After the period ends, paid plan features stop. You may still sign in to a limited account view, but listing work, meeting quotas, and other plan entitlements do not renew. You may resubscribe later subject to then-current pricing and terms.</P>
+      <P><b>Meetings and scheduled calls.</b> Cancelling your subscription does not automatically cancel an already booked meeting. If you need to cancel a scheduled call, use the Book a Call tools in your dashboard and provide a reason. Staff may also cancel a meeting with a stated reason, which will be shared with you.</P>
+      <P><b>No partial-period credits.</b> Cancelling mid-cycle does not entitle you to a prorated refund or credit for unused days, unused meeting slots, or unused listing quota in the current period. See Section 5.</P>
+      <P><b>Our right to cancel.</b> We may cancel or refuse renewal if your account violates these terms, misuses the Services, or fails payment. Fees already paid remain subject to Section 5.</P>
       <H>5. No Refunds</H>
       <P><b>All fees are non-refundable.</b> Due to the nature of the Services, which involve immediate allocation of work, third-party submissions, and labor performed on your behalf, any amount you have already paid is not refundable, in whole or in part, including for partial billing periods, unused quota, or after cancellation. This clause applies to the fullest extent permitted by law.</P>
       <H>6. Client Responsibilities</H>
