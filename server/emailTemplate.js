@@ -3,8 +3,10 @@
  * Colors mirror src/lib/theme.js (brand #5B5BD6, ink #171732).
  */
 
-/** Shared on onboarding emails (welcome + first subscription). */
-export const ONBOARDING_HELP_PHONE = "559-508-8793";
+/** Shared onboarding / help phone — set HELP_PHONE in env (fallback for local/dev). */
+export const ONBOARDING_HELP_PHONE = String(
+  process.env.HELP_PHONE || process.env.ONBOARDING_HELP_PHONE || "559-508-8793"
+).trim();
 
 /** Plain-text line for onboarding help / guidance. */
 export function onboardingHelpLine() {
