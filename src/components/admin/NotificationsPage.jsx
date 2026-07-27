@@ -72,12 +72,12 @@ export function NotificationsPage({user,isAdmin,isMobile,toast,setNotifBadge,set
   const typeIcon=(t)=>({
     staff_created:"🔑",client_assigned:"👤",client_unassigned:"👤",call_booked:"📅",
     bdm_message:"💬",chat_message:"💬",staff_message:"💬",meeting_confirmed:"✅",meeting_cancelled:"❌",
-    payment_failed:"⚠️",plan_subscribed:"💳",needs_bdm:"👤",support_billing:"💳",support_technical:"🛠️",support_it:"🛠️",
+    payment_failed:"⚠️",plan_subscribed:"💳",needs_bdm:"👤",support_billing:"💳",support_technical:"🛠️",support_it:"🛠️",profile_complete:"📋",
   }[t]||"🔔");
   const typeLabel=(t)=>({
     staff_created:"Staff",client_assigned:"Assignment",client_unassigned:"Assignment",call_booked:"Meeting",
     bdm_message:"Message",chat_message:"Chat",staff_message:"Team chat",meeting_confirmed:"Meeting",meeting_cancelled:"Meeting",
-    payment_failed:"Billing",plan_subscribed:"Plan",needs_bdm:"Assign BDM",support_billing:"Billing support",support_technical:"Technical support",support_it:"Technical support",
+    payment_failed:"Billing",plan_subscribed:"Plan",needs_bdm:"Assign BDM",support_billing:"Billing support",support_technical:"Technical support",support_it:"Technical support",profile_complete:"Profile ready",
   }[t]||"Update");
   const canRespond=(n)=>!isAdmin&&n.type==="call_booked"&&n.meta?.bookingId&&(!n.meta?.status||n.meta.status==="pending")&&!n.meta?.reportOnly&&!isBookingPast(n.meta?.slotDate,n.meta?.slotTime);
   const emptySub=isAdmin
@@ -179,10 +179,10 @@ export function NotificationsPage({user,isAdmin,isMobile,toast,setNotifBadge,set
                   )}
                 </div>
               )}
-              {openId===n.id&&(n.type==="client_assigned"||n.type==="client_unassigned"||n.type==="call_booked"||n.type==="bdm_message"||n.type==="chat_message"||n.type==="meeting_confirmed"||n.type==="meeting_cancelled"||n.type==="payment_failed"||n.type==="plan_subscribed"||n.type==="needs_bdm"||n.type==="support_billing"||n.type==="support_it"||n.type==="support_technical")&&n.clientId&&(
+              {openId===n.id&&(n.type==="client_assigned"||n.type==="client_unassigned"||n.type==="call_booked"||n.type==="bdm_message"||n.type==="chat_message"||n.type==="meeting_confirmed"||n.type==="meeting_cancelled"||n.type==="payment_failed"||n.type==="plan_subscribed"||n.type==="needs_bdm"||n.type==="support_billing"||n.type==="support_it"||n.type==="support_technical"||n.type==="profile_complete")&&n.clientId&&(
                 <div style={{padding:"0 6px 14px 54px",display:"flex",gap:8,flexWrap:"wrap"}}>
                   <Btn variant="soft" size="sm" onClick={()=>{setSelClient(n.clientId);setPage("clientDetail");}}>
-                    {n.type==="needs_bdm"||n.type==="support_it"||n.type==="support_technical"?"Assign BDM →":n.type==="support_billing"?"Review billing →":"Open client →"}
+                    {n.type==="needs_bdm"||n.type==="support_it"||n.type==="support_technical"?"Assign BDM →":n.type==="support_billing"?"Review billing →":n.type==="profile_complete"?"View client →":"Open client →"}
                   </Btn>
                   {(n.type==="chat_message"||n.type==="bdm_message")&&(
                     <Btn size="sm" onClick={()=>{setSelClient(n.clientId);setPage("messages");}}>Open chat →</Btn>

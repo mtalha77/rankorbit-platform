@@ -9,7 +9,8 @@ export function filterVisibleStaffNotifs(rows, role) {
     x.type === "payment_failed" ||
     x.type === "plan_subscribed" ||
     x.type === "needs_bdm" ||
-    x.type === "support_billing"
+    x.type === "support_billing" ||
+    x.type === "profile_complete"
   );
 }
 
