@@ -4,6 +4,8 @@ import { useWindowSize } from "../hooks";
 import {
   TermsOfServiceBody,
   PrivacyPolicyBody,
+  TOS_VERSION,
+  PRIVACY_VERSION,
 } from "../components/LegalContent";
 
 /**
@@ -15,7 +17,9 @@ export default function LegalPage({ mode = "terms" }) {
   const w = useWindowSize();
   const isMobile = w < 768;
   const isTerms = mode === "terms";
-  const eff = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  const eff = isTerms
+    ? `July 28, 2026 · version ${TOS_VERSION}`
+    : `July 28, 2026 · version ${PRIVACY_VERSION}`;
 
   return (
     <div style={{ minHeight: "100vh", background: `linear-gradient(180deg,#F8F7FF 0%,#EEF1FF 100%)`, fontFamily: FONT_B, color: T.ink }}>
@@ -117,17 +121,6 @@ export default function LegalPage({ mode = "terms" }) {
           padding: isMobile ? 18 : 28,
           boxShadow: SHADOW,
         }}>
-          <div style={{
-            padding: "10px 12px",
-            background: T.amberSoft,
-            borderRadius: 10,
-            marginBottom: 12,
-            fontSize: 12.5,
-            color: T.amber,
-            lineHeight: 1.45,
-          }}>
-            <b>Template notice:</b> This is a starting-point document. Have it reviewed by a qualified lawyer in your jurisdiction before relying on it for real clients.
-          </div>
           {isTerms ? <TermsOfServiceBody /> : <PrivacyPolicyBody />}
         </div>
       </main>

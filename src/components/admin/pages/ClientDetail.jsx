@@ -15,6 +15,7 @@ export function ClientDetail() {
     const[chatOpen,setChatOpen]=useState(false);
     const[assigningBdm,setAssigningBdm]=useState(false);
     const[assigningAgent,setAssigningAgent]=useState(false);
+    const[exportingEvidence,setExportingEvidence]=useState(false);
     useEffect(()=>{
       if(c)setNap(c.napScore||0);
     },[c?.id,c?.napScore]);
@@ -116,6 +117,35 @@ export function ClientDetail() {
         {isStaffMgr&&(c.status==="active"?
           <Btn variant="ghost" size="sm" onClick={()=>setModal({type:"suspend",client:c})}>⏸ Suspend</Btn>:
           <Btn variant="green" size="sm" onClick={()=>R(async()=>{await api.patchProfile(c.id,{status:"active",suspendedAt:null,suspendReason:null,suspendedBy:null});await audit("client.reactivate",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name});},"Client reactivated")}>▶ Reactivate</Btn>)}
+        {isStaffMgr&&(
+          <Btn
+            variant="soft"
+            size="sm"
+            disabled={exportingEvidence}
+            onClick={async()=>{
+              setExportingEvidence(true);
+              try{
+                const r=await api.exportDisputeEvidence(c.id);
+                if(r.error){toast(r.error,"info");return;}
+                const url=URL.createObjectURL(r.blob);
+                const a=document.createElement("a");
+                a.href=url;
+                a.download=r.filename||"dispute-evidence.zip";
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+                toast("Dispute evidence exported");
+              }catch(e){
+                toast(e.message||"Export failed","info");
+              }finally{
+                setExportingEvidence(false);
+              }
+            }}
+          >
+            {exportingEvidence?"Exporting…":"📦 Export dispute evidence"}
+          </Btn>
+        )}
         {isAdmin&&!c.protected&&<Btn variant="danger" size="sm" onClick={()=>setConfirm({title:"Delete client?",msg:`Move ${c.businessName||c.name} to Trash? Recoverable for 30 days, then permanently removed with all their listings.`,danger:true,yes:"Delete",onYes:()=>R(async()=>{await api.deleteUser(c.id);await audit("client.delete",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name});},"Client moved to Trash").then(()=>{setPage("clients");setSelClient(null);})})}>🗑 Delete</Btn>}
         {c.protected&&<span style={{fontSize:11,color:T.faint,alignSelf:"center"}}>🔒 Demo account (protected)</span>}
       </div>)}

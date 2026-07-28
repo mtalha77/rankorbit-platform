@@ -119,6 +119,8 @@ export function ProfileGate({ user, onSaved, toast, isMobile }) {
     try {
       await api.patchProfile(user.id, { ...f, zip: zipDigits });
       setDirty(false);
+      // Persist ToS acceptance (timestamp + IP) for dispute evidence.
+      api.recordConsent({ source: "profile_gate" }).catch(() => {});
       // Fire-and-forget: SA + managers — details filled, payment still pending (once).
       api.notifyProfileComplete().catch(() => {});
       await onSaved();

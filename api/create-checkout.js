@@ -9,6 +9,7 @@ import {
   requireClient,
   ensureStripeCustomer,
 } from "../server/billing.js";
+import { clientIp, clientUserAgent, logAccessEvent } from "../server/accessLog.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -46,6 +47,14 @@ export default async function handler(req, res) {
         metadata: { supabase_user_id: profile.id, plan_id: planId },
       },
       allow_promotion_codes: true,
+    });
+    await logAccessEvent(admin, {
+      userId: profile.id,
+      email: profile.email,
+      eventType: "checkout",
+      ip: clientIp(req),
+      userAgent: clientUserAgent(req),
+      meta: { planId, stripeSessionId: session.id, source: "dashboard_checkout" },
     });
     return res.status(200).json({ url: session.url });
   } catch (e) {

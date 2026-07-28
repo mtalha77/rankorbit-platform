@@ -224,6 +224,12 @@ export default function Shell({
           </button>
           {showLegalLinks && (
             <div style={{ marginTop: 10, textAlign: "center", fontSize: 11.5, color: T.faint, lineHeight: 1.5 }}>
+              <div style={{ marginBottom: 6 }}>
+                Support:{" "}
+                <a href="mailto:sales@naporbit.com" style={{ color: T.brand, fontWeight: 700, textDecoration: "none" }}>
+                  sales@naporbit.com
+                </a>
+              </div>
               <span onClick={openLegal} style={{ cursor: "pointer", textDecoration: "underline", color: T.sub }}>
                 Terms
               </span>

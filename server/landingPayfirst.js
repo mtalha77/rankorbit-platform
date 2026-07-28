@@ -282,6 +282,16 @@ export async function fulfillLandingCheckoutSession(admin, stripe, session) {
     return { error: "Could not create or find account for this email", email: provisioned.email };
   }
 
+  try {
+    const { linkPendingConsent } = await import("./accessLog.js");
+    await linkPendingConsent(admin, {
+      userId: profileId,
+      email: provisioned.email || session.metadata?.email,
+    });
+  } catch (e) {
+    console.warn("linkPendingConsent:", e.message);
+  }
+
   if (customerId) {
     await admin.from("profiles").update({ stripeCustomerId: customerId }).eq("id", profileId);
   }

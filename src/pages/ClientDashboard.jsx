@@ -111,6 +111,31 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
       return false;
     }
   };
+  // Feature / page usage for dispute evidence (once per page per session).
+  useEffect(() => {
+    if (impersonating || !userId || !page) return;
+    const featureMap = {
+      home: "home",
+      listings: "listings",
+      analytics: "analytics",
+      gmb: "gmb",
+      billing: "billing",
+      messages: "messages",
+      call: "call",
+      settings: "settings",
+      notifications: "notifications",
+      legal: "legal",
+    };
+    const feature = featureMap[page];
+    if (!feature) return;
+    const key = `ro_feat_${userId}_${feature}`;
+    try {
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, "1");
+    } catch { /* continue */ }
+    api.logAccess({ eventType: "feature", feature }).catch(() => {});
+  }, [page, userId, impersonating]);
+
   // Confirm alternate notification email redirect (?notifyEmail=confirmed).
   useEffect(() => {
     if (impersonating) return;

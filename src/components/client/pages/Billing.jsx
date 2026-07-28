@@ -282,6 +282,11 @@ export function Billing() {
                       </div>
                     )}
                     <div style={{ fontSize: 11.5, color: T.faint, marginTop: 8, lineHeight: 1.5 }}>Renews automatically. Cancel before your renewal date to avoid the next charge, you keep access until the period ends.</div>
+                    <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 10, background: T.surface2, border: `1px solid ${T.line}`, fontSize: 12, color: T.sub, lineHeight: 1.5, fontWeight: 600 }}>
+                      Prefer help or a billing question first? Contact{" "}
+                      <a href="mailto:sales@naporbit.com" style={{ color: T.brand, fontWeight: 800 }}>sales@naporbit.com</a>
+                      {" "}or use Messages / Book a Call — easier than a bank dispute.
+                    </div>
                     <button
                       disabled={impersonating}
                       onClick={() => setConfirm({ title: "Cancel subscription?", msg: `Your ${plan.name} plan will stay active until the end of your current billing period, then cancel. You won't be charged again. No refunds for the current period (see Terms).`, danger: true, yes: "Cancel at period end", onYes: doCancel })}

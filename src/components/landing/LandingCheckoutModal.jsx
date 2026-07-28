@@ -66,6 +66,7 @@ export function LandingCheckoutModal({ planId, cfg = {}, isMobile, onClose }) {
         zip: zipDigits,
         email: String(f.email).trim().toLowerCase(),
         name: String(f.name).trim(),
+        acceptedTerms: true,
       });
       if (r.error) {
         setErr(r.error);

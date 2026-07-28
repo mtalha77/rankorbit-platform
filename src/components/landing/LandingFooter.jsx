@@ -88,6 +88,56 @@ export function LandingFooter({ isMobile, isTab, user, nav, goDash, goLogin, goS
                 </span>
               ))}
             </div>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginTop:18}}>
+              {[
+                {
+                  label:"Facebook",
+                  href:"https://www.facebook.com/profile.php?id=61592499334935",
+                  icon:(
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path d="M14 8h3V5h-3c-2.2 0-4 1.8-4 4v2H7v3h3v7h3v-7h3l1-3h-4V9c0-.6.4-1 1-1z"/>
+                    </svg>
+                  ),
+                },
+                {
+                  label:"Instagram",
+                  href:"https://www.instagram.com/naporbitofficial/",
+                  icon:(
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                      <rect x="3" y="3" width="18" height="18" rx="5"/>
+                      <circle cx="12" cy="12" r="4"/>
+                      <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/>
+                    </svg>
+                  ),
+                },
+                {
+                  label:"YouTube",
+                  href:"https://www.youtube.com/@NAPOrbit",
+                  icon:(
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path d="M23 12.2s0-3.2-.4-4.6c-.2-.8-.9-1.5-1.7-1.7C19.5 5.5 12 5.5 12 5.5s-7.5 0-8.9.4c-.8.2-1.5.9-1.7 1.7C1 9 1 12.2 1 12.2s0 3.2.4 4.6c.2.8.9 1.5 1.7 1.7 1.4.4 8.9.4 8.9.4s7.5 0 8.9-.4c.8-.2 1.5-.9 1.7-1.7.4-1.4.4-4.6.4-4.6zM9.8 15.3V9.1l6.2 3.1-6.2 3.1z"/>
+                    </svg>
+                  ),
+                },
+              ].map((s)=>(
+                <a
+                  key={s.label}
+                  href={s.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={s.label}
+                  title={s.label}
+                  style={{
+                    width:36,height:36,borderRadius:10,
+                    display:"inline-flex",alignItems:"center",justifyContent:"center",
+                    background:"#fff",border:`1px solid ${T.line}`,color:T.ink,
+                    textDecoration:"none",
+                  }}
+                >
+                  {s.icon}
+                </a>
+              ))}
+            </div>
           </div>
 
           {/* Link columns + CTA */}

@@ -82,7 +82,7 @@ export default function AuthScreen({onLogin,portal="client",initialMode="login"}
       const issues=passwordIssues(password);
       if(issues.length)fe.password="Password needs "+issues.join(", ");
     }
-    if(!acceptPrivacy)fe.privacy="Please accept the Privacy Policy to continue";
+    if(!acceptPrivacy)fe.privacy="Please accept the Terms & Privacy Policy to continue";
     setFieldErrors(fe);
     if(Object.keys(fe).length){setError("");return;}
     api.setRemember(remember);
@@ -91,18 +91,31 @@ export default function AuthScreen({onLogin,portal="client",initialMode="login"}
       const msg=typeof r.error==="string"?r.error.trim():"";
       setError(msg&&msg!=="{}"?msg:"Could not create account. Please try again, or use Continue with Google.");
     }
-    else if(r.needsConfirm){setError("");setFieldErrors({});setInfo("Almost there! Check your email and click the verification link, then sign in.");nav("/login");}
-    else{setError("");setFieldErrors({});onLogin(r.user);}
+    else if(r.needsConfirm){
+      setError("");setFieldErrors({});
+      try{sessionStorage.setItem("ro_pending_consent","signup");}catch{/* ignore */}
+      setInfo("Almost there! Check your email and click the verification link, then sign in.");
+      nav("/login");
+    }
+    else{
+      setError("");setFieldErrors({});
+      api.recordConsent({source:"signup"}).catch(()=>{});
+      api.logAccess({eventType:"signup"}).catch(()=>{});
+      onLogin(r.user);
+    }
   };
   const google=async()=>{
     if(mode==="signup"&&!isStaff&&!acceptPrivacy){
-      setFieldErrors(prev=>({...prev,privacy:"Please accept the Privacy Policy to continue"}));
+      setFieldErrors(prev=>({...prev,privacy:"Please accept the Terms & Privacy Policy to continue"}));
       setError("");
       return;
     }
     api.setRemember(remember);
     if(mode==="signup"&&!isStaff){
-      try{sessionStorage.setItem("ro_signup_email_notif",wantEmailNotifs?"1":"0");}catch{/* ignore */}
+      try{
+        sessionStorage.setItem("ro_signup_email_notif",wantEmailNotifs?"1":"0");
+        sessionStorage.setItem("ro_pending_consent","signup");
+      }catch{/* ignore */}
     }
     setBusy(true);const r=await api.googleLogin();setBusy(false);if(r.error)setError(r.error);
   };
@@ -192,6 +205,16 @@ export default function AuthScreen({onLogin,portal="client",initialMode="login"}
                 />
                 <span>
                   I agree to the{" "}
+                  <a
+                    href="/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={e=>e.stopPropagation()}
+                    style={{color:T.brand,fontWeight:700,textDecoration:"underline"}}
+                  >
+                    Terms &amp; Conditions
+                  </a>{" "}
+                  and{" "}
                   <a
                     href="/privacy"
                     target="_blank"

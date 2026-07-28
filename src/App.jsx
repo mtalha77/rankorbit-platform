@@ -320,6 +320,18 @@ export default function App(){
       }
       await applyUser(prof,{forceReload});
       api.ensureClientLifecycleNotifs(prof);
+      // Dispute evidence: login IP + pending signup consent after email/Google confirm.
+      api.logAccess({eventType:"login"}).catch(()=>{});
+      if(typeof window!=="undefined"){
+        try{
+          const pending=sessionStorage.getItem("ro_pending_consent");
+          if(pending){
+            sessionStorage.removeItem("ro_pending_consent");
+            api.recordConsent({source:pending||"signup"}).catch(()=>{});
+            if(pending==="signup")api.logAccess({eventType:"signup"}).catch(()=>{});
+          }
+        }catch{/* ignore */}
+      }
       if(typeof window!=="undefined"){
         const path=window.location.pathname||"/";
         if(STAFF_ROLES.includes(prof.role)){
@@ -367,6 +379,7 @@ export default function App(){
       if(existing){
         await applyUser(existing,{forceReload:true});
         api.ensureClientLifecycleNotifs(existing);
+        api.logAccess({eventType:"login"}).catch(()=>{});
       }
       else{await reload();}
     }catch(e){

@@ -349,6 +349,57 @@ export default async function handler(req, res) {
         }
         break;
       }
+      case "invoice.upcoming": {
+        const invoice = event.data.object;
+        const customerId = typeof invoice.customer === "string" ? invoice.customer : invoice.customer?.id;
+        let metaUser =
+          invoice.subscription_details?.metadata?.supabase_user_id || invoice.metadata?.supabase_user_id;
+        if (!metaUser && invoice.subscription) {
+          try {
+            const subId =
+              typeof invoice.subscription === "string" ? invoice.subscription : invoice.subscription?.id;
+            if (subId) {
+              const sub = await stripe.subscriptions.retrieve(subId);
+              metaUser = sub.metadata?.supabase_user_id;
+            }
+          } catch {
+            /* optional */
+          }
+        }
+        const profileId = await findProfileId(admin, { userId: metaUser, customerId });
+        if (profileId) {
+          const amount =
+            typeof invoice.amount_due === "number"
+              ? `$${(invoice.amount_due / 100).toFixed(2)}`
+              : "your subscription";
+          const when = invoice.next_payment_attempt
+            ? new Date(invoice.next_payment_attempt * 1000).toLocaleDateString("en-US", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })
+            : invoice.period_end
+              ? new Date(invoice.period_end * 1000).toLocaleDateString("en-US", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })
+              : "your next billing date";
+          try {
+            await notifyClient(admin, {
+              userId: profileId,
+              clientId: profileId,
+              type: "renewal_reminder",
+              title: "Upcoming renewal",
+              body: `Reminder: your NAP Orbit subscription will renew for ${amount} on ${when}. Manage or cancel anytime under Plan & Billing. Questions: sales@naporbit.com.`,
+              meta: { invoiceId: invoice.id || null, amountDue: invoice.amount_due ?? null },
+            });
+          } catch (e) {
+            console.warn("notify invoice.upcoming:", e.message);
+          }
+        }
+        break;
+      }
       case "invoice.paid":
       case "invoice.payment_failed":
       case "invoice.finalized": {

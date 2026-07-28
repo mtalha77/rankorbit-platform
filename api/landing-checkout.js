@@ -13,6 +13,8 @@ import {
   readJson,
 } from "../server/billing.js";
 import { metaFromLandingFields, validateLandingFields } from "../server/landingPayfirst.js";
+import { clientIp, clientUserAgent, logAccessEvent, recordConsent } from "../server/accessLog.js";
+import { TOS_VERSION, PRIVACY_VERSION } from "../server/legal.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -23,6 +25,9 @@ export default async function handler(req, res) {
   if (!admin || !stripe) return res.status(500).json({ error: "Server not configured" });
 
   const body = await readJson(req);
+  if (!body?.acceptedTerms) {
+    return res.status(400).json({ error: "You must accept the Terms & Conditions before checkout." });
+  }
   const planId = body.planId;
   if (!PLAN_IDS.includes(planId)) return res.status(400).json({ error: "Invalid plan" });
   const priceId = priceIdForPlan(planId);
@@ -32,6 +37,8 @@ export default async function handler(req, res) {
   if (fields.error) return res.status(400).json({ error: fields.error });
 
   const emailNorm = fields.email;
+  const ip = clientIp(req);
+  const ua = clientUserAgent(req);
 
   try {
     const { data: existing } = await admin
@@ -90,6 +97,27 @@ export default async function handler(req, res) {
     }
 
     const session = await stripe.checkout.sessions.create(sessionParams);
+
+    await recordConsent(admin, {
+      userId: existing?.id || null,
+      email: emailNorm,
+      ip,
+      userAgent: ua,
+      source: "checkout",
+      checkboxConfirmed: true,
+      tosVersion: TOS_VERSION,
+      privacyVersion: PRIVACY_VERSION,
+      meta: { planId, stripeSessionId: session.id, source: "landing_payfirst" },
+    });
+    await logAccessEvent(admin, {
+      userId: existing?.id || null,
+      email: emailNorm,
+      eventType: "checkout",
+      ip,
+      userAgent: ua,
+      meta: { planId, stripeSessionId: session.id, source: "landing_payfirst" },
+    });
+
     return res.status(200).json({ url: session.url });
   } catch (e) {
     console.error("landing-checkout:", e.message);

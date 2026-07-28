@@ -630,10 +630,49 @@ export const api={
   async landingCheckout(fields){
     try{
       const returnOrigin=typeof window!=="undefined"?window.location.origin:undefined;
-      const r=await fetch("/api/landing-checkout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...fields,returnOrigin})});
+      const r=await fetch("/api/landing-checkout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...fields,returnOrigin,acceptedTerms:!!fields.acceptedTerms})});
       const j=await r.json().catch(()=>({}));
       if(!r.ok)return{error:j.error||"Could not start checkout",accountExists:!!j.accountExists};
       return{url:j.url};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
+  /** Persist ToS/Privacy acceptance (timestamp + IP recorded server-side). */
+  async recordConsent({source="profile_gate",meta}={}){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/record-consent",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,acceptedTerms:true,source,meta})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not record consent"};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
+  /** Login / feature usage log (IP + device on server). */
+  async logAccess({eventType="feature",feature,meta}={}){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/log-access",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,eventType,feature,meta})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not log access"};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
+  /** Admin: download dispute evidence ZIP for a client. */
+  async exportDisputeEvidence(clientId){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/dispute-evidence",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,clientId})});
+      if(!r.ok){
+        const j=await r.json().catch(()=>({}));
+        return{error:j.error||"Could not export evidence"};
+      }
+      const blob=await r.blob();
+      const cd=r.headers.get("Content-Disposition")||"";
+      const m=cd.match(/filename="([^"]+)"/);
+      const filename=m?.[1]||`dispute-evidence-${clientId}.zip`;
+      return{ok:true,blob,filename};
     }catch(e){return{error:e.message||"Network error"};}
   },
   /** After Stripe return: attach plan + ensure account (session_id from success URL). */
