@@ -21,7 +21,7 @@ export default async function handler(req, res) {
 
   // Normalize plan prices / discount % to numbers so display + revenue math stay consistent.
   const config = { ...(settings.config || {}) };
-  for (const k of ["priceEssentials", "priceGrowth", "priceGmb", "discountEssentials", "discountGrowth", "discountGmb"]) {
+  for (const k of ["priceEssentials", "priceGrowth", "priceGmb", "priceTestPlan", "discountEssentials", "discountGrowth", "discountGmb", "discountTestPlan"]) {
     if (config[k] != null && config[k] !== "") {
       const n = Number(config[k]);
       if (Number.isFinite(n)) config[k] = n;

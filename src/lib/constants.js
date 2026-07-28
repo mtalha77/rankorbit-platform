@@ -7,12 +7,13 @@ export const isProPlan = (id) => normalizePlanId(id) === "pro";
 
 export const PLANS={essentials:{name:"Essentials Plan",price:49,quota:"10 listings/mo",color:T.blue,soft:T.blueSoft,features:["10 directory submissions every month","NAP consistency management","Unauthorized edit protection","1 regular + 1 guidance call / billing period","Listing monitoring & alerts","Client dashboard access"]},
   growth:{name:"Growth Plan",price:89,quota:"20 listings/mo",color:T.brand,soft:T.brandSoft,features:["20 directory submissions every month","Everything in Essentials Plan","BDM chat support (Messages)","2 regular + 1 guidance call / billing period","Expanded directory coverage","Monthly coverage report"]},
-  pro:{name:"Pro Plan",price:99,quota:"15 listings/mo + GMB",color:T.violet,soft:T.violetSoft,features:["15 directory submissions every month","Google Business Profile management","BDM chat support (Messages)","3 regular + 1 guidance call / billing period","Monthly GMB posts & Q&A","Engagement analytics (views, calls)"]}};
+  pro:{name:"Pro Plan",price:99,quota:"15 listings/mo + GMB",color:T.violet,soft:T.violetSoft,features:["15 directory submissions every month","Google Business Profile management","BDM chat support (Messages)","3 regular + 1 guidance call / billing period","Monthly GMB posts & Q&A","Engagement analytics (views, calls)"]},
+  "test-plan":{name:"Test Plan",price:1,quota:"1 listing/mo",color:T.amber,soft:T.amberSoft,features:["$1 Stripe test checkout","1 directory submission every month","Client dashboard access","1 regular + 1 guidance call / billing period"]}};
 
 /** Default marketing discount % (charged price stays planPrice; list/was = price ÷ (1 − pct/100)). */
-const DEFAULT_DISCOUNT_PCT={essentials:10,growth:25,pro:25};
-const DISCOUNT_PCT_KEYS={essentials:"discountEssentials",growth:"discountGrowth",pro:"discountGmb"};
-const DISCOUNT_ON_KEYS={essentials:"discountEssentialsOn",growth:"discountGrowthOn",pro:"discountGmbOn"};
+const DEFAULT_DISCOUNT_PCT={essentials:10,growth:25,pro:25,"test-plan":0};
+const DISCOUNT_PCT_KEYS={essentials:"discountEssentials",growth:"discountGrowth",pro:"discountGmb","test-plan":"discountTestPlan"};
+const DISCOUNT_ON_KEYS={essentials:"discountEssentialsOn",growth:"discountGrowthOn",pro:"discountGmbOn","test-plan":"discountTestPlanOn"};
 
 /** Discount % for a plan from Control Panel, else defaults. */
 export const planDiscountPct=(id,cfg={})=>{
@@ -57,15 +58,16 @@ export const PLAN_ENTITLEMENTS={
   essentials:{regularMeetings:1,guidanceMeetings:1,messaging:false},
   growth:{regularMeetings:2,guidanceMeetings:1,messaging:true},
   pro:{regularMeetings:3,guidanceMeetings:1,messaging:true},
+  "test-plan":{regularMeetings:1,guidanceMeetings:1,messaging:false},
 };
 export const getPlanEntitlements=(planId)=>PLAN_ENTITLEMENTS[normalizePlanId(planId)]||PLAN_ENTITLEMENTS.essentials;
 export const planAllowsMessaging=(planId)=>!!getPlanEntitlements(planId).messaging;
 
 /** Tier order for upgrade/downgrade rules (higher = higher plan). */
-export const PLAN_RANK={essentials:1,growth:2,pro:3};
+export const PLAN_RANK={"test-plan":0,essentials:1,growth:2,pro:3};
 export const isPlanDowngrade=(fromId,toId)=>(PLAN_RANK[normalizePlanId(toId)]||0)<(PLAN_RANK[normalizePlanId(fromId)]||0);
 
-const PRICE_CFG_KEYS={essentials:"priceEssentials",growth:"priceGrowth",pro:"priceGmb"};
+const PRICE_CFG_KEYS={essentials:"priceEssentials",growth:"priceGrowth",pro:"priceGmb","test-plan":"priceTestPlan"};
 
 /** Display price: control-panel override when set, else PLANS default. */
 export const planPrice=(id,cfg={})=>{
@@ -83,7 +85,7 @@ export const plansWithPrices=(cfg={})=>Object.fromEntries(
 
 // Which plans are publicly live. Super-admin toggles these in the control panel.
 // Missing/undefined flag = live by default. A plan set to false is hidden everywhere client-facing.
-export const planLive=(id,cfg={})=>{const nid=normalizePlanId(id);const m={essentials:"livePlanEssentials",growth:"livePlanGrowth",pro:"livePlanGmb"};const v=cfg[m[nid]];return v===undefined||v===null||v===true||v==="true";};
+export const planLive=(id,cfg={})=>{const nid=normalizePlanId(id);const m={essentials:"livePlanEssentials",growth:"livePlanGrowth",pro:"livePlanGmb","test-plan":"livePlanTestPlan"};const v=cfg[m[nid]];return v===undefined||v===null||v===true||v==="true";};
 export const livePlanEntries=(cfg={})=>Object.entries(plansWithPrices(cfg)).filter(([id])=>planLive(id,cfg));
 
 /** Which plan shows the “Most Popular” badge. Super-admin sets this in Control Panel. */

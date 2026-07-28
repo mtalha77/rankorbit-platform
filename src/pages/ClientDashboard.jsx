@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { T, FONT_D, FONT_B, SHADOW_LG } from "../lib/theme";
 import { api } from "../lib/api";
-import { PLANS, planLive, planAllowsMessaging, isProPlan, normalizePlanId } from "../lib/constants";
+import { PLANS, planLive, planAllowsMessaging, isProPlan, normalizePlanId, planPrice } from "../lib/constants";
 import { isPastMeetingNotif, buildLiveGrowthSeries, growthMomTrend, resolveNapScore, paymentGraceState } from "../lib/helpers";
 import { clientPageFromPath, clientPathForPage } from "../lib/dashboardRoutes";
 import { Btn, Confirm, PageHead } from "../components/atoms";
@@ -393,11 +393,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
   const settings = data.settings || {};
   const cfg = settings?.config || {};
   // Client-visible prices honor the super-admin control-panel overrides, falling back to defaults.
-  const priceOf = (id) => {
-    const m = { essentials: "priceEssentials", growth: "priceGrowth", pro: "priceGmb" };
-    const v = cfg[m[id]];
-    return v != null && v !== "" ? Number(v) : PLANS[id]?.price;
-  };
+  const priceOf = (id) => planPrice(id, cfg);
   // Full map (all plans, for looking up a client's current plan even if now hidden).
   const PLANSALL = Object.fromEntries(Object.entries(PLANS).map(([id, p]) => [id, { ...p, price: priceOf(id) }]));
   // Selectable map: only live plans show in the choose/upgrade grid.

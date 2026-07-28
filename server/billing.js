@@ -12,8 +12,8 @@ export function normalizePlanId(id) {
   return id;
 }
 
-export const PLAN_IDS = ["essentials", "growth", "pro"];
-const PLAN_RANK = { essentials: 1, growth: 2, pro: 3 };
+export const PLAN_IDS = ["essentials", "growth", "pro", "test-plan"];
+const PLAN_RANK = { "test-plan": 0, essentials: 1, growth: 2, pro: 3 };
 
 export function isValidPlanId(id) {
   return PLAN_IDS.includes(normalizePlanId(id));
@@ -59,6 +59,7 @@ export function priceIdForPlan(planId) {
     essentials: process.env.STRIPE_PRICE_ESSENTIALS,
     growth: process.env.STRIPE_PRICE_GROWTH,
     pro: process.env.STRIPE_PRICE_PRO,
+    "test-plan": process.env.STRIPE_PRICE_TEST_PLAN,
   };
   return map[normalizePlanId(planId)] || null;
 }
@@ -69,6 +70,7 @@ export function planFromPriceId(priceId) {
     ["essentials", process.env.STRIPE_PRICE_ESSENTIALS],
     ["growth", process.env.STRIPE_PRICE_GROWTH],
     ["pro", process.env.STRIPE_PRICE_PRO],
+    ["test-plan", process.env.STRIPE_PRICE_TEST_PLAN],
   ];
   for (const [plan, pid] of entries) {
     if (pid && pid === priceId) return plan;

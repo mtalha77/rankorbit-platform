@@ -12,12 +12,15 @@ function buildConfig(settings) {
     priceEssentials: PLANS.essentials.price,
     priceGrowth: PLANS.growth.price,
     priceGmb: PLANS.pro.price,
+    priceTestPlan: PLANS["test-plan"].price,
     discountEssentials: 10,
     discountGrowth: 25,
     discountGmb: 25,
+    discountTestPlan: 0,
     discountEssentialsOn: true,
     discountGrowthOn: true,
     discountGmbOn: true,
+    discountTestPlanOn: false,
     notifySignup: true,
     notifyCancel: true,
     notifyPlanChange: true,
@@ -27,6 +30,7 @@ function buildConfig(settings) {
     livePlanEssentials: true,
     livePlanGrowth: true,
     livePlanGmb: true,
+    livePlanTestPlan: true,
     popularPlan: "growth",
     ...(settings?.config || {}),
   };
@@ -47,9 +51,11 @@ export function Settings() {
       priceEssentials: Number(c.priceEssentials),
       priceGrowth: Number(c.priceGrowth),
       priceGmb: Number(c.priceGmb),
+      priceTestPlan: Number(c.priceTestPlan),
       discountEssentials: Number(c.discountEssentials),
       discountGrowth: Number(c.discountGrowth),
       discountGmb: Number(c.discountGmb),
+      discountTestPlan: Number(c.discountTestPlan),
     };
     const saved = await api.saveSettings({
       ...settings,
@@ -78,10 +84,11 @@ export function Settings() {
           </div>
           <div>
             <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:10}}>PLAN PRICES ($ / month)</div>
-            <div style={{display:"flex",gap:8}}>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
               <Input label="Essentials Plan" type="number" value={c.priceEssentials} onChange={v=>setCfg("priceEssentials",v)}/>
               <Input label="Growth Plan" type="number" value={c.priceGrowth} onChange={v=>setCfg("priceGrowth",v)}/>
               <Input label="Pro Plan" type="number" value={c.priceGmb} onChange={v=>setCfg("priceGmb",v)}/>
+              <Input label="Test Plan" type="number" value={c.priceTestPlan} onChange={v=>setCfg("priceTestPlan",v)}/>
             </div>
             <div style={{fontSize:11,color:T.faint,lineHeight:1.5,marginTop:2}}>Note: these update what clients see. Keep them in sync with your Stripe Price amounts.</div>
           </div>
@@ -93,6 +100,7 @@ export function Settings() {
             {id:"essentials",label:"Essentials Plan",pctK:"discountEssentials",onK:"discountEssentialsOn"},
             {id:"growth",label:"Growth Plan",pctK:"discountGrowth",onK:"discountGrowthOn"},
             {id:"pro",label:"Pro Plan",pctK:"discountGmb",onK:"discountGmbOn"},
+            {id:"test-plan",label:"Test Plan",pctK:"discountTestPlan",onK:"discountTestPlanOn"},
           ].map((row)=>(
             <div key={row.id} style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 100px auto",gap:10,alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${T.line}`}}>
               <div>
@@ -113,6 +121,7 @@ export function Settings() {
           <Toggle label="Essentials Plan is live" k="livePlanEssentials"/>
           <Toggle label="Growth Plan is live" k="livePlanGrowth"/>
           <Toggle label="Pro Plan is live" k="livePlanGmb" sub="Turn off to launch it later. Existing clients on a hidden plan keep it."/>
+          <Toggle label="Test Plan is live" k="livePlanTestPlan" sub="$1 Stripe test plan. Turn off before public launch."/>
         </div>
         <div style={{marginTop:16}}>
           <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:8}}>MOST POPULAR PLAN</div>
@@ -122,6 +131,7 @@ export function Settings() {
               {id:"essentials",label:"Essentials Plan",live:c.livePlanEssentials!==false},
               {id:"growth",label:"Growth Plan",live:c.livePlanGrowth!==false},
               {id:"pro",label:"Pro Plan",live:c.livePlanGmb!==false},
+              {id:"test-plan",label:"Test Plan",live:c.livePlanTestPlan!==false},
             ].map(p=>(
               <button
                 key={p.id}

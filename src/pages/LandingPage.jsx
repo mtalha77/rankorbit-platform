@@ -122,7 +122,7 @@ export default function LandingPage({ user = null, focusPricing = false, billing
         // Prefer nested config; fall back if an older save flattened price keys.
         const next = s?.config && typeof s.config === "object" ? s.config : {};
         const merged = { ...next };
-        for (const k of ["priceEssentials", "priceGrowth", "priceGmb", "livePlanEssentials", "livePlanGrowth", "livePlanGmb", "popularPlan"]) {
+        for (const k of ["priceEssentials", "priceGrowth", "priceGmb", "priceTestPlan", "livePlanEssentials", "livePlanGrowth", "livePlanGmb", "livePlanTestPlan", "popularPlan"]) {
           if (merged[k] == null && s?.[k] != null) merged[k] = s[k];
         }
         setCfg(merged);

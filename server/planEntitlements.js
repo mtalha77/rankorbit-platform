@@ -9,6 +9,7 @@ export const PLAN_ENTITLEMENTS = {
   essentials: { regularMeetings: 1, guidanceMeetings: 1, messaging: false },
   growth: { regularMeetings: 2, guidanceMeetings: 1, messaging: true },
   pro: { regularMeetings: 3, guidanceMeetings: 1, messaging: true },
+  "test-plan": { regularMeetings: 1, guidanceMeetings: 1, messaging: false },
 };
 
 export function getEntitlements(planId) {
