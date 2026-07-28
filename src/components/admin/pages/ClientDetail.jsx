@@ -6,6 +6,7 @@ import { Badge, Card, Btn, Empty, SectionTitle } from "../../atoms";
 import ChatThread from "../../ChatThread";
 import { useAdmin } from "../AdminContext";
 import { clientPaymentBadge } from "../adminUtils";
+import { isProPlan } from "../../../lib/constants";
 
 export function ClientDetail() {
   const { selClient, clients, staff, listings, gmb, analytics, activity, isMobile, isStaffMgr, isAdmin, isAgent, isBdm, user, canImpersonate, setViewAs, setPage, setSelClient, setModal, setConfirm, R, audit, toast, addActivity, PLANSV, reload } = useAdmin();
@@ -111,9 +112,9 @@ export function ClientDetail() {
         {canImpersonate&&<Btn variant="soft" size="sm" onClick={()=>{audit("client.impersonate",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name});setViewAs(c.id);}}>👁️ Open Account (read-only)</Btn>}
         {(isStaffMgr||can("gmb"))&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"integrations",client:c})}>🔗 Integrations</Btn>}
         {isStaffMgr&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"analytics",client:c})}>📈 Update Analytics</Btn>}
-        {c.plan==="gmb"&&can("gmb")&&(gmb[c.id]?.source!=="google")&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"gmb",client:c})}>📍 Update GMB</Btn>}
-        {c.plan==="gmb"&&can("gmb")&&gmb[c.id]?.source==="google"&&<Btn variant="soft" size="sm" onClick={()=>setModal({type:"integrations",client:c})}>📍 Google synced</Btn>}
-        {c.plan==="gmb"&&isStaffMgr&&<Btn variant="soft" size="sm" onClick={()=>{const month=new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"});setConfirm({title:"Mark report as sent?",msg:`Confirm you've emailed the ${month} GMB report to ${c.reportEmail||c.email}. The client will see "Report sent for ${month}".`,yes:"Mark sent",onYes:()=>R(async()=>{await api.patchProfile(c.id,{reportSentMonth:month});await audit("report.sent",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name,detail:month});await addActivity(c.id,"gmb_update",`Monthly report sent for ${month}`);},"Report marked as sent")});}}>📤 Mark Report Sent</Btn>}
+        {isProPlan(c.plan)&&can("gmb")&&(gmb[c.id]?.source!=="google")&&<Btn variant="ghost" size="sm" onClick={()=>setModal({type:"gmb",client:c})}>📍 Update GMB</Btn>}
+        {isProPlan(c.plan)&&can("gmb")&&gmb[c.id]?.source==="google"&&<Btn variant="soft" size="sm" onClick={()=>setModal({type:"integrations",client:c})}>📍 Google synced</Btn>}
+        {isProPlan(c.plan)&&isStaffMgr&&<Btn variant="soft" size="sm" onClick={()=>{const month=new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"});setConfirm({title:"Mark report as sent?",msg:`Confirm you've emailed the ${month} GMB report to ${c.reportEmail||c.email}. The client will see "Report sent for ${month}".`,yes:"Mark sent",onYes:()=>R(async()=>{await api.patchProfile(c.id,{reportSentMonth:month});await audit("report.sent",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name,detail:month});await addActivity(c.id,"gmb_update",`Monthly report sent for ${month}`);},"Report marked as sent")});}}>📤 Mark Report Sent</Btn>}
         {isStaffMgr&&(c.status==="active"?
           <Btn variant="ghost" size="sm" onClick={()=>setModal({type:"suspend",client:c})}>⏸ Suspend</Btn>:
           <Btn variant="green" size="sm" onClick={()=>R(async()=>{await api.patchProfile(c.id,{status:"active",suspendedAt:null,suspendReason:null,suspendedBy:null});await audit("client.reactivate",{targetType:"client",targetId:c.id,targetName:c.businessName||c.name});},"Client reactivated")}>▶ Reactivate</Btn>)}

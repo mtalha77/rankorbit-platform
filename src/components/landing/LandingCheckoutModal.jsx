@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { T, FONT_B } from "../../lib/theme";
 import { api } from "../../lib/api";
-import { PLANS, planPrice, formatMoney } from "../../lib/constants";
+import { PLANS, planPrice, formatMoney, normalizePlanId } from "../../lib/constants";
 import { US_CA_STATES } from "../../lib/constants";
 import { Modal, Btn, Input, Select } from "../atoms";
 
@@ -29,8 +29,9 @@ export function LandingCheckoutModal({ planId, cfg = {}, isMobile, onClose }) {
   const [err, setErr] = useState("");
   const [loginHint, setLoginHint] = useState(false);
 
-  const plan = PLANS[planId];
-  const price = planPrice(planId, cfg);
+  const planKey = normalizePlanId(planId);
+  const plan = PLANS[planKey];
+  const price = planPrice(planKey, cfg);
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
 
   const cityOk = /^[A-Za-z\s]+$/.test(String(f.city || "").trim());
@@ -61,7 +62,7 @@ export function LandingCheckoutModal({ planId, cfg = {}, isMobile, onClose }) {
     setLoginHint(false);
     try {
       const r = await api.landingCheckout({
-        planId,
+        planId: planKey,
         ...f,
         zip: zipDigits,
         email: String(f.email).trim().toLowerCase(),

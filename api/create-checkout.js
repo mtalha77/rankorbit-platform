@@ -2,7 +2,8 @@ import {
   getAdmin,
   getStripe,
   stripeConfigured,
-  PLAN_IDS,
+  isValidPlanId,
+  normalizePlanId,
   priceIdForPlan,
   returnBase,
   readJson,
@@ -19,8 +20,9 @@ export default async function handler(req, res) {
   const stripe = getStripe();
   if (!admin || !stripe) return res.status(500).json({ error: "Server not configured" });
 
-  const { token, planId, returnOrigin } = await readJson(req);
-  if (!PLAN_IDS.includes(planId)) return res.status(400).json({ error: "Invalid plan" });
+  const { token, planId: rawPlanId, returnOrigin } = await readJson(req);
+  const planId = normalizePlanId(rawPlanId);
+  if (!isValidPlanId(rawPlanId)) return res.status(400).json({ error: "Invalid plan" });
   const priceId = priceIdForPlan(planId);
   if (!priceId) return res.status(500).json({ error: "Price ID missing for plan" });
 

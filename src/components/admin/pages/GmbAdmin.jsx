@@ -2,11 +2,12 @@ import { T, FONT_D } from "../../../lib/theme";
 import { Card, Btn, Empty, PageHead } from "../../atoms";
 import { UserAvatar } from "../../AccountSettings";
 import { useAdmin } from "../AdminContext";
+import { isProPlan } from "../../../lib/constants";
 
 export function GmbAdmin() {
   const { isMobile, clients, gmb, setSelClient, setPage, setModal } = useAdmin();
 
-    const gmbClients=clients.filter(c=>c.plan==="gmb");
+    const gmbClients=clients.filter(c=>isProPlan(c.plan));
     return(<div>
       <PageHead isMobile={isMobile} title="GMB Management" sub={`${gmbClients.length} Pro Plan clients`}/>
       {gmbClients.length===0?<Card><Empty icon="📍" title="No Pro Plan clients yet" sub="Clients on the Pro Plan appear here."/></Card>:

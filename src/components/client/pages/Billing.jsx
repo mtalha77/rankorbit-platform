@@ -2,7 +2,7 @@ import { useState } from "react";
 import { T, FONT_D, FONT_B, SHADOW, SHADOW_LG } from "../../../lib/theme";
 import { api } from "../../../lib/api";
 import { openExternalFile } from "../../../lib/export";
-import { PLANS, popularPlanId, orderPlansPopularCenter, isPlanDowngrade, planListPrice, planDiscountPct, formatMoney } from "../../../lib/constants";
+import { PLANS, popularPlanId, orderPlansPopularCenter, isPlanDowngrade, planListPrice, planDiscountPct, formatMoney, normalizePlanId } from "../../../lib/constants";
 import { paymentGraceState } from "../../../lib/helpers";
 import { Badge, Card, Btn, PageHead, SectionTitle, Modal } from "../../atoms";
 import { ProfileGate } from "../ProfileGate";
@@ -18,7 +18,7 @@ export function Billing() {
   const stripeReady = stripeConfigured === true;
   const billingBlocked = stripeConfigured === false;
   const grace = paymentGraceState(user);
-  const pendingName = user.pendingPlanId && PLANS[user.pendingPlanId] ? PLANS[user.pendingPlanId].name : user.pendingPlanId;
+  const pendingName = user.pendingPlanId && PLANS[normalizePlanId(user.pendingPlanId)] ? PLANS[normalizePlanId(user.pendingPlanId)].name : user.pendingPlanId;
   const pendingDate = user.pendingPlanEffectiveAt
     ? new Date(user.pendingPlanEffectiveAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
     : null;
@@ -59,7 +59,7 @@ export function Billing() {
       const r = await api.changeSubscription(switchTo, { when: timing });
       if (r.error) { toast(r.error, "info"); return; }
       try { sessionStorage.removeItem("ro_pending_plan"); } catch {}
-      const targetName = PLANS[switchTo].name;
+      const targetName = PLANS[normalizePlanId(switchTo)].name;
       setSwitchTo(null);
       // Pull latest Stripe invoices (proration / renewal) into the history table.
       try {
@@ -248,11 +248,11 @@ export function Billing() {
                     )}
                     <Btn variant="green" size="sm" style={{ width: "100%", marginTop: 12 }} disabled={impersonating} onClick={doResume}>Resume subscription</Btn>
                   </>
-                ) : user.pendingPlanId && (PLANSV?.[user.pendingPlanId] || PLANS[user.pendingPlanId]) ? (
+                ) : user.pendingPlanId && (PLANSV?.[normalizePlanId(user.pendingPlanId)] || PLANS[normalizePlanId(user.pendingPlanId)]) ? (
                   <>
                     <div style={{ fontSize: 11, fontWeight: 800, color: T.brand, letterSpacing: ".8px", marginBottom: 8 }}>NEXT CHARGE (SCHEDULED)</div>
                     <div style={{ fontFamily: FONT_D, fontSize: 24, fontWeight: 800, color: T.brand }}>
-                      ${(PLANSV?.[user.pendingPlanId] || PLANS[user.pendingPlanId]).price}.00
+                      ${(PLANSV?.[normalizePlanId(user.pendingPlanId)] || PLANS[normalizePlanId(user.pendingPlanId)]).price}.00
                     </div>
                     <div style={{ fontSize: 13, color: T.sub, marginTop: 3 }}>
                       {pendingName} · {pendingDate || nextChargeLabel}
@@ -264,7 +264,7 @@ export function Billing() {
                       </div>
                     )}
                     <div style={{ fontSize: 11.5, color: T.faint, marginTop: 8, lineHeight: 1.5 }}>
-                      You keep <b>{currentName}</b> until {periodLabel}. Next bill is for <b>{pendingName}</b> at ${(PLANSV?.[user.pendingPlanId] || PLANS[user.pendingPlanId]).price}/mo.
+                      You keep <b>{currentName}</b> until {periodLabel}. Next bill is for <b>{pendingName}</b> at ${(PLANSV?.[normalizePlanId(user.pendingPlanId)] || PLANS[normalizePlanId(user.pendingPlanId)]).price}/mo.
                     </div>
                     <Btn variant="ghost" size="sm" style={{ marginTop: 12 }} disabled={impersonating} onClick={cancelPending}>
                       Cancel scheduled change
@@ -307,8 +307,8 @@ export function Billing() {
           )}
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)", gap: 14 }}>
             {orderPlansPopularCenter(Object.entries(PLANSV), popularId).map(([id, p], i) => {
-              const current = id === user.plan;
-              const scheduled = id === user.pendingPlanId;
+              const current = id === normalizePlanId(user.plan);
+              const scheduled = id === normalizePlanId(user.pendingPlanId);
               return (
                 <div key={id} className="fadeUp hoverCard" style={{ animationDelay: `${i * 90}ms`, background: T.surface, border: `2px solid ${current ? p.color : T.line}`, borderRadius: 18, padding: 22, position: "relative", boxShadow: current ? SHADOW_LG : SHADOW }}>
                   {current && <div style={{ position: "absolute", top: -11, left: "50%", transform: "translateX(-50%)", background: p.color, color: "#fff", fontSize: 10, fontWeight: 800, padding: "3px 13px", borderRadius: 20, whiteSpace: "nowrap" }}>CURRENT PLAN</div>}

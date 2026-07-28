@@ -6,11 +6,22 @@ import { createClient } from "@supabase/supabase-js";
 const cleanUrl = (s) => (s ? String(s).replace(/[^\x21-\x7E]/g, "").trim() : s);
 const cleanKey = (s) => (s ? String(s).replace(/[^A-Za-z0-9._\-]/g, "") : s);
 
-export const PLAN_IDS = ["essentials", "growth", "gmb"];
-const PLAN_RANK = { essentials: 1, growth: 2, gmb: 3 };
+/** Legacy plan id `gmb` → `pro`. */
+export function normalizePlanId(id) {
+  if (id === "gmb") return "pro";
+  return id;
+}
+
+export const PLAN_IDS = ["essentials", "growth", "pro"];
+const PLAN_RANK = { essentials: 1, growth: 2, pro: 3 };
+
+export function isValidPlanId(id) {
+  return PLAN_IDS.includes(normalizePlanId(id));
+}
+
 /** True when moving to a lower tier (e.g. Growth → Essentials). */
 export function isPlanDowngrade(fromId, toId) {
-  return (PLAN_RANK[toId] || 0) < (PLAN_RANK[fromId] || 0);
+  return (PLAN_RANK[normalizePlanId(toId)] || 0) < (PLAN_RANK[normalizePlanId(fromId)] || 0);
 }
 
 export function appUrl() {
@@ -47,9 +58,9 @@ export function priceIdForPlan(planId) {
   const map = {
     essentials: process.env.STRIPE_PRICE_ESSENTIALS,
     growth: process.env.STRIPE_PRICE_GROWTH,
-    gmb: process.env.STRIPE_PRICE_GMB,
+    pro: process.env.STRIPE_PRICE_PRO,
   };
-  return map[planId] || null;
+  return map[normalizePlanId(planId)] || null;
 }
 
 export function planFromPriceId(priceId) {
@@ -57,7 +68,7 @@ export function planFromPriceId(priceId) {
   const entries = [
     ["essentials", process.env.STRIPE_PRICE_ESSENTIALS],
     ["growth", process.env.STRIPE_PRICE_GROWTH],
-    ["gmb", process.env.STRIPE_PRICE_GMB],
+    ["pro", process.env.STRIPE_PRICE_PRO],
   ];
   for (const [plan, pid] of entries) {
     if (pid && pid === priceId) return plan;
@@ -66,7 +77,7 @@ export function planFromPriceId(priceId) {
 }
 
 export function stripeConfigured() {
-  // Essentials + Growth are enough to go live; GMB price is optional until that plan is sold.
+  // Essentials + Growth are enough to go live; Pro price is optional until that plan is sold.
   return !!(
     process.env.STRIPE_SECRET_KEY &&
     process.env.STRIPE_PRICE_ESSENTIALS &&
@@ -282,7 +293,7 @@ export async function updateProfileSubscriptionFields(admin, profileId, fields) 
 export function subscriptionFieldsFromStripe(sub, planId) {
   const item = sub.items?.data?.[0];
   const priceId = item?.price?.id || null;
-  const plan = planId || planFromPriceId(priceId);
+  const plan = normalizePlanId(planId || planFromPriceId(priceId)) || null;
   // Prefer subscription-level period; newer Stripe payloads may only set it on the item.
   const periodEndUnix = sub.current_period_end || item?.current_period_end || null;
   const periodStartUnix = sub.current_period_start || item?.current_period_start || null;

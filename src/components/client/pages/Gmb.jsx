@@ -5,12 +5,13 @@ import { Badge, Card, Btn, StatCard, ChartTip, SectionTitle, Empty, PageHead } f
 import { Orbit } from "../../Orbit";
 import { ReportCard } from "../ReportCard";
 import { useClient } from "../ClientContext";
+import { isProPlan } from "../../../lib/constants";
 
 export function Gmb() {
   const { user, isMobile, setPage, myGmb, reload, toast, viewOnly, PLANSV } = useClient();
-  const gmbPrice = PLANSV?.gmb?.price ?? 99;
+  const gmbPrice = PLANSV?.pro?.price ?? 99;
 
-    if(user.plan!=="gmb")return(<div>
+    if(!isProPlan(user.plan))return(<div>
       <PageHead isMobile={isMobile} title="GMB Management"/>
       <Card style={{textAlign:"center",padding:isMobile?32:56,boxShadow:SHADOW_LG}}>
         <div style={{display:"flex",justifyContent:"center",marginBottom:18}}><Orbit size={100} speed={10}/></div>

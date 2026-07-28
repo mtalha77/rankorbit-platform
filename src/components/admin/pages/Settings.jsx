@@ -11,7 +11,7 @@ function buildConfig(settings) {
     reportEmails: "sales@naporbit.com, onboarding@naporbit.com",
     priceEssentials: PLANS.essentials.price,
     priceGrowth: PLANS.growth.price,
-    priceGmb: PLANS.gmb.price,
+    priceGmb: PLANS.pro.price,
     discountEssentials: 10,
     discountGrowth: 25,
     discountGmb: 25,
@@ -92,7 +92,7 @@ export function Settings() {
           {[
             {id:"essentials",label:"Essentials Plan",pctK:"discountEssentials",onK:"discountEssentialsOn"},
             {id:"growth",label:"Growth Plan",pctK:"discountGrowth",onK:"discountGrowthOn"},
-            {id:"gmb",label:"Pro Plan",pctK:"discountGmb",onK:"discountGmbOn"},
+            {id:"pro",label:"Pro Plan",pctK:"discountGmb",onK:"discountGmbOn"},
           ].map((row)=>(
             <div key={row.id} style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 100px auto",gap:10,alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${T.line}`}}>
               <div>
@@ -121,7 +121,7 @@ export function Settings() {
             {[
               {id:"essentials",label:"Essentials Plan",live:c.livePlanEssentials!==false},
               {id:"growth",label:"Growth Plan",live:c.livePlanGrowth!==false},
-              {id:"gmb",label:"Pro Plan",live:c.livePlanGmb!==false},
+              {id:"pro",label:"Pro Plan",live:c.livePlanGmb!==false},
             ].map(p=>(
               <button
                 key={p.id}

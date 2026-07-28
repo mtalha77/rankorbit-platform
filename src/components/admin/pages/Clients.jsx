@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { T, FONT_D } from "../../../lib/theme";
-import { PLANS } from "../../../lib/constants";
+import { PLANS, normalizePlanId } from "../../../lib/constants";
 import { clientDaysMetrics, urgencyDaysColor } from "../../../lib/helpers";
 import { Badge, Card, Btn, Empty, ListToolbar, PageHead } from "../../atoms";
 import { clientPaymentBadge } from "../adminUtils";
@@ -25,7 +25,7 @@ export function Clients() {
   const filtered = useMemo(() => {
     const rows = clients.filter((c) => {
       if (search && !`${c.businessName} ${c.name} ${c.email} ${c.city}`.toLowerCase().includes(search.toLowerCase())) return false;
-      if (planF !== "all" && c.plan !== planF) return false;
+      if (planF !== "all" && normalizePlanId(c.plan) !== planF) return false;
       if (statusF !== "all" && (c.status || "active") !== statusF) return false;
       return true;
     });
@@ -94,7 +94,7 @@ export function Clients() {
     { key: "phone", label: "Phone" },
     { key: "city", label: "City" },
     { key: "state", label: "State" },
-    { key: "plan", label: "Plan", get: (c) => (c.plan ? plans[c.plan]?.name || PLANS[c.plan]?.name : "None") },
+    { key: "plan", label: "Plan", get: (c) => (c.plan ? plans[normalizePlanId(c.plan)]?.name || PLANS[normalizePlanId(c.plan)]?.name : "None") },
     { key: "status", label: "Status", get: (c) => c.status || "active" },
     { key: "napScore", label: "NAP %" },
     { label: "Live Listings", get: (c) => (listings[c.id] || []).filter((l) => l.status === "live").length },
@@ -245,7 +245,7 @@ export function Clients() {
                         <div style={{ fontSize: 9.5, color: T.faint, fontWeight: 700, letterSpacing: ".5px" }}>FLAGS</div>
                       </div>
                     )}
-                    <Badge type="submitted" label={c.plan ? `$${(plans[c.plan] || PLANS[c.plan])?.price ?? "?"}/mo` : "No plan"} />
+                    <Badge type="submitted" label={c.plan ? `$${(plans[normalizePlanId(c.plan)] || PLANS[normalizePlanId(c.plan)])?.price ?? "?"}/mo` : "No plan"} />
                     <span style={{ color: T.brand, fontWeight: 800 }}>→</span>
                   </div>
                 </div>

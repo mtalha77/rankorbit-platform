@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { T, FONT_D, FONT_B, SHADOW_LG } from "../lib/theme";
 import { api } from "../lib/api";
-import { PLANS, planLive, planAllowsMessaging } from "../lib/constants";
+import { PLANS, planLive, planAllowsMessaging, isProPlan, normalizePlanId } from "../lib/constants";
 import { isPastMeetingNotif, buildLiveGrowthSeries, growthMomTrend, resolveNapScore, paymentGraceState } from "../lib/helpers";
 import { clientPageFromPath, clientPathForPage } from "../lib/dashboardRoutes";
 import { Btn, Confirm, PageHead } from "../components/atoms";
@@ -193,7 +193,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
       planIntent = sp.get("plan");
       billingFlag = sp.get("billing");
       if (!planIntent) planIntent = sessionStorage.getItem("ro_pending_plan");
-      if (planIntent && ["essentials", "growth", "gmb"].includes(planIntent)) {
+      if (planIntent && ["essentials", "growth", "pro", "gmb"].includes(planIntent)) {
         setPage("billing", { replace: true });
         // Consume once so remounts don't keep forcing Billing.
         if (!billingFlag) {
@@ -394,7 +394,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
   const cfg = settings?.config || {};
   // Client-visible prices honor the super-admin control-panel overrides, falling back to defaults.
   const priceOf = (id) => {
-    const m = { essentials: "priceEssentials", growth: "priceGrowth", gmb: "priceGmb" };
+    const m = { essentials: "priceEssentials", growth: "priceGrowth", pro: "priceGmb" };
     const v = cfg[m[id]];
     return v != null && v !== "" ? Number(v) : PLANS[id]?.price;
   };
@@ -409,7 +409,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
   const live = my.filter((l) => l.status === "live").length;
   const pending = my.filter((l) => l.status === "pending").length;
   const napScore = resolveNapScore(user.napScore, my);
-  const plan = PLANSALL[user.plan] || PLANSALL.essentials;
+  const plan = PLANSALL[normalizePlanId(user.plan)] || PLANSALL.essentials;
   const hour = new Date().getHours();
   const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   // Browse every area even without a plan; GMB/Messages stay visible as locked previews.
@@ -418,9 +418,9 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
     { id: "notifications", icon: "bell", label: "Notifications" },
     ...(canMessage || needsPlan ? [{ id: "messages", icon: "message", label: "Messages" }] : []),
     { id: "listings", icon: "listing", label: "Listings" },
-    // Analytics is GMB Pro only (not Essentials $49 or Growth $89).
-    ...(user.plan === "gmb" ? [{ id: "analytics", icon: "analytics", label: "Analytics" }] : []),
-    ...(user.plan === "gmb" || needsPlan ? [{ id: "gmb", icon: "globe", label: "GMB" }] : []),
+    // Analytics is Pro Plan only (not Essentials or Growth).
+    ...(isProPlan(user.plan) ? [{ id: "analytics", icon: "analytics", label: "Analytics" }] : []),
+    ...(isProPlan(user.plan) || needsPlan ? [{ id: "gmb", icon: "globe", label: "GMB" }] : []),
     { id: "billing", icon: "billing", label: "Plan & Billing" },
     { id: "call", icon: "message", label: "Book a Call" },
   ];
@@ -548,9 +548,9 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
   const grace = paymentGraceState(user);
   const graceAllowed = new Set(["billing", "settings", "messages", "notifications", "legal", "help"]);
   // Grace expired → billing only. No-plan clients may browse every page (actions locked).
-  // Analytics is GMB Pro only — bounce Essentials/Growth (and no-plan) off that route.
+  // Analytics is Pro Plan only — bounce Essentials/Growth (and no-plan) off that route.
   const viewPageRaw = grace.expired && !graceAllowed.has(page) ? "billing" : page;
-  const viewPage = viewPageRaw === "analytics" && user.plan !== "gmb" ? "home" : viewPageRaw;
+  const viewPage = viewPageRaw === "analytics" && !isProPlan(user.plan) ? "home" : viewPageRaw;
   // Keep URL in sync when grace / plan gates remap the visible page.
   useEffect(() => {
     if (impersonating) return;
@@ -562,7 +562,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
       setPage("billing", { replace: true });
       return;
     }
-    if (p === "analytics" && user.plan !== "gmb") {
+    if (p === "analytics" && !isProPlan(user.plan)) {
       toast("Analytics is available on Pro Plan", "info");
       return;
     }
@@ -792,7 +792,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
         )}
         {viewPage === "listings" && <Listings />}
         {viewPage === "gmb" && <Gmb />}
-        {viewPage === "analytics" && user.plan === "gmb" && <Analytics />}
+        {viewPage === "analytics" && isProPlan(user.plan) && <Analytics />}
         {viewPage === "billing" && <Billing />}
         {viewPage === "call" && (
           <ClientCallPage

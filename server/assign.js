@@ -430,11 +430,13 @@ export async function notifySuperAdminsInApp(admin, { clientId, type, title, bod
 const PLAN_LABELS = {
   essentials: "Essentials Plan",
   growth: "Growth Plan",
-  gmb: "Pro Plan",
+  pro: "Pro Plan",
+  gmb: "Pro Plan", // legacy id
 };
 
 export function planLabel(planId) {
-  return PLAN_LABELS[planId] || planId || "your plan";
+  const id = planId === "gmb" ? "pro" : planId;
+  return PLAN_LABELS[id] || planId || "your plan";
 }
 
 /**

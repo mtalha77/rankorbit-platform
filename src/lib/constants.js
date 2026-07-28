@@ -1,26 +1,32 @@
 // ─── PRODUCT CONSTANTS ───────────────────────────────────────────────────────
 import { T } from "./theme";
 
+/** Legacy plan id `gmb` → `pro`. */
+export const normalizePlanId = (id) => (id === "gmb" ? "pro" : id);
+export const isProPlan = (id) => normalizePlanId(id) === "pro";
+
 export const PLANS={essentials:{name:"Essentials Plan",price:49,quota:"10 listings/mo",color:T.blue,soft:T.blueSoft,features:["10 directory submissions every month","NAP consistency management","Unauthorized edit protection","1 regular + 1 guidance call / billing period","Listing monitoring & alerts","Client dashboard access"]},
   growth:{name:"Growth Plan",price:89,quota:"20 listings/mo",color:T.brand,soft:T.brandSoft,features:["20 directory submissions every month","Everything in Essentials Plan","BDM chat support (Messages)","2 regular + 1 guidance call / billing period","Expanded directory coverage","Monthly coverage report"]},
-  gmb:{name:"Pro Plan",price:99,quota:"15 listings/mo + GMB",color:T.violet,soft:T.violetSoft,features:["15 directory submissions every month","Google Business Profile management","BDM chat support (Messages)","3 regular + 1 guidance call / billing period","Monthly GMB posts & Q&A","Engagement analytics (views, calls)"]}};
+  pro:{name:"Pro Plan",price:99,quota:"15 listings/mo + GMB",color:T.violet,soft:T.violetSoft,features:["15 directory submissions every month","Google Business Profile management","BDM chat support (Messages)","3 regular + 1 guidance call / billing period","Monthly GMB posts & Q&A","Engagement analytics (views, calls)"]}};
 
 /** Default marketing discount % (charged price stays planPrice; list/was = price ÷ (1 − pct/100)). */
-const DEFAULT_DISCOUNT_PCT={essentials:10,growth:25,gmb:25};
-const DISCOUNT_PCT_KEYS={essentials:"discountEssentials",growth:"discountGrowth",gmb:"discountGmb"};
-const DISCOUNT_ON_KEYS={essentials:"discountEssentialsOn",growth:"discountGrowthOn",gmb:"discountGmbOn"};
+const DEFAULT_DISCOUNT_PCT={essentials:10,growth:25,pro:25};
+const DISCOUNT_PCT_KEYS={essentials:"discountEssentials",growth:"discountGrowth",pro:"discountGmb"};
+const DISCOUNT_ON_KEYS={essentials:"discountEssentialsOn",growth:"discountGrowthOn",pro:"discountGmbOn"};
 
 /** Discount % for a plan from Control Panel, else defaults. */
 export const planDiscountPct=(id,cfg={})=>{
-  const key=DISCOUNT_PCT_KEYS[id];
+  const nid=normalizePlanId(id);
+  const key=DISCOUNT_PCT_KEYS[nid];
   const v=key?cfg[key]:null;
   if(v!=null&&v!==""){const n=Number(v);if(Number.isFinite(n)&&n>0&&n<100)return n;}
-  return DEFAULT_DISCOUNT_PCT[id]??0;
+  return DEFAULT_DISCOUNT_PCT[nid]??0;
 };
 
 /** Whether the plan discount badge is shown. Default on. */
 export const planDiscountOn=(id,cfg={})=>{
-  const key=DISCOUNT_ON_KEYS[id];
+  const nid=normalizePlanId(id);
+  const key=DISCOUNT_ON_KEYS[nid];
   const v=key?cfg[key]:undefined;
   if(v===undefined||v===null)return true;
   return v===true||v==="true";
@@ -50,23 +56,24 @@ export const formatMoney=(n)=>{
 export const PLAN_ENTITLEMENTS={
   essentials:{regularMeetings:1,guidanceMeetings:1,messaging:false},
   growth:{regularMeetings:2,guidanceMeetings:1,messaging:true},
-  gmb:{regularMeetings:3,guidanceMeetings:1,messaging:true},
+  pro:{regularMeetings:3,guidanceMeetings:1,messaging:true},
 };
-export const getPlanEntitlements=(planId)=>PLAN_ENTITLEMENTS[planId]||PLAN_ENTITLEMENTS.essentials;
+export const getPlanEntitlements=(planId)=>PLAN_ENTITLEMENTS[normalizePlanId(planId)]||PLAN_ENTITLEMENTS.essentials;
 export const planAllowsMessaging=(planId)=>!!getPlanEntitlements(planId).messaging;
 
 /** Tier order for upgrade/downgrade rules (higher = higher plan). */
-export const PLAN_RANK={essentials:1,growth:2,gmb:3};
-export const isPlanDowngrade=(fromId,toId)=>(PLAN_RANK[toId]||0)<(PLAN_RANK[fromId]||0);
+export const PLAN_RANK={essentials:1,growth:2,pro:3};
+export const isPlanDowngrade=(fromId,toId)=>(PLAN_RANK[normalizePlanId(toId)]||0)<(PLAN_RANK[normalizePlanId(fromId)]||0);
 
-const PRICE_CFG_KEYS={essentials:"priceEssentials",growth:"priceGrowth",gmb:"priceGmb"};
+const PRICE_CFG_KEYS={essentials:"priceEssentials",growth:"priceGrowth",pro:"priceGmb"};
 
 /** Display price: control-panel override when set, else PLANS default. */
 export const planPrice=(id,cfg={})=>{
-  const key=PRICE_CFG_KEYS[id];
+  const nid=normalizePlanId(id);
+  const key=PRICE_CFG_KEYS[nid];
   const v=key?cfg[key]:null;
   if(v!=null&&v!==""){const n=Number(v);if(Number.isFinite(n))return n;}
-  return PLANS[id]?.price??0;
+  return PLANS[nid]?.price??0;
 };
 
 /** PLANS entries with prices resolved from settings config. */
@@ -76,12 +83,12 @@ export const plansWithPrices=(cfg={})=>Object.fromEntries(
 
 // Which plans are publicly live. Super-admin toggles these in the control panel.
 // Missing/undefined flag = live by default. A plan set to false is hidden everywhere client-facing.
-export const planLive=(id,cfg={})=>{const m={essentials:"livePlanEssentials",growth:"livePlanGrowth",gmb:"livePlanGmb"};const v=cfg[m[id]];return v===undefined||v===null||v===true||v==="true";};
+export const planLive=(id,cfg={})=>{const nid=normalizePlanId(id);const m={essentials:"livePlanEssentials",growth:"livePlanGrowth",pro:"livePlanGmb"};const v=cfg[m[nid]];return v===undefined||v===null||v===true||v==="true";};
 export const livePlanEntries=(cfg={})=>Object.entries(plansWithPrices(cfg)).filter(([id])=>planLive(id,cfg));
 
 /** Which plan shows the “Most Popular” badge. Super-admin sets this in Control Panel. */
 export const popularPlanId=(cfg={})=>{
-  const id=cfg.popularPlan;
+  const id=normalizePlanId(cfg.popularPlan);
   if(id&&PLANS[id])return id;
   return"growth";
 };
@@ -90,13 +97,14 @@ export const popularPlanId=(cfg={})=>{
 export const orderPlansPopularCenter=(entries,popularId)=>{
   const list=Array.isArray(entries)?[...entries]:[];
   if(list.length<2)return list;
-  const getId=(item)=>Array.isArray(item)?item[0]:item.id;
-  const popIdx=list.findIndex(item=>getId(item)===popularId);
+  const pop=normalizePlanId(popularId);
+  const getId=(item)=>normalizePlanId(Array.isArray(item)?item[0]:item.id);
+  const popIdx=list.findIndex(item=>getId(item)===pop);
   if(popIdx<0)return list;
-  const [pop]=list.splice(popIdx,1);
+  const [item]=list.splice(popIdx,1);
   // Insert at middle index so popular is visually centered
   const mid=Math.floor(list.length/2);
-  list.splice(mid,0,pop);
+  list.splice(mid,0,item);
   return list;
 };
 

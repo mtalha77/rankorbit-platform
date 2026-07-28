@@ -1,12 +1,13 @@
 // Stripe webhook → sync subscription + invoices into Supabase (service role).
 // Env: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
-//      STRIPE_PRICE_ESSENTIALS, STRIPE_PRICE_GROWTH, STRIPE_PRICE_GMB
+//      STRIPE_PRICE_ESSENTIALS, STRIPE_PRICE_GROWTH, STRIPE_PRICE_PRO
 
 import {
   getAdmin,
   getStripe,
   readRawBody,
   planFromPriceId,
+  normalizePlanId,
   subscriptionFieldsFromStripe,
   updateProfileSubscriptionFields,
   upsertInvoice,
@@ -51,7 +52,9 @@ async function findProfileId(admin, { userId, customerId, email }) {
 async function syncSubscription(admin, stripe, sub, hintPlan, { logActivity = false } = {}) {
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
   const metaUser = sub.metadata?.supabase_user_id;
-  const planId = hintPlan || sub.metadata?.plan_id || planFromPriceId(sub.items?.data?.[0]?.price?.id);
+  const planId = normalizePlanId(
+    hintPlan || sub.metadata?.plan_id || planFromPriceId(sub.items?.data?.[0]?.price?.id)
+  );
   const email = sub.metadata?.email || null;
   const profileId = await findProfileId(admin, { userId: metaUser, customerId, email });
   if (!profileId) {
@@ -74,7 +77,7 @@ async function syncSubscription(admin, stripe, sub, hintPlan, { logActivity = fa
   if (!scheduleId) {
     fields.pendingPlanId = null;
     fields.pendingPlanEffectiveAt = null;
-  } else if (existingRow?.pendingPlanId && planId === existingRow.pendingPlanId) {
+  } else if (existingRow?.pendingPlanId && planId === normalizePlanId(existingRow.pendingPlanId)) {
     // Schedule rolled forward onto the pending price.
     fields.pendingPlanId = null;
     fields.pendingPlanEffectiveAt = null;

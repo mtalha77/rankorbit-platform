@@ -54,7 +54,7 @@ export function LandingPricing({ isMobile, isTab, w, user, cfg, lprice, goPlan, 
             [
               {id:"essentials",n:"Essentials Plan",tag:"GETTING STARTED",q:"10 LISTINGS / MONTH",f:["10 directory submissions monthly","NAP consistency management","Unauthorized edit protection","1 regular + 1 guidance call / billing period","AI search visibility","Live dashboard access"]},
               {id:"growth",n:"Growth Plan",tag:"GROWING BUSINESS",q:"20 LISTINGS / MONTH",f:["20 directory submissions monthly","Everything in Essentials Plan","BDM chat support (Messages)","2 regular + 1 guidance call / billing period","Expanded directory coverage","AI search visibility","Priority support"]},
-              {id:"gmb",n:"Pro Plan",tag:"MANAGED PRESENCE",q:"15 LISTINGS + GOOGLE PROFILE",f:["15 directory submissions every month","Google Business Profile management","BDM chat support (Messages)","3 regular + 1 guidance call / billing period","Monthly posts and Q&A","Dedicated manager","AI search visibility"]},
+              {id:"pro",n:"Pro Plan",tag:"MANAGED PRESENCE",q:"15 LISTINGS + GOOGLE PROFILE",f:["15 directory submissions every month","Google Business Profile management","BDM chat support (Messages)","3 regular + 1 guidance call / billing period","Monthly posts and Q&A","Dedicated manager","AI search visibility"]},
             ].map(pl=>({...pl,pop:pl.id===popularId})).filter(pl=>planLive(pl.id,cfg)),
             popularId,
           );
@@ -81,11 +81,11 @@ export function LandingPricing({ isMobile, isTab, w, user, cfg, lprice, goPlan, 
                 const current=!!user?.plan&&user.plan===pl.id;
                 const featured=pl.pop&&!current;
                 const dark=featured;
-                const checkC=dark?T.green:(pl.id==="gmb"?T.brand:T.green);
-                const tagBg=dark?"rgba(255,255,255,.12)":(pl.id==="gmb"?T.violetSoft:T.surface2);
-                const tagC=dark?"rgba(255,255,255,.85)":(pl.id==="gmb"?T.violet:T.sub);
-                const quotaBg=dark?"rgba(15,164,122,.2)":(pl.id==="gmb"?T.violetSoft:T.surface2);
-                const quotaC=dark?T.green:(pl.id==="gmb"?T.violet:T.sub);
+                const checkC=dark?T.green:(pl.id==="pro"?T.brand:T.green);
+                const tagBg=dark?"rgba(255,255,255,.12)":(pl.id==="pro"?T.violetSoft:T.surface2);
+                const tagC=dark?"rgba(255,255,255,.85)":(pl.id==="pro"?T.violet:T.sub);
+                const quotaBg=dark?"rgba(15,164,122,.2)":(pl.id==="pro"?T.violetSoft:T.surface2);
+                const quotaC=dark?T.green:(pl.id==="pro"?T.violet:T.sub);
 
                 return(
                   <Reveal key={pl.id} delay={i*90}>
@@ -142,7 +142,7 @@ export function LandingPricing({ isMobile, isTab, w, user, cfg, lprice, goPlan, 
                       <div style={{flex:1,marginBottom:20}}>
                         {pl.f.map(f=>(
                           <div key={f} style={{display:"flex",gap:10,marginBottom:12,alignItems:"flex-start"}}>
-                            <span style={{width:18,height:18,borderRadius:"50%",background:dark?"rgba(15,164,122,.2)":(pl.id==="gmb"?T.brandSoft:T.greenSoft),display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:1}}>
+                            <span style={{width:18,height:18,borderRadius:"50%",background:dark?"rgba(15,164,122,.2)":(pl.id==="pro"?T.brandSoft:T.greenSoft),display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:1}}>
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={checkC} strokeWidth="3" strokeLinecap="round"><path d="M20 6 9 17l-5-5"/></svg>
                             </span>
                             <span style={{fontSize:14,lineHeight:1.45,color:dark?"rgba(255,255,255,.82)":T.sub,fontWeight:500}}>{f}</span>

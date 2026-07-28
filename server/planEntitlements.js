@@ -1,13 +1,18 @@
 /** Per-plan meeting quotas + messaging (server). Keep in sync with src/lib/constants.js */
 
+function normalizePlanId(id) {
+  if (id === "gmb") return "pro";
+  return id;
+}
+
 export const PLAN_ENTITLEMENTS = {
   essentials: { regularMeetings: 1, guidanceMeetings: 1, messaging: false },
   growth: { regularMeetings: 2, guidanceMeetings: 1, messaging: true },
-  gmb: { regularMeetings: 3, guidanceMeetings: 1, messaging: true },
+  pro: { regularMeetings: 3, guidanceMeetings: 1, messaging: true },
 };
 
 export function getEntitlements(planId) {
-  return PLAN_ENTITLEMENTS[planId] || PLAN_ENTITLEMENTS.essentials;
+  return PLAN_ENTITLEMENTS[normalizePlanId(planId)] || PLAN_ENTITLEMENTS.essentials;
 }
 
 export function planAllowsMessaging(planId) {

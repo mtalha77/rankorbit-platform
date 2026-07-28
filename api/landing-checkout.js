@@ -7,7 +7,8 @@ import {
   getAdmin,
   getStripe,
   stripeConfigured,
-  PLAN_IDS,
+  isValidPlanId,
+  normalizePlanId,
   priceIdForPlan,
   returnBase,
   readJson,
@@ -28,8 +29,8 @@ export default async function handler(req, res) {
   if (!body?.acceptedTerms) {
     return res.status(400).json({ error: "You must accept the Terms & Conditions before checkout." });
   }
-  const planId = body.planId;
-  if (!PLAN_IDS.includes(planId)) return res.status(400).json({ error: "Invalid plan" });
+  const planId = normalizePlanId(body.planId);
+  if (!isValidPlanId(body.planId)) return res.status(400).json({ error: "Invalid plan" });
   const priceId = priceIdForPlan(planId);
   if (!priceId) return res.status(500).json({ error: "Price ID missing for plan" });
 
