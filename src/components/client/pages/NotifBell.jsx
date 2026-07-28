@@ -25,6 +25,17 @@ export function NotifBell() {
                 <div style={{flex:1,minWidth:0,overflow:"hidden"}}>
                   <div style={{fontSize:13,fontWeight:a.read?600:800,lineHeight:1.45,color:T.ink,overflowWrap:"anywhere",wordBreak:"break-word"}}>{a.title}</div>
                   {a.desc&&a.desc!==a.title&&<div style={{fontSize:12,color:T.sub,marginTop:3,lineHeight:1.4,overflowWrap:"anywhere",wordBreak:"break-word"}}>{a.desc}</div>}
+                  {a.invoiceUrl&&(
+                    <a
+                      href={a.invoiceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e)=>e.stopPropagation()}
+                      style={{display:"inline-block",marginTop:5,fontSize:12,fontWeight:700,color:T.brand,textDecoration:"none"}}
+                    >
+                      View invoice →
+                    </a>
+                  )}
                   <div style={{fontSize:11,color:T.faint,marginTop:4}}>{a.date}</div>
                 </div>
                 {!a.read&&<span style={{width:8,height:8,borderRadius:"50%",background:T.brand,flexShrink:0,marginTop:6}}/>}

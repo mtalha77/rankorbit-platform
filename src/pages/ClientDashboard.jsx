@@ -55,6 +55,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
   const [chatUnread, setChatUnread] = useState(0);
   const [callKindPref, setCallKindPref] = useState(null); // "guidance" | "regular" | null
   const [guidanceBooked, setGuidanceBooked] = useState(false);
+  const [pushBannerVisible, setPushBannerVisible] = useState(false);
   const notifSig = useRef("");
   const w = useWindowSize();
   const isMobile = w < 820;
@@ -313,10 +314,17 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
       setSysNotifs(next);
     };
     pull();
-    const t = setInterval(pull, 30000);
+    const t = setInterval(pull, 15000);
+    const unsub = api.subscribeMyNotifications({ onChange: pull });
+    const onVis = () => {
+      if (document.visibilityState === "visible") pull();
+    };
+    document.addEventListener("visibilitychange", onVis);
     return () => {
       cancelled = true;
       clearInterval(t);
+      unsub();
+      document.removeEventListener("visibilitychange", onVis);
     };
   }, [userId, impersonating]);
 
@@ -475,6 +483,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
     desc: n.body || n.title,
     date: n.createdAt ? new Date(n.createdAt).toLocaleString() : "",
     read: !!n.read,
+    invoiceUrl: n.meta?.hostedInvoiceUrl || null,
   }));
   const unreadSys = liveNotifs.filter((n) => !n.read).length;
   const markAllRead = async () => {
@@ -542,6 +551,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
       nap_fix: "🔧",
     }[t] || "🔔");
   const grace = paymentGraceState(user);
+  const topContentBanner = showSetupBanner || grace.pastDue || pushBannerVisible;
   const graceAllowed = new Set(["billing", "settings", "messages", "notifications", "legal", "help"]);
   // Grace expired → billing only. No-plan clients may browse every page (actions locked).
   // Analytics is Pro Plan only — bounce Essentials/Growth (and no-plan) off that route.
@@ -661,7 +671,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
                 : null
         }
       >
-        <PushEnableBanner toast={toast} enabled={!impersonating} />
+        <PushEnableBanner toast={toast} enabled={!impersonating} onVisibilityChange={setPushBannerVisible} />
         {showSetupBanner && (
           <div
             style={{
@@ -721,7 +731,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
         )}
         {viewPage === "home" && <Home />}
         {viewPage === "notifications" && <NotificationsPage />}
-        {viewPage === "messages" && (canMessage || needsPlan) && (
+        {viewPage === "messages" && canMessage && (
           <div
             style={{
               height: isMobile ? "calc(100dvh - 140px)" : "calc(100vh - 100px)",
@@ -729,7 +739,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
               flexDirection: "column",
               overflow: "hidden",
               // Negative top margin hugs the header — skip it when a banner sits above so titles don't overlap.
-              margin: (showSetupBanner || grace.pastDue)
+              margin: topContentBanner
                 ? (isMobile ? "0 0 -24px" : "0 0 -40px")
                 : (isMobile ? "-8px 0 -24px" : "-18px 0 -40px"),
               boxSizing: "border-box",
@@ -739,7 +749,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
               <PageHead isMobile={isMobile} title="Messages" sub="Chat with your Business Development Manager" />
             </div>
             <div style={{ flex: 1, minHeight: 0, marginTop: -8, overflow: "hidden" }}>
-              {canMessage && !impersonating && !user.assignedBdmId ? (
+              {!impersonating && !user.assignedBdmId ? (
                 <BdmConnectPanel
                   pending={!!user.bdmConnectRequestedAt}
                   toast={toast}
@@ -761,8 +771,8 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
             </div>
           </div>
         )}
-        {viewPage === "messages" && !canMessage && !needsPlan && (
-          <div>
+        {viewPage === "messages" && !canMessage && (
+          <div style={{ marginTop: pushBannerVisible ? 4 : 0 }}>
             <PageHead isMobile={isMobile} title="Messages" sub="Chat with your Business Development Manager" />
             <div
               style={{
@@ -774,14 +784,13 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
               }}
             >
               <div style={{ fontFamily: FONT_D, fontSize: 20, fontWeight: 800, color: T.amber, marginBottom: 8 }}>
-                Upgrade to chat with your BDM
+                Messaging is currently disabled
               </div>
               <div style={{ fontSize: 13.5, color: T.sub, lineHeight: 1.55, marginBottom: 16 }}>
-                Chat with your BDM is available on Growth Plan and Pro Plan. Upgrade your plan to unlock Messages.
+                Upgrade to Growth Plan or Pro Plan to enable Messages and chat with your BDM.
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <Btn onClick={() => goPage("billing")}>View plans →</Btn>
-                <Btn variant="soft" onClick={() => goPage("call")}>Book a call instead</Btn>
+                <Btn onClick={() => goPage("billing")}>Upgrade plan →</Btn>
               </div>
             </div>
           </div>

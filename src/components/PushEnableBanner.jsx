@@ -15,7 +15,7 @@ import {
  * Soft banner: ask logged-in users to enable browser push (clients + staff).
  * Hidden when unsupported, already subscribed, dismissed, or impersonating.
  */
-export default function PushEnableBanner({ toast, enabled = true }) {
+export default function PushEnableBanner({ toast, enabled = true, onVisibilityChange }) {
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -46,12 +46,16 @@ export default function PushEnableBanner({ toast, enabled = true }) {
     };
   }, [enabled]);
 
+  useEffect(() => {
+    onVisibilityChange?.(show);
+  }, [show, onVisibilityChange]);
+
   if (!show) return null;
 
   return (
     <div
       style={{
-        marginBottom: 14,
+        marginBottom: 20,
         padding: "12px 14px",
         borderRadius: 12,
         background: T.brandSoft || "#EEF0FF",

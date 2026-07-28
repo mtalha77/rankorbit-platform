@@ -18,6 +18,7 @@ import {
   notifyStaffRoute,
   notifySuperAdminsInApp,
   notifyManagersInApp,
+  emailManagersAndSuperAdmins,
   planLabel,
 } from "../server/assign.js";
 import { onboardingHelpLine } from "../server/emailTemplate.js";
@@ -247,15 +248,10 @@ export default async function handler(req, res) {
                 body: `Your ${planLabel(planId)} is active. Thank you for subscribing — your dashboard is ready.\n\n${onboardingHelpLine()}`,
                 meta: { planId: planId || null },
               });
-              await notifyStaffRoute(admin, {
-                kind: "onboard",
-                title: `New subscription · ${planLabel(planId)}`,
-                body: `Client ${profileId} subscribed to ${planLabel(planId)}.`,
-              });
             } catch (e) {
-              console.warn("notify after checkout:", e.message);
+              console.warn("notify client after checkout:", e.message);
             }
-            // No auto BDM assign — notify super admins to assign manually.
+            // Notify managers + super admins (in-app + email).
             try {
               const { data: buyer } = await admin
                 .from("profiles")
@@ -264,23 +260,28 @@ export default async function handler(req, res) {
                 .maybeSingle();
               const who = buyer?.businessName || buyer?.name || buyer?.email || "A client";
               const planName = planLabel(planId || buyer?.plan);
-              if (!buyer?.assignedBdmId) {
-                await notifySuperAdminsInApp(admin, {
-                  clientId: profileId,
-                  type: "needs_bdm",
-                  title: "Assign a BDM — new plan purchase",
-                  body: `${who} purchased ${planName}. Assign a BDM from the client page.`,
-                  meta: { planId: planId || buyer?.plan || null, source: isLandingPayfirst ? "landing_payfirst" : "checkout" },
-                });
-              } else {
-                await notifySuperAdminsInApp(admin, {
-                  clientId: profileId,
-                  type: "plan_subscribed",
-                  title: `New subscription · ${planName}`,
-                  body: `${who} purchased ${planName}.`,
-                  meta: { planId: planId || buyer?.plan || null, source: isLandingPayfirst ? "landing_payfirst" : "checkout" },
-                });
-              }
+              const purchasePayload = {
+                clientId: profileId,
+                type: buyer?.assignedBdmId ? "plan_subscribed" : "needs_bdm",
+                title: buyer?.assignedBdmId
+                  ? `New subscription · ${planName}`
+                  : "Assign a BDM — new plan purchase",
+                body: buyer?.assignedBdmId
+                  ? `${who} purchased ${planName}.`
+                  : `${who} purchased ${planName}. Assign a BDM from the client page.`,
+                meta: {
+                  planId: planId || buyer?.plan || null,
+                  source: isLandingPayfirst ? "landing_payfirst" : "checkout",
+                },
+              };
+              await notifyManagersInApp(admin, purchasePayload);
+              await notifySuperAdminsInApp(admin, purchasePayload);
+              // Always email SA + managers on purchase (no toggle gate).
+              await emailManagersAndSuperAdmins(admin, {
+                routeKey: "routeOnboard",
+                title: `New subscription · ${planName}`,
+                body: `${who} purchased ${planName}.`,
+              });
               if (isLandingPayfirst) {
                 const title = "Client details ready — payment complete";
                 const body = `${who} completed landing checkout and paid for ${planName}.`;
@@ -300,7 +301,7 @@ export default async function handler(req, res) {
                 });
               }
             } catch (e) {
-              console.warn("super-admin notify after checkout:", e.message);
+              console.warn("staff notify after checkout:", e.message);
             }
           }
         }
@@ -507,7 +508,7 @@ export default async function handler(req, res) {
                 clientId: profileId,
                 type: "invoice_paid",
                 title: "Payment received",
-                body: `Thanks — we received ${amount}.${invUrl ? ` View invoice: ${invUrl}` : " You can download invoices from Billing anytime."}`,
+                body: `Thanks — we received ${amount}. You can view the invoice from Billing anytime.`,
                 meta: { invoiceId: invoice.id || null, hostedInvoiceUrl: invUrl },
               });
             } catch (e) {

@@ -93,7 +93,22 @@ export function NotificationsPage() {
                     <div style={{ fontSize: 13.5, fontWeight: n.read ? 600 : 800, color: T.ink }}>{n.title}</div>
                     {!n.read && <span style={{ width: 8, height: 8, borderRadius: "50%", background: T.brand, flexShrink: 0, marginTop: 5 }} />}
                   </div>
-                  {n.body && <div style={{ fontSize: 12.5, color: T.sub, marginTop: 4, lineHeight: 1.45 }}>{n.body}</div>}
+                  {n.body && (
+                    <div style={{ fontSize: 12.5, color: T.sub, marginTop: 4, lineHeight: 1.45, overflowWrap: "anywhere", wordBreak: "break-word" }}>
+                      {n.body}
+                    </div>
+                  )}
+                  {n.meta?.hostedInvoiceUrl && (
+                    <a
+                      href={n.meta.hostedInvoiceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ display: "inline-block", marginTop: 6, fontSize: 12.5, fontWeight: 700, color: T.brand, textDecoration: "none" }}
+                    >
+                      View invoice →
+                    </a>
+                  )}
                   <div style={{ fontSize: 11, color: T.faint, marginTop: 5 }}>
                     {n.createdAt ? new Date(n.createdAt).toLocaleString() : ""}
                   </div>

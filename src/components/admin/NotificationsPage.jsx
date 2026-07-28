@@ -17,15 +17,29 @@ export function NotificationsPage({user,isAdmin,isMobile,toast,setNotifBadge,set
   const[cancelErr,setCancelErr]=useState({});
   const[from,setFrom]=useState("");
   const[to,setTo]=useState("");
-  const load=async()=>{
+  useEffect(()=>{
+    let cancelled=false;
+    const pull=async()=>{
+      const rows=await api.listMyNotifications();
+      if(cancelled)return;
+      const live=filterVisibleStaffNotifs(rows,user.role);
+      setNotifs(live);
+      setNotifBadge(live.filter(n=>!n.read).length);
+      setLoading(false);
+    };
     setLoading(true);
-    const rows=await api.listMyNotifications();
-    const live=filterVisibleStaffNotifs(rows,user.role);
-    setNotifs(live);
-    setNotifBadge(live.filter(n=>!n.read).length);
-    setLoading(false);
-  };
-  useEffect(()=>{load();},[user.id,user.role]); // eslint-disable-line react-hooks/exhaustive-deps
+    pull();
+    const t=setInterval(pull,12000);
+    const unsub=api.subscribeMyNotifications({onChange:pull});
+    const onVis=()=>{if(document.visibilityState==="visible")pull();};
+    document.addEventListener("visibilitychange",onVis);
+    return()=>{
+      cancelled=true;
+      clearInterval(t);
+      unsub();
+      document.removeEventListener("visibilitychange",onVis);
+    };
+  },[user.id,user.role,setNotifBadge]);
   const unread=notifs.filter(n=>!n.read);
   const markAll=async()=>{
     const ids=unread.map(n=>n.id);
@@ -160,7 +174,7 @@ export function NotificationsPage({user,isAdmin,isMobile,toast,setNotifBadge,set
                     <div style={{fontSize:13.5,fontWeight:n.read?600:800,color:T.ink}}>{n.title}</div>
                     {!n.read&&<span style={{width:8,height:8,borderRadius:"50%",background:T.brand,flexShrink:0,marginTop:5}}/>}
                   </div>
-                  {n.body&&<div style={{fontSize:12.5,color:T.sub,marginTop:4,lineHeight:1.45}}>{n.body}</div>}
+                  {n.body&&<div style={{fontSize:12.5,color:T.sub,marginTop:4,lineHeight:1.45,overflowWrap:"anywhere",wordBreak:"break-word"}}>{n.body}</div>}
                   <div style={{fontSize:11,color:T.faint,marginTop:5}}>
                     {typeLabel(n.type)}
                     {n.meta?.agentName?` · ${n.meta.agentName}`:""}

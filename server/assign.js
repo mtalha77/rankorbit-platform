@@ -253,7 +253,6 @@ export async function notifyManagersInApp(admin, { clientId, type, title, body, 
         body,
         meta: { ...(meta || {}), audience: "manager" },
       });
-      await maybePush(admin, m.id, { type: type || "info", title, body, meta });
     } catch (e) {
       console.warn("notifyManagersInApp:", e.message);
     }
@@ -283,6 +282,15 @@ export async function createNotification(admin, row) {
         ? "Notifications table is missing. Run supabase/notifications.sql in the Supabase SQL editor."
         : `Could not save notification: ${error.message}`
     );
+  }
+  // Every in-app notification also attempts web push (no-op if VAPID/sub missing).
+  if (row.push !== false && payload.userId && payload.title) {
+    await maybePush(admin, payload.userId, {
+      type: payload.type,
+      title: payload.title,
+      body: payload.body,
+      meta: payload.meta,
+    });
   }
   return payload;
 }
@@ -354,7 +362,6 @@ export async function notifyMeetingOps(admin, {
           body: staffBody,
           meta: { ...(meta || {}), audience: "manager" },
         });
-        await maybePush(admin, m.id, { type: type || "call_booked", title: staffTitle, body: staffBody, meta });
         exclude.add(m.id);
         if (sendEmail !== false) {
           const em = deliveryEmail(m);
@@ -420,7 +427,6 @@ export async function notifyUser(admin, { userId, clientId, type, title, body, m
     }
   }
   const row = await createNotification(admin, { userId, clientId, type, title, body, meta });
-  await maybePush(admin, userId, { type, title, body, meta });
   return row;
 }
 
@@ -443,7 +449,6 @@ export async function notifySuperAdminsInApp(admin, { clientId, type, title, bod
         body,
         meta: { ...(meta || {}), audience: "super_admin" },
       });
-      await maybePush(admin, a.id, { type: type || "payment_failed", title, body, meta });
     } catch (e) {
       console.warn("notifySuperAdminsInApp:", e.message);
     }
@@ -472,6 +477,86 @@ export function deliveryEmail(profile) {
   if (alt) return alt;
   const login = String(profile?.email || "").trim().toLowerCase();
   return login || null;
+}
+
+function parseEmailList(raw) {
+  if (!raw) return [];
+  return String(raw)
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+/**
+ * Email every active manager + super_admin (notifyEmail or login email).
+ * Optionally merge Settings route field + notifyEmail.
+ * Never throws — signup / checkout / support flows must not break.
+ *
+ * @param {object} admin
+ * @param {{ title: string, body: string, toggleKey?: string|null, routeKey?: string|null, extraEmails?: string[], includeSettingsNotifyEmail?: boolean }} opts
+ */
+export async function emailManagersAndSuperAdmins(
+  admin,
+  {
+    title,
+    body,
+    toggleKey = null,
+    routeKey = null,
+    extraEmails = [],
+    includeSettingsNotifyEmail = true,
+  } = {}
+) {
+  if (!admin || !title) return { sent: false, reason: "bad_args" };
+
+  let cfg = {};
+  try {
+    const { data: settingsRow } = await admin.from("settings").select("data").eq("id", 1).maybeSingle();
+    cfg = settingsRow?.data?.config || {};
+  } catch (e) {
+    console.warn("emailManagersAndSuperAdmins settings:", e.message);
+  }
+
+  if (toggleKey && cfg[toggleKey] === false) {
+    return { sent: false, reason: "toggle_off" };
+  }
+
+  const emails = new Set();
+  for (const e of extraEmails || []) {
+    const v = String(e || "").trim().toLowerCase();
+    if (v) emails.add(v);
+  }
+  if (routeKey) {
+    for (const e of parseEmailList(cfg[routeKey])) emails.add(e);
+  }
+  if (includeSettingsNotifyEmail) {
+    for (const e of parseEmailList(cfg.notifyEmail)) emails.add(e);
+  }
+
+  try {
+    const { data: staff } = await admin
+      .from("profiles")
+      .select("email,notifyEmail,role,status,deletedAt")
+      .in("role", ["manager", "super_admin"]);
+    for (const p of staff || []) {
+      if (!p || p.deletedAt || p.status === "suspended") continue;
+      const to = deliveryEmail(p);
+      if (to) emails.add(to);
+    }
+  } catch (e) {
+    console.warn("emailManagersAndSuperAdmins profiles:", e.message);
+  }
+
+  if (!emails.size) return { sent: false, reason: "no_recipients" };
+
+  try {
+    return await sendNotifyEmails([...emails], title, body, {
+      ctaUrl: `${appBaseUrl()}/admin`,
+      ctaLabel: "Open admin",
+    });
+  } catch (e) {
+    console.warn("emailManagersAndSuperAdmins send:", e.message);
+    return { sent: false, reason: e.message || "send_failed" };
+  }
 }
 
 /**
@@ -521,10 +606,6 @@ export async function notifyClient(admin, { userId, clientId, type, title, body,
       meta,
     });
   }
-
-  // Web push once per new notification (not on email-only retries / already-sent skips).
-  const shouldPush = wantInApp && !emailRetryOnly && !!title;
-  if (shouldPush) await maybePush(admin, userId, { type, title, body, meta });
 
   if (!wantEmail) {
     return { notified: true, notificationId: row?.id, emailResult: { sent: false, reason: "in_app_only" } };
@@ -644,6 +725,22 @@ export async function notifyStaffRoute(admin, { kind, title, body }) {
       .filter(Boolean)
       .forEach((e) => emails.add(e));
   }
+  // Last resort: every active super_admin's verified notifyEmail, else login email.
+  if (!emails.size) {
+    try {
+      const { data: admins } = await admin
+        .from("profiles")
+        .select("email,notifyEmail,status,deletedAt")
+        .eq("role", "super_admin");
+      for (const a of admins || []) {
+        if (!a || a.deletedAt || a.status === "suspended") continue;
+        const to = deliveryEmail(a);
+        if (to) emails.add(to);
+      }
+    } catch (e) {
+      console.warn("notifyStaffRoute super_admin fallback:", e.message);
+    }
+  }
 
   if (!emails.size) return { sent: false, reason: "no_recipients" };
   return sendNotifyEmails([...emails], title, body, {
@@ -684,7 +781,6 @@ export async function notifyBdm(admin, { agentId, clientId, type, title, body, m
     body,
     meta,
   });
-  await maybePush(admin, agentId, { type, title, body, meta });
 
   if (sendEmail === false) {
     return {

@@ -260,10 +260,17 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
       });
     };
     pull();
-    const t = setInterval(pull, 45000);
+    const t = setInterval(pull, 15000);
+    const unsub = api.subscribeMyNotifications({ onChange: pull });
+    const onVis = () => {
+      if (document.visibilityState === "visible") pull();
+    };
+    document.addEventListener("visibilitychange", onVis);
     return () => {
       cancelled = true;
       clearInterval(t);
+      unsub();
+      document.removeEventListener("visibilitychange", onVis);
     };
   }, [user.id, user.role, reload]);
 

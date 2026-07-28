@@ -59,7 +59,6 @@ function ChatThreadInner({
   const [clientProfile, setClientProfile] = useState(null);
   const [viewerIsStaff, setViewerIsStaff] = useState(false);
   const [support, setSupport] = useState(false);
-  const [needsBdm, setNeedsBdm] = useState(false);
   const [noPeer, setNoPeer] = useState(false);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
@@ -138,7 +137,6 @@ function ChatThreadInner({
         if (data.client) setClientProfile(data.client);
         setViewerIsStaff(!!data.isStaff || (!!clientId && !isStaffVariant));
         setSupport(!!data.support || data.kind === "support");
-        setNeedsBdm(!!data.needsBdm);
         setNoPeer(!peer && !isStaffVariant);
         if (typeof onUnreadRef.current === "function") onUnreadRef.current(data.unread || 0);
         setLoading(false);
@@ -196,7 +194,6 @@ function ChatThreadInner({
         if (data.client) setClientProfile(data.client);
         if (data.isStaff != null) setViewerIsStaff(!!data.isStaff || (!!clientId && !isStaffVariant));
         setSupport(!!data.support || data.kind === "support");
-        setNeedsBdm(!!data.needsBdm);
       } catch {
         /* keep last good state */
       }
@@ -248,7 +245,6 @@ function ChatThreadInner({
         setNoPeer(false);
       }
       setSupport(!!r.support || r.kind === "support");
-      setNeedsBdm(!!r.needsBdm);
       if (r.support || r.kind === "support") {
         toast?.("Sent — a team member will reply shortly", "success");
       }
@@ -328,11 +324,6 @@ function ChatThreadInner({
         <div style={{ fontFamily: FONT_D, fontSize: 16, fontWeight: 800, marginTop: 2 }}>
           {headerName}
         </div>
-        {needsBdm && !isStaffVariant && !noPeer && (
-          <div style={{ fontSize: 11.5, color: T.amber, fontWeight: 700, marginTop: 6 }}>
-            Your dedicated BDM is being assigned — a team member can reply in the meantime.
-          </div>
-        )}
       </div>
 
       <div

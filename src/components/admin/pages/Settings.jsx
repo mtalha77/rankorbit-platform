@@ -169,7 +169,7 @@ export function Settings() {
       </Card>
 
       <Card style={{marginBottom:16}}>
-        <SectionTitle sub="Route each notification type to one or more email addresses. Separate multiple emails with commas. Toggle any type off to stop sending it.">Notifications & Email Routing</SectionTitle>
+        <SectionTitle sub="Route each notification type to one or more email addresses. Separate multiple emails with commas. Leave blank to email active super admins (their notify email if set, otherwise login email). Toggle any type off to stop sending it.">Notifications & Email Routing</SectionTitle>
         <div style={{padding:"12px 15px",background:T.amberSoft,borderRadius:12,marginBottom:16,fontSize:12,color:T.amber,fontWeight:600,lineHeight:1.5}}>Clients always get in-app notifications. Staff + client emails send via Resend after you verify <code>naporbit.com</code> and set <code>RESEND_API_KEY</code> + <code>NOTIFY_FROM_EMAIL=NAP Orbit &lt;noreply@naporbit.com&gt;</code> in Vercel. Use sales@ / onboarding@naporbit.com for staff recipients below.</div>
         {[
           {k:"routeSignup",label:"New client signup",desc:"When a client creates an account"},

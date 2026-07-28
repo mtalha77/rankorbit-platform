@@ -70,3 +70,12 @@ create policy cb_client_read on call_bookings for select using (
 
 grant select on table call_bookings to authenticated;
 grant all on table call_bookings to service_role;
+
+-- Live notification updates in the app (bell + Notifications page).
+do $$
+begin
+  alter publication supabase_realtime add table notifications;
+exception
+  when duplicate_object then null;
+  when undefined_object then null;
+end $$;

@@ -983,6 +983,44 @@ export const api={
     if(error){console.warn("notifications:",error.message);return[];}
     return data||[];
   },
+  /** Live updates for the signed-in user's notifications. Returns unsubscribe fn. */
+  subscribeMyNotifications({onInsert,onUpdate,onChange}={}){
+    if(!supa)return()=>{};
+    let channel=null;
+    let cancelled=false;
+    (async()=>{
+      try{
+        const{data:{session}}=await supa.auth.getSession();
+        const uid=session?.user?.id;
+        if(cancelled||!uid)return;
+        channel=supa
+          .channel(`notifs:${uid}:${Date.now()}`)
+          .on(
+            "postgres_changes",
+            {event:"INSERT",schema:"public",table:"notifications",filter:`userId=eq.${uid}`},
+            (payload)=>{
+              if(payload?.new&&typeof onInsert==="function")onInsert(payload.new);
+              if(typeof onChange==="function")onChange();
+            }
+          )
+          .on(
+            "postgres_changes",
+            {event:"UPDATE",schema:"public",table:"notifications",filter:`userId=eq.${uid}`},
+            (payload)=>{
+              if(payload?.new&&typeof onUpdate==="function")onUpdate(payload.new);
+              if(typeof onChange==="function")onChange();
+            }
+          )
+          .subscribe();
+      }catch(e){
+        console.warn("subscribeMyNotifications:",e?.message||e);
+      }
+    })();
+    return()=>{
+      cancelled=true;
+      try{if(channel)supa.removeChannel(channel);}catch{/* ignore */}
+    };
+  },
   async markNotificationsRead(ids){
     if(!supa||!ids?.length)return;
     await supa.from("notifications").update({read:true}).in("id",ids);

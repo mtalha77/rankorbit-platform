@@ -1,15 +1,14 @@
 /**
  * Client support / BDM connect request (Messages or Book a Call when none assigned).
  * Body: { token, supportType: "billing" | "technical" | "it" }
- * - billing → notify managers + super admins
- * - technical (alias: it) → notify managers
+ * Both options → in-app + email to managers AND super admins.
  * Marks profiles.bdmConnectRequestedAt once (no spam on repeat clicks).
  */
 import { getAdmin, readJson, requireClient } from "../server/billing.js";
 import {
   notifyManagersInApp,
   notifySuperAdminsInApp,
-  notifyStaffRoute,
+  emailManagersAndSuperAdmins,
 } from "../server/assign.js";
 
 export default async function handler(req, res) {
@@ -49,31 +48,26 @@ export default async function handler(req, res) {
 
     const business = profile.businessName || profile.name || profile.email || "A client";
     try {
-      if (kind === "billing") {
-        const title = "Billing support request";
-        const body = `${business} requested Billing support from Messages. Review their plan, invoices, or payment issues.`;
-        const billingPayload = {
-          clientId: profile.id,
-          type: "support_billing",
-          title,
-          body,
-          meta: { source: "connect_request", supportType: "billing" },
-        };
-        await notifyManagersInApp(admin, billingPayload);
-        await notifySuperAdminsInApp(admin, billingPayload);
-        await notifyStaffRoute(admin, { kind: "system", title, body });
-      } else {
-        const title = "Technical support request";
-        const body = `${business} requested Technical support from Messages. Assign a BDM or help from the client page.`;
-        await notifyManagersInApp(admin, {
-          clientId: profile.id,
-          type: "support_technical",
-          title,
-          body,
-          meta: { source: "connect_request", supportType: "technical" },
-        });
-        await notifyStaffRoute(admin, { kind: "onboard", title, body });
-      }
+      const isBilling = kind === "billing";
+      const title = isBilling ? "Billing support request" : "Technical support request";
+      const body = isBilling
+        ? `${business} requested Billing support from Messages. Review their plan, invoices, or payment issues.`
+        : `${business} requested Technical support from Messages. Assign a BDM or help from the client page.`;
+      const payload = {
+        clientId: profile.id,
+        type: isBilling ? "support_billing" : "support_technical",
+        title,
+        body,
+        meta: { source: "connect_request", supportType: kind },
+      };
+      await notifyManagersInApp(admin, payload);
+      await notifySuperAdminsInApp(admin, payload);
+      // Email managers + super admins for either option (Resend failure must not fail the request).
+      await emailManagersAndSuperAdmins(admin, {
+        routeKey: isBilling ? "routeSystem" : "routeOnboard",
+        title,
+        body,
+      });
     } catch (e) {
       console.warn("request-bdm notify:", e.message);
     }

@@ -1,10 +1,10 @@
 /**
  * After client completes the pre-payment business profile form.
- * Notifies all managers + super admins in-app once (payment still pending).
+ * Notifies all managers + super admins in-app + email once (payment still pending).
  * Body: { token }
  */
 import { getAdmin, readJson, requireClient } from "../server/billing.js";
-import { notifyManagersInApp, notifySuperAdminsInApp } from "../server/assign.js";
+import { notifyManagersInApp, notifySuperAdminsInApp, emailManagersAndSuperAdmins } from "../server/assign.js";
 
 function profileReady(p) {
   if (!p) return false;
@@ -76,8 +76,18 @@ export default async function handler(req, res) {
       meta: { source: "profile_gate", paymentPending: true },
     });
   } catch (e) {
-    console.warn("notify-profile-complete:", e.message);
+    console.warn("notify-profile-complete in-app:", e.message);
     return res.status(500).json({ error: e.message || "Could not notify staff" });
+  }
+
+  try {
+    await emailManagersAndSuperAdmins(admin, {
+      routeKey: "routeOnboard",
+      title,
+      body,
+    });
+  } catch (e) {
+    console.warn("notify-profile-complete email:", e.message);
   }
 
   return res.status(200).json({ ok: true, notified: true });

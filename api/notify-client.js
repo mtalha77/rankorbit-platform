@@ -1,5 +1,5 @@
 import { getAdmin, readJson, requireStaff, requireClient } from "../server/billing.js";
-import { notifyClient, notifyStaffRoute, planLabel } from "../server/assign.js";
+import { notifyClient, notifyStaffRoute, planLabel, emailManagersAndSuperAdmins } from "../server/assign.js";
 import { onboardingHelpLine } from "../server/emailTemplate.js";
 
 const STAFF_TYPES = new Set([
@@ -142,10 +142,14 @@ export default async function handler(req, res) {
 
     if (type === "welcome" && isStaff === false && !result?.skipped) {
       try {
-        await notifyStaffRoute(admin, {
-          kind: "signup",
+        // Control-panel "Email on new signup" → every manager + super admin.
+        // Ignores per-route Off (that was blocking when only the main toggle was on).
+        const who = client.businessName || client.name || client.email;
+        await emailManagersAndSuperAdmins(admin, {
+          toggleKey: "notifySignup",
+          routeKey: "routeSignup",
           title: "New client signup",
-          body: `${client.businessName || client.name || client.email} created an account.`,
+          body: `${who} created an account.`,
         });
       } catch (e) {
         console.warn("notify staff signup:", e.message);
