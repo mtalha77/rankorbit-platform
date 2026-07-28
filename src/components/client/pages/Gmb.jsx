@@ -16,7 +16,7 @@ export function Gmb() {
         <div style={{display:"flex",justifyContent:"center",marginBottom:18}}><Orbit size={100} speed={10}/></div>
         <div style={{fontFamily:FONT_D,fontSize:21,fontWeight:800,marginBottom:8}}>Put your Google profile on autopilot</div>
         <div style={{fontSize:13.5,color:T.sub,maxWidth:440,margin:"0 auto 24px",lineHeight:1.6}}>We publish posts, answer Q&A, keep your profile complete, and get you found in AI searches like ChatGPT, Gemini and Google AI Overviews, plus show you exactly how many calls and visits Google sends you every month.</div>
-        <Btn size="lg" onClick={()=>setPage("billing")}>Upgrade to GMB Pro, ${gmbPrice}/mo</Btn>
+        <Btn size="lg" onClick={()=>setPage("billing")}>Upgrade to Pro Plan, ${gmbPrice}/mo</Btn>
         <div style={{fontSize:11.5,color:T.faint,marginTop:12}}>Includes everything in Growth · Cancel anytime</div>
       </Card>
     </div>);

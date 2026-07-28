@@ -276,7 +276,7 @@ export function ProfileGate({ user, onSaved, toast, isMobile }) {
           <Link to="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: T.brand, fontWeight: 800 }}>
             Privacy Policy
           </Link>
-          . If I want NAP Orbit to manage my Google Business Profile (GMB Pro), I will grant Manager access on that profile so we can publish posts, update details, and sync performance data on my behalf.
+          . If I want NAP Orbit to manage my Google Business Profile (Pro Plan), I will grant Manager access on that profile so we can publish posts, update details, and sync performance data on my behalf.
         </span>
       </label>
       {tried && !acceptedTerms && (

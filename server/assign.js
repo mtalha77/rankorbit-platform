@@ -428,9 +428,9 @@ export async function notifySuperAdminsInApp(admin, { clientId, type, title, bod
 }
 
 const PLAN_LABELS = {
-  essentials: "Essentials",
-  growth: "Growth",
-  gmb: "GMB Pro",
+  essentials: "Essentials Plan",
+  growth: "Growth Plan",
+  gmb: "Pro Plan",
 };
 
 export function planLabel(planId) {

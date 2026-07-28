@@ -79,9 +79,9 @@ export function Settings() {
           <div>
             <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:10}}>PLAN PRICES ($ / month)</div>
             <div style={{display:"flex",gap:8}}>
-              <Input label="Essentials" type="number" value={c.priceEssentials} onChange={v=>setCfg("priceEssentials",v)}/>
-              <Input label="Growth" type="number" value={c.priceGrowth} onChange={v=>setCfg("priceGrowth",v)}/>
-              <Input label="GMB Pro" type="number" value={c.priceGmb} onChange={v=>setCfg("priceGmb",v)}/>
+              <Input label="Essentials Plan" type="number" value={c.priceEssentials} onChange={v=>setCfg("priceEssentials",v)}/>
+              <Input label="Growth Plan" type="number" value={c.priceGrowth} onChange={v=>setCfg("priceGrowth",v)}/>
+              <Input label="Pro Plan" type="number" value={c.priceGmb} onChange={v=>setCfg("priceGmb",v)}/>
             </div>
             <div style={{fontSize:11,color:T.faint,lineHeight:1.5,marginTop:2}}>Note: these update what clients see. Keep them in sync with your Stripe Price amounts.</div>
           </div>
@@ -90,9 +90,9 @@ export function Settings() {
           <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:4}}>PLAN DISCOUNTS (shown on landing & client billing)</div>
           <div style={{fontSize:12,color:T.sub,marginBottom:10,lineHeight:1.5}}>Charged price stays the plan price above. The % is true “off” from the strikethrough price — e.g. $20 at 50% shows <b>$40</b> crossed out (50% of $40 = $20). Stripe still charges the real plan price.</div>
           {[
-            {id:"essentials",label:"Essentials",pctK:"discountEssentials",onK:"discountEssentialsOn"},
-            {id:"growth",label:"Growth",pctK:"discountGrowth",onK:"discountGrowthOn"},
-            {id:"gmb",label:"GMB Pro",pctK:"discountGmb",onK:"discountGmbOn"},
+            {id:"essentials",label:"Essentials Plan",pctK:"discountEssentials",onK:"discountEssentialsOn"},
+            {id:"growth",label:"Growth Plan",pctK:"discountGrowth",onK:"discountGrowthOn"},
+            {id:"gmb",label:"Pro Plan",pctK:"discountGmb",onK:"discountGmbOn"},
           ].map((row)=>(
             <div key={row.id} style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 100px auto",gap:10,alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${T.line}`}}>
               <div>
@@ -110,18 +110,18 @@ export function Settings() {
         </div>
         <div style={{marginTop:16}}>
           <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:4}}>LIVE PLANS (shown on website, signup & billing)</div>
-          <Toggle label="Essentials plan is live" k="livePlanEssentials"/>
-          <Toggle label="Growth plan is live" k="livePlanGrowth"/>
-          <Toggle label="GMB Pro plan is live" k="livePlanGmb" sub="Turn off to launch it later. Existing clients on a hidden plan keep it."/>
+          <Toggle label="Essentials Plan is live" k="livePlanEssentials"/>
+          <Toggle label="Growth Plan is live" k="livePlanGrowth"/>
+          <Toggle label="Pro Plan is live" k="livePlanGmb" sub="Turn off to launch it later. Existing clients on a hidden plan keep it."/>
         </div>
         <div style={{marginTop:16}}>
           <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:8}}>MOST POPULAR PLAN</div>
           <div style={{fontSize:12,color:T.sub,marginBottom:10,lineHeight:1.5}}>Choose which plan shows the “Most Popular” badge on the website and client billing page.</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
             {[
-              {id:"essentials",label:"Essentials",live:c.livePlanEssentials!==false},
-              {id:"growth",label:"Growth",live:c.livePlanGrowth!==false},
-              {id:"gmb",label:"GMB Pro",live:c.livePlanGmb!==false},
+              {id:"essentials",label:"Essentials Plan",live:c.livePlanEssentials!==false},
+              {id:"growth",label:"Growth Plan",live:c.livePlanGrowth!==false},
+              {id:"gmb",label:"Pro Plan",live:c.livePlanGmb!==false},
             ].map(p=>(
               <button
                 key={p.id}

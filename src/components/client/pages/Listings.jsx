@@ -43,7 +43,7 @@ export function Listings() {
 
   return (
     <div>
-      <PageHead isMobile={isMobile} title="Listings & Citations" sub={`${plan.quota} on your ${plan.name} plan`} />
+      <PageHead isMobile={isMobile} title="Listings & Citations" sub={`${plan.quota} on your ${plan.name}`} />
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 14, marginBottom: 20 }}>
         <StatCard label="Live" value={live} icon={<ListingsLiveIcon />} color={T.green} soft={T.greenSoft} delay={0} />
         <StatCard label="Pending" value={pending} icon={<PendingIcon />} color={T.amber} soft={T.amberSoft} delay={70} />

@@ -289,7 +289,7 @@ export function Billing() {
                     </div>
                     <button
                       disabled={impersonating}
-                      onClick={() => setConfirm({ title: "Cancel subscription?", msg: `Your ${plan.name} plan will stay active until the end of your current billing period, then cancel. You won't be charged again. No refunds for the current period (see Terms).`, danger: true, yes: "Cancel at period end", onYes: doCancel })}
+                      onClick={() => setConfirm({ title: "Cancel subscription?", msg: `Your ${plan.name} will stay active until the end of your current billing period, then cancel. You won't be charged again. No refunds for the current period (see Terms).`, danger: true, yes: "Cancel at period end", onYes: doCancel })}
                       style={{ marginTop: 12, background: "none", border: "none", color: T.faint, fontSize: 11.5, fontWeight: 700, cursor: impersonating ? "not-allowed" : "pointer", textDecoration: "underline", fontFamily: FONT_B, padding: 0, opacity: impersonating ? 0.5 : 1 }}
                     >
                       Cancel subscription
@@ -358,7 +358,7 @@ export function Billing() {
                           ? "Plan change (prorated)"
                           : inv.billingReason === "subscription_create"
                             ? "Subscription started"
-                            : `${plan.name} plan · monthly`);
+                            : `${plan.name} · monthly`);
                       return (
                         <tr key={inv.id} className="hoverRow">
                           <td style={{ padding: "12px", fontSize: 13, fontWeight: 700, borderBottom: `1px solid ${T.line}` }}>{dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</td>

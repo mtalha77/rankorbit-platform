@@ -52,9 +52,9 @@ export function LandingPricing({ isMobile, isTab, w, user, cfg, lprice, goPlan, 
           const popularId=popularPlanId(cfg);
           const cards=orderPlansPopularCenter(
             [
-              {id:"essentials",n:"Essentials",tag:"GETTING STARTED",q:"10 LISTINGS / MONTH",f:["10 directory submissions monthly","NAP consistency management","Unauthorized edit protection","1 regular + 1 guidance call / billing period","AI search visibility","Live dashboard access"]},
-              {id:"growth",n:"Growth",tag:"GROWING BUSINESS",q:"20 LISTINGS / MONTH",f:["20 directory submissions monthly","Everything in Essentials","BDM chat support (Messages)","2 regular + 1 guidance call / billing period","Expanded directory coverage","AI search visibility","Priority support"]},
-              {id:"gmb",n:"GMB Pro",tag:"MANAGED PRESENCE",q:"15 LISTINGS + GOOGLE PROFILE",f:["15 directory submissions every month","Google Business Profile management","BDM chat support (Messages)","3 regular + 1 guidance call / billing period","Monthly posts and Q&A","Dedicated manager","AI search visibility"]},
+              {id:"essentials",n:"Essentials Plan",tag:"GETTING STARTED",q:"10 LISTINGS / MONTH",f:["10 directory submissions monthly","NAP consistency management","Unauthorized edit protection","1 regular + 1 guidance call / billing period","AI search visibility","Live dashboard access"]},
+              {id:"growth",n:"Growth Plan",tag:"GROWING BUSINESS",q:"20 LISTINGS / MONTH",f:["20 directory submissions monthly","Everything in Essentials Plan","BDM chat support (Messages)","2 regular + 1 guidance call / billing period","Expanded directory coverage","AI search visibility","Priority support"]},
+              {id:"gmb",n:"Pro Plan",tag:"MANAGED PRESENCE",q:"15 LISTINGS + GOOGLE PROFILE",f:["15 directory submissions every month","Google Business Profile management","BDM chat support (Messages)","3 regular + 1 guidance call / billing period","Monthly posts and Q&A","Dedicated manager","AI search visibility"]},
             ].map(pl=>({...pl,pop:pl.id===popularId})).filter(pl=>planLive(pl.id,cfg)),
             popularId,
           );

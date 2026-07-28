@@ -83,7 +83,7 @@ export function TermsOfServiceBody({ H = LegalHeading, P = LegalParagraph, co = 
 
       <H>4. Fees, Billing &amp; Auto-Renewal</H>
       <P>
-        Plan prices are as displayed at checkout (Essentials, Growth, GMB Pro, or as offered). Prices may change with
+        Plan prices are as displayed at checkout (Essentials Plan, Growth Plan, Pro Plan, or as offered). Prices may change with
         notice for future billing periods.
       </P>
       <P>Subscriptions bill in advance on a recurring basis (monthly unless stated otherwise).</P>
@@ -147,7 +147,7 @@ export function TermsOfServiceBody({ H = LegalHeading, P = LegalParagraph, co = 
       <P>Not misuse, resell, or attempt to disrupt the Service.</P>
       <P>You are responsible for the accuracy of information you submit for listings.</P>
       <P>
-        If you subscribe to a plan that includes Google Business Profile management (such as GMB Pro), you agree to grant{" "}
+        If you subscribe to a plan that includes Google Business Profile management (such as Pro Plan), you agree to grant{" "}
         {co} (or our designated staff) Manager access on your Google Business Profile when required to deliver that
         service.
       </P>

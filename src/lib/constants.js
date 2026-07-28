@@ -1,9 +1,9 @@
 // ─── PRODUCT CONSTANTS ───────────────────────────────────────────────────────
 import { T } from "./theme";
 
-export const PLANS={essentials:{name:"Essentials",price:49,quota:"10 listings/mo",color:T.blue,soft:T.blueSoft,features:["10 directory submissions every month","NAP consistency management","Unauthorized edit protection","1 regular + 1 guidance call / billing period","Listing monitoring & alerts","Client dashboard access"]},
-  growth:{name:"Growth",price:89,quota:"20 listings/mo",color:T.brand,soft:T.brandSoft,features:["20 directory submissions every month","Everything in Essentials","BDM chat support (Messages)","2 regular + 1 guidance call / billing period","Expanded directory coverage","Monthly coverage report"]},
-  gmb:{name:"GMB Pro",price:99,quota:"15 listings/mo + GMB",color:T.violet,soft:T.violetSoft,features:["15 directory submissions every month","Google Business Profile management","BDM chat support (Messages)","3 regular + 1 guidance call / billing period","Monthly GMB posts & Q&A","Engagement analytics (views, calls)"]}};
+export const PLANS={essentials:{name:"Essentials Plan",price:49,quota:"10 listings/mo",color:T.blue,soft:T.blueSoft,features:["10 directory submissions every month","NAP consistency management","Unauthorized edit protection","1 regular + 1 guidance call / billing period","Listing monitoring & alerts","Client dashboard access"]},
+  growth:{name:"Growth Plan",price:89,quota:"20 listings/mo",color:T.brand,soft:T.brandSoft,features:["20 directory submissions every month","Everything in Essentials Plan","BDM chat support (Messages)","2 regular + 1 guidance call / billing period","Expanded directory coverage","Monthly coverage report"]},
+  gmb:{name:"Pro Plan",price:99,quota:"15 listings/mo + GMB",color:T.violet,soft:T.violetSoft,features:["15 directory submissions every month","Google Business Profile management","BDM chat support (Messages)","3 regular + 1 guidance call / billing period","Monthly GMB posts & Q&A","Engagement analytics (views, calls)"]}};
 
 /** Default marketing discount % (charged price stays planPrice; list/was = price ÷ (1 − pct/100)). */
 const DEFAULT_DISCOUNT_PCT={essentials:10,growth:25,gmb:25};

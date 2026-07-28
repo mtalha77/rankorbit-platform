@@ -563,7 +563,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
       return;
     }
     if (p === "analytics" && user.plan !== "gmb") {
-      toast("Analytics is available on GMB Pro", "info");
+      toast("Analytics is available on Pro Plan", "info");
       return;
     }
     setPage(p, { replace: false });
@@ -781,7 +781,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
                 Upgrade to chat with your BDM
               </div>
               <div style={{ fontSize: 13.5, color: T.sub, lineHeight: 1.55, marginBottom: 16 }}>
-                Chat with your BDM is available on Growth and GMB Pro. Upgrade your plan to unlock Messages.
+                Chat with your BDM is available on Growth Plan and Pro Plan. Upgrade your plan to unlock Messages.
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <Btn onClick={() => goPage("billing")}>View plans →</Btn>

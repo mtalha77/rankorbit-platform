@@ -394,7 +394,7 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOn
             <Btn variant="soft" size="sm" style={{width:"100%"}} onClick={()=>onOpenMessages?.()}>Open Messages →</Btn>
           </>):(<>
             <div style={{fontSize:12.5,fontWeight:800,color:T.amber,marginBottom:4}}>Messages locked on Essentials</div>
-            <div style={{fontSize:12,color:T.sub,lineHeight:1.45}}>Upgrade to Growth or GMB Pro to chat with your BDM anytime.</div>
+            <div style={{fontSize:12,color:T.sub,lineHeight:1.45}}>Upgrade to Growth Plan or Pro Plan to chat with your BDM anytime.</div>
           </>)}
         </div>
       </Card>
