@@ -170,7 +170,7 @@ export default function Shell({
             <UserAvatar user={user} size={30} />
             <div style={{ overflow: "hidden", flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 12, fontWeight: 800, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {user.businessName || user.name}
+                {user.name || user.businessName || "Account"}
               </div>
               <div style={{ fontSize: 10, color: T.faint, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {user.email}
