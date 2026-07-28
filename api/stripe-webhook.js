@@ -62,13 +62,20 @@ async function syncSubscription(admin, stripe, sub, hintPlan, { logActivity = fa
   const fields = subscriptionFieldsFromStripe(sub, planId);
   fields.stripeCustomerId = customerId || undefined;
 
-  // Clear scheduled switch only when Stripe is actually on the pending plan.
+  // Scheduled switch lives only while Stripe still has an active subscription schedule.
+  // After an on-the-spot upgrade we release the schedule — pendingPlanId must clear or
+  // the UI keeps showing SCHEDULED even though Growth is already charged.
+  const scheduleId = typeof sub.schedule === "string" ? sub.schedule : sub.schedule?.id;
   const { data: existingRow } = await admin
     .from("profiles")
     .select("pendingPlanId")
     .eq("id", profileId)
     .maybeSingle();
-  if (existingRow?.pendingPlanId && planId === existingRow.pendingPlanId) {
+  if (!scheduleId) {
+    fields.pendingPlanId = null;
+    fields.pendingPlanEffectiveAt = null;
+  } else if (existingRow?.pendingPlanId && planId === existingRow.pendingPlanId) {
+    // Schedule rolled forward onto the pending price.
     fields.pendingPlanId = null;
     fields.pendingPlanEffectiveAt = null;
   }

@@ -66,10 +66,12 @@ export function Billing() {
         const synced = await api.syncInvoices();
         if (synced?.invoices?.length && setInvoices) setInvoices(synced.invoices);
       } catch { /* non-blocking */ }
-      if (timing === "period_end") {
-        await R(async () => {}, `Scheduled switch to ${targetName}`);
+      // Always reload profile so plan / pendingPlanId match Stripe (clears stale SCHEDULED).
+      await reload?.();
+      if (timing === "period_end" && !r.clearedPending) {
+        toast(`Scheduled switch to ${targetName}`);
       } else {
-        await R(async () => {}, `Switched to ${targetName}`);
+        toast(`Switched to ${targetName}`);
       }
     } finally {
       setSwitching(false);

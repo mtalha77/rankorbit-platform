@@ -128,7 +128,27 @@ export default async function handler(req, res) {
     if (!priceId) return res.status(500).json({ error: "Price ID missing for plan" });
 
     const currentPriceId = sub.items?.data?.[0]?.price?.id;
-    if (currentPriceId === priceId && !profile.pendingPlanId) {
+
+    // Stripe already on this price but UI still shows SCHEDULED (stale pending after spot upgrade).
+    if (currentPriceId === priceId) {
+      await releaseScheduleIfAny(stripe, sub);
+      if (profile.pendingPlanId || profile.plan !== planId) {
+        const fields = subscriptionFieldsFromStripe(sub, planId);
+        fields.pendingPlanId = null;
+        fields.pendingPlanEffectiveAt = null;
+        fields.cancelAtPeriodEnd = false;
+        fields.canceledAt = null;
+        const { error } = await updateProfileSubscriptionFields(admin, profile.id, fields);
+        if (error) {
+          return res.status(500).json({ error: "Could not clear scheduled plan: " + error.message });
+        }
+        try {
+          await syncInvoicesForCustomer(stripe, admin, profile.stripeCustomerId, profile.id);
+        } catch (e) {
+          console.warn("change-subscription sync invoices:", e.message);
+        }
+        return res.status(200).json({ ok: true, plan: planId, when: "now", clearedPending: true });
+      }
       return res.status(400).json({ error: "You are already on this plan." });
     }
 
