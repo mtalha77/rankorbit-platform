@@ -59,7 +59,11 @@ export function AllListings() {
       <PageHead
         isMobile={isMobile}
         title="All Listings"
-        sub={`${dated.length}${timeF !== "all" ? ` in range · ` : " "}${withNames.length} total across ${clients.length} clients`}
+        sub={
+          timeF !== "all"
+            ? `${dated.length} in range · ${withNames.length} total across ${clients.length} clients`
+            : `${withNames.length} total across ${clients.length} clients`
+        }
       />
       <ListToolbar
         search={search}
