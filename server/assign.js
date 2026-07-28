@@ -182,8 +182,22 @@ export async function pickLeastLoadedManager(admin) {
   return active[0] || null;
 }
 
+/** Active super admin fallback when no BDM and no manager (meetings land here for reassignment). */
+export async function pickActiveSuperAdmin(admin) {
+  const { data: admins, error } = await admin
+    .from("profiles")
+    .select("id,email,name,createdAt,status,deletedAt")
+    .eq("role", "super_admin");
+  if (error) throw new Error(error.message);
+  const active = (admins || []).filter((m) => !m.deletedAt && m.status !== "suspended");
+  if (!active.length) return null;
+  active.sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")));
+  return active[0] || null;
+}
+
 /**
- * Staff peer for client chat / Book a Call: assigned BDM, else a manager (support).
+ * Staff peer for client chat / Book a Call:
+ * assigned BDM → least-loaded manager → super admin (support).
  * Uses assignedBdmId only — Agents are backend ops and never the chat peer.
  */
 export async function resolveClientChatPeer(admin, clientId) {
@@ -204,6 +218,16 @@ export async function resolveClientChatPeer(admin, clientId) {
     return {
       client,
       peer: { id: manager.id, email: manager.email, name: manager.name, role: "manager" },
+      kind: "support",
+      needsBdm: true,
+    };
+  }
+
+  const sa = await pickActiveSuperAdmin(admin);
+  if (sa) {
+    return {
+      client,
+      peer: { id: sa.id, email: sa.email, name: sa.name, role: "super_admin" },
       kind: "support",
       needsBdm: true,
     };

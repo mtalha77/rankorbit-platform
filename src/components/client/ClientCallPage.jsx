@@ -210,17 +210,6 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOn
       </div>
     </Card>)}
 
-    {!loadingCall&&!bdm&&(
-      <Card style={{marginBottom:16,padding:"14px 16px",background:T.amberSoft,border:`1.5px solid ${T.amber}33`}}>
-        <div style={{fontSize:13,fontWeight:800,color:T.amber,marginBottom:6}}>Team temporarily unavailable</div>
-        <div style={{fontSize:12.5,color:T.sub,lineHeight:1.45,marginBottom:10}}>No agent or manager is free to take calls right now. Try again shortly{canMessage?", or message us.":"."}</div>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <Btn variant="soft" size="sm" onClick={()=>loadCall()}>Try again</Btn>
-          {canMessage&&typeof onOpenMessages==="function"&&<Btn size="sm" onClick={onOpenMessages}>Open Messages →</Btn>}
-        </div>
-      </Card>
-    )}
-
     {!loadingCall&&activeBooking&&!showScheduler&&(
       <Card style={{marginBottom:16,background:`linear-gradient(135deg,${activeBooking.status==="confirmed"?T.greenSoft:T.amberSoft},#fff)`,border:`1.5px solid ${activeBooking.status==="confirmed"?T.green:T.amber}33`}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap",marginBottom:12}}>
@@ -284,7 +273,7 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOn
       </Card>
     )}
 
-    {showCalendar&&bdm&&!readOnly&&(
+    {showCalendar&&!readOnly&&(
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr 0.8fr",gap:16}}>
       <Card>
         {rescheduleId&&(
