@@ -320,7 +320,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
     };
   }, [userId, impersonating]);
 
-  // Chat unread badge — poll while not on Messages (Growth / GMB Pro only).
+  // Chat unread badge — poll while not on Messages (Growth / Pro Plan only).
   const pageRef = useRef(page);
   pageRef.current = page;
   const messagingAllowed = planAllowsMessaging(user?.plan);

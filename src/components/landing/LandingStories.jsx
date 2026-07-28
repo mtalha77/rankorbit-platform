@@ -214,7 +214,7 @@ export function LandingStories({ isMobile }) {
   return (
     <div style={{ background: `linear-gradient(180deg,#F7F5FC 0%,#EEF0F8 100%)`, padding: isMobile ? "48px 16px" : "72px 24px" }}>
       <div style={{ maxWidth: 1400, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.2fr 1fr", gap: isMobile ? 20 : 32, alignItems: "end", marginBottom: isMobile ? 28 : 36 }}>
+        <div style={{ marginBottom: isMobile ? 28 : 36 }}>
           <div>
             <Reveal>
               <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px", background: "#fff", border: `1px solid ${T.line}`, borderRadius: 30, fontSize: 11.5, fontWeight: 800, color: T.green, letterSpacing: ".5px", marginBottom: 16, boxShadow: SHADOW }}>
@@ -228,23 +228,6 @@ export function LandingStories({ isMobile }) {
               </h2>
             </Reveal>
           </div>
-          <Reveal delay={100}>
-            <div>
-              <div style={{ fontSize: 14.5, color: T.sub, marginBottom: 12, fontWeight: 600 }}>What changes when business information stays accurate:</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {[
-                  { t: "Correct phone", c: T.green },
-                  { t: "Accurate hours", c: T.brand },
-                  { t: "One dashboard", c: T.blue },
-                ].map((x) => (
-                  <span key={x.t} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 12px", borderRadius: 20, background: "#fff", border: `1px solid ${T.line}`, fontSize: 12.5, fontWeight: 700, color: T.ink }}>
-                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: x.c }} />
-                    {x.t}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </Reveal>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.35fr 1fr", gap: 16, alignItems: "stretch" }}>

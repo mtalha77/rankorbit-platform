@@ -244,7 +244,7 @@ export default async function handler(req, res) {
                 clientId: profileId,
                 type: "plan_subscribed",
                 title: "Subscription active",
-                body: `Your ${planLabel(planId)} plan is active. Thank you for subscribing — your dashboard is ready.\n\n${onboardingHelpLine()}`,
+                body: `Your ${planLabel(planId)} is active. Thank you for subscribing — your dashboard is ready.\n\n${onboardingHelpLine()}`,
                 meta: { planId: planId || null },
               });
               await notifyStaffRoute(admin, {

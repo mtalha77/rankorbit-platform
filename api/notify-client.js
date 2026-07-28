@@ -106,7 +106,7 @@ export default async function handler(req, res) {
   let finalBody = (body && String(body).trim()) || defaults.body;
   if (type === "plan_subscribed" && client.plan && !(title && String(title).trim()) && !(body && String(body).trim())) {
     finalTitle = "Subscription active";
-    finalBody = `Your ${planLabel(client.plan)} plan is active. Thank you for subscribing — your dashboard is ready.\n\n${HELP}`;
+    finalBody = `Your ${planLabel(client.plan)} is active. Thank you for subscribing — your dashboard is ready.\n\n${HELP}`;
   }
 
   // Agent edits: email managers only (no client notification).

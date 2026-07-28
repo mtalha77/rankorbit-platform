@@ -134,7 +134,7 @@ export default async function handler(req, res) {
     // Stripe already on this price but UI still shows SCHEDULED (stale pending after spot upgrade).
     if (currentPriceId === priceId) {
       await releaseScheduleIfAny(stripe, sub);
-      if (profile.pendingPlanId || profile.plan !== planId) {
+      if (profile.pendingPlanId || normalizePlanId(profile.plan) !== planId) {
         const fields = subscriptionFieldsFromStripe(sub, planId);
         fields.pendingPlanId = null;
         fields.pendingPlanEffectiveAt = null;
