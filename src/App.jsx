@@ -179,7 +179,7 @@ function StaffGate({user,children}){
   useEffect(()=>{
     if(!user||!STAFF_ROLES.includes(user.role))return;
     const path=typeof window!=="undefined"?window.location.pathname:"";
-    if(path==="/"||path==="/login"||path==="/signup"||path==="/dashboard"){
+    if(path==="/"||path==="/login"||path==="/signup"||path==="/dashboard"||path.startsWith("/dashboard/")){
       nav("/admin",{replace:true});
     }
   },[user,nav]);
@@ -323,7 +323,7 @@ export default function App(){
       if(typeof window!=="undefined"){
         const path=window.location.pathname||"/";
         if(STAFF_ROLES.includes(prof.role)){
-          if(path==="/"||path==="/login"||path==="/signup"||path==="/dashboard"){
+          if(path==="/"||path==="/login"||path==="/signup"||path==="/dashboard"||path.startsWith("/dashboard/")){
             window.history.replaceState(null,"","/admin");
           }
         }else if(path==="/login"||path==="/signup"){
@@ -513,8 +513,8 @@ export default function App(){
             <Route path="/signup" element={<ClientAuth mode="signup" user={currentUser} onLogin={onLogin} passwordRecovery={passwordRecovery}/>}/>
             <Route path="/reset-password" element={<ResetPasswordRoute user={currentUser} passwordRecovery={passwordRecovery} onClearRecovery={clearRecovery} onLogout={onLogout}/>}/>
             <Route path="/confirm-notify-email" element={<ConfirmNotifyEmail/>}/>
-            <Route path="/dashboard" element={<ClientDashboardRoute {...shared}/>}/>
-            <Route path="/admin" element={<StaffPortal {...shared}/>}/>
+            <Route path="/dashboard/*" element={<ClientDashboardRoute {...shared}/>}/>
+            <Route path="/admin/*" element={<StaffPortal {...shared}/>}/>
             <Route path="*" element={<Navigate to="/" replace/>}/>
           </Routes>
         </Suspense>

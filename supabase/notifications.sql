@@ -49,9 +49,17 @@ create table if not exists call_bookings (
 
 alter table call_bookings add column if not exists "meetingUrl" text;
 alter table call_bookings add column if not exists kind text not null default 'regular';
+alter table call_bookings add column if not exists "cancelReason" text;
 
 create index if not exists call_bookings_client on call_bookings ("clientId", "createdAt" desc);
 create index if not exists call_bookings_agent on call_bookings ("agentId", "createdAt" desc);
+
+-- One active meeting per agent slot (pending/confirmed only).
+-- For existing DBs, prefer supabase/call-bookings-harden.sql (dedupe + columns + index).
+create unique index if not exists call_bookings_agent_slot_active_uidx
+  on call_bookings ("agentId", "slotDate", "slotTime")
+  where status in ('pending', 'confirmed')
+    and "agentId" is not null;
 
 alter table call_bookings enable row level security;
 

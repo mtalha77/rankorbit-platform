@@ -26,6 +26,18 @@ function uid(prefix = "bk") {
   }
 }
 
+/** Postgres unique_violation on active agent slot index. */
+function isSlotUniqueConflict(err) {
+  if (!err) return false;
+  const code = String(err.code || "");
+  const msg = String(err.message || "");
+  return (
+    code === "23505" ||
+    /call_bookings_agent_slot_active_uidx/i.test(msg) ||
+    (/duplicate key/i.test(msg) && /slot/i.test(msg))
+  );
+}
+
 /** Client books a 30-min call — works with or without an assigned BDM. */
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -205,6 +217,11 @@ export default async function handler(req, res) {
       ({ error: bErr } = await admin.from("call_bookings").insert(basic));
     }
     if (bErr) {
+      if (isSlotUniqueConflict(bErr)) {
+        return res.status(409).json({
+          error: "That time was just taken. Please pick another available slot.",
+        });
+      }
       console.error("call_bookings insert:", bErr.message);
       const missing = /does not exist|Could not find the table|schema cache/i.test(bErr.message || "");
       return res.status(500).json({

@@ -103,12 +103,46 @@ export default async function handler(req, res) {
               !isBookingPast(m.slotDate, m.slotTime)
           );
           for (const m of toMove) {
-            await admin
+            const when = `${m.slotDate} at ${m.slotTime}`;
+
+            // Don't break assign if the BDM already has this slot — keep meeting on prior peer.
+            const { data: slotClash } = await admin
+              .from("call_bookings")
+              .select("id")
+              .eq("agentId", staff.id)
+              .eq("slotDate", m.slotDate)
+              .eq("slotTime", m.slotTime)
+              .in("status", ["pending", "confirmed"])
+              .neq("id", m.id)
+              .limit(1);
+            if (slotClash?.length) {
+              await notifyMeetingOps(admin, {
+                agentId: staff.id,
+                clientId,
+                type: "meeting_transferred",
+                title: "Meeting transfer skipped — slot busy",
+                body: `${business}'s meeting on ${when} could not move to ${staff.name || "the BDM"} because that slot is already booked. Rebook or free the slot, then re-assign if needed.`,
+                meta: {
+                  bookingId: m.id,
+                  slotDate: m.slotDate,
+                  slotTime: m.slotTime,
+                  status: m.status,
+                  transferSkipped: true,
+                  transferredBy: auth.profile.id,
+                },
+              });
+              continue;
+            }
+
+            const { error: moveErr } = await admin
               .from("call_bookings")
               .update({ agentId: staff.id })
               .eq("id", m.id);
+            if (moveErr) {
+              console.warn("assign-client meeting transfer update:", moveErr.message);
+              continue;
+            }
 
-            const when = `${m.slotDate} at ${m.slotTime}`;
             const needsZoom = m.status === "confirmed" && !m.meetingUrl;
             await notifyMeetingOps(admin, {
               agentId: staff.id,

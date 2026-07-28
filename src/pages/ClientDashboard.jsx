@@ -1,9 +1,11 @@
 // ─── CLIENT DASHBOARD ────────────────────────────────────────────────────────
 import { useState, useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { T, FONT_D, FONT_B, SHADOW_LG } from "../lib/theme";
 import { api } from "../lib/api";
 import { PLANS, planLive, planAllowsMessaging } from "../lib/constants";
 import { isPastMeetingNotif, buildLiveGrowthSeries, growthMomTrend, resolveNapScore, paymentGraceState } from "../lib/helpers";
+import { clientPageFromPath, clientPathForPage } from "../lib/dashboardRoutes";
 import { Btn, Confirm, PageHead } from "../components/atoms";
 import Shell from "../components/Shell";
 import ChatThread from "../components/ChatThread";
@@ -28,7 +30,20 @@ import {
 
 export default function ClientDashboard({ user: userProp, data, reload, onLogout, impersonating = false, onUserUpdate }) {
   // No plan → still enter dashboard (browse all pages); actions stay locked until they pay.
-  const [page, setPage] = useState("home");
+  // Impersonation stays on /admin/* — use local page state only (do not touch the URL).
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [localPage, setLocalPage] = useState("home");
+  const page = impersonating ? localPage : clientPageFromPath(location.pathname);
+  const setPage = (p, { replace = true } = {}) => {
+    if (impersonating) {
+      setLocalPage(p);
+      return;
+    }
+    const path = clientPathForPage(p);
+    if (location.pathname === path) return;
+    navigate(path, { replace });
+  };
   const [toast, Toasts] = useToast();
   const [showManual, setShowManual] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
@@ -128,7 +143,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
             onUserUpdate?.({ notifyEmail: addr, notifyEmailPending: null });
           }
           toast("Notification email confirmed. Alerts will go there.");
-          setPage("settings");
+          setPage("settings", { replace: true });
           await reload?.();
         } else if (ne === "expired") toast("Confirmation link expired. Request a new one in Settings.", "info");
         else if (ne === "invalid" || ne === "missing") toast("That confirmation link is invalid.", "info");
@@ -136,7 +151,8 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
         sp.delete("notifyEmail");
         sp.delete("addr");
         const q = sp.toString();
-        window.history.replaceState({}, "", window.location.pathname + (q ? `?${q}` : ""));
+        const path = ne === "confirmed" ? clientPathForPage("settings") : window.location.pathname;
+        window.history.replaceState({}, "", path + (q ? `?${q}` : ""));
       } catch { /* ignore */ }
     })();
     return () => { cancelled = true; };
@@ -153,7 +169,7 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
       billingFlag = sp.get("billing");
       if (!planIntent) planIntent = sessionStorage.getItem("ro_pending_plan");
       if (planIntent && ["essentials", "growth", "gmb"].includes(planIntent)) {
-        setPage("billing");
+        setPage("billing", { replace: true });
         // Consume once so remounts don't keep forcing Billing.
         if (!billingFlag) {
           try {
@@ -162,24 +178,25 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
         }
       }
       if (billingFlag === "success") {
-        setPage("billing");
+        setPage("billing", { replace: true });
         toast("Payment received — your plan will activate in a moment", "success");
         try {
           sessionStorage.removeItem("ro_pending_plan");
         } catch {}
         reload();
       } else if (billingFlag === "cancel") {
-        setPage("billing");
+        setPage("billing", { replace: true });
         toast("Checkout canceled — pick a plan whenever you're ready", "info");
       } else if (billingFlag === "portal") {
-        setPage("billing");
+        setPage("billing", { replace: true });
         reload();
       }
       if (planIntent || billingFlag) {
         const url = new URL(window.location.href);
         url.searchParams.delete("plan");
         url.searchParams.delete("billing");
-        window.history.replaceState(null, "", url.pathname + (url.search || ""));
+        // Keep nested billing path (avoid wiping /dashboard/billing back to /dashboard).
+        window.history.replaceState(null, "", clientPathForPage("billing") + (url.search || ""));
       }
     } catch {}
   }, [userId, impersonating]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -509,17 +526,22 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
   // Analytics is GMB Pro only — bounce Essentials/Growth (and no-plan) off that route.
   const viewPageRaw = grace.expired && !graceAllowed.has(page) ? "billing" : page;
   const viewPage = viewPageRaw === "analytics" && user.plan !== "gmb" ? "home" : viewPageRaw;
+  // Keep URL in sync when grace / plan gates remap the visible page.
+  useEffect(() => {
+    if (impersonating) return;
+    if (viewPage !== page) setPage(viewPage, { replace: true });
+  }, [viewPage, page, impersonating]); // eslint-disable-line react-hooks/exhaustive-deps
   const goPage = (p) => {
     if (grace.expired && !graceAllowed.has(p)) {
       toast("Update your payment method to restore full access", "info");
-      setPage("billing");
+      setPage("billing", { replace: true });
       return;
     }
     if (p === "analytics" && user.plan !== "gmb") {
       toast("Analytics is available on GMB Pro", "info");
       return;
     }
-    setPage(p);
+    setPage(p, { replace: false });
   };
 
   const openNotif = async (a) => {

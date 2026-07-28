@@ -1,9 +1,11 @@
 // ─── ADMIN DASHBOARD ─────────────────────────────────────────────────────────
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { T, FONT_B, SHADOW } from "../lib/theme";
 import { api } from "../lib/api";
 import { livePlanEntries, planPrice, plansWithPrices } from "../lib/constants";
 import { todayFull, uid, isBdmRole, isAgentRole, staffRoleLabel } from "../lib/helpers";
+import { adminLocationFromPath, adminPathForPage } from "../lib/dashboardRoutes";
 import { Confirm } from "../components/atoms";
 import Shell from "../components/Shell";
 import AccountSettings from "../components/AccountSettings";
@@ -45,8 +47,34 @@ import {
 } from "../components/admin";
 
 export default function AdminDashboard({ user, data, reload, onLogout, onUserUpdate }) {
-  const [page, setPage] = useState("overview");
-  const [selClient, setSelClient] = useState(null);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const loc = adminLocationFromPath(location.pathname);
+  const page = loc.page;
+  const selClientRef = useRef(loc.clientId);
+  const [selClientState, setSelClientState] = useState(loc.clientId);
+  // URL is source of truth for client detail; keep state for list/messages selection.
+  const selClient = page === "clientDetail" ? (loc.clientId || selClientState) : selClientState;
+  selClientRef.current = selClient;
+
+  const setSelClient = (id) => {
+    selClientRef.current = id || null;
+    setSelClientState(id || null);
+  };
+
+  const setPage = (p, { replace = true } = {}) => {
+    // Keep selection for client detail + messages threads; clear elsewhere.
+    if (p !== "clientDetail" && p !== "messages") setSelClient(null);
+    const path = adminPathForPage(p, p === "clientDetail" ? selClientRef.current : null);
+    if (location.pathname === path) return;
+    navigate(path, { replace });
+  };
+
+  // Sync selClient when URL opens /admin/clients/:id (deep link / refresh).
+  useEffect(() => {
+    if (loc.clientId && loc.clientId !== selClientState) setSelClientState(loc.clientId);
+  }, [loc.clientId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [modal, setModal] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [toast, Toasts] = useToast();
@@ -82,7 +110,7 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
             onUserUpdate?.({ notifyEmail: addr, notifyEmailPending: null });
           }
           toast("Notification email confirmed. Alerts will go there.");
-          setPage("account");
+          setPage("account", { replace: true });
           await reload?.();
         } else if (ne === "expired") toast("Confirmation link expired. Request a new one in Settings.", "info");
         else if (ne === "invalid" || ne === "missing") toast("That confirmation link is invalid.", "info");
@@ -90,7 +118,8 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
         sp.delete("notifyEmail");
         sp.delete("addr");
         const q = sp.toString();
-        window.history.replaceState({}, "", window.location.pathname + (q ? `?${q}` : ""));
+        const path = ne === "confirmed" ? adminPathForPage("account") : window.location.pathname;
+        window.history.replaceState({}, "", path + (q ? `?${q}` : ""));
       } catch { /* ignore */ }
     })();
     return () => { cancelled = true; };
@@ -121,8 +150,8 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
 
   // If Finance access was revoked (or never granted), don't leave a blank page.
   useEffect(() => {
-    if (page === "finance" && !canViewFinance) setPage("overview");
-  }, [page, canViewFinance, setPage]);
+    if (page === "finance" && !canViewFinance) setPage("overview", { replace: true });
+  }, [page, canViewFinance]); // eslint-disable-line react-hooks/exhaustive-deps
   const acfg = settings?.config || {};
   const livePlans = livePlanEntries(acfg);
   const PLANSV = plansWithPrices(acfg);
@@ -248,7 +277,7 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
     window.history.replaceState({}, "", window.location.pathname + (window.location.hash || ""));
     const c = clients.find((x) => x.id === clientId) || { id: clientId, businessName: "Client" };
     setSelClient(clientId);
-    setPage("clientDetail");
+    setPage("clientDetail", { replace: true });
     if (gbp === "error") {
       toast(msg || "Google connect failed", "info");
       setModal({ type: "integrations", client: c, pickLocation: false });
@@ -302,9 +331,11 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
       return true;
     });
 
+  const goPage = (p) => setPage(p, { replace: false });
+
   const adminCtx = {
     user, data, reload, onLogout, onUserUpdate,
-    page, setPage, selClient, setSelClient, modal, setModal, confirm, setConfirm,
+    page, setPage: goPage, selClient, setSelClient, modal, setModal, confirm, setConfirm,
     toast, isMobile, users, listings, gmb, analytics, activity, settings,
     allClients, staff, isAdmin, isStaffMgr, isBdm, isAgent, clients, labelForClientId,
     canImpersonate, canViewFinance, viewAs, setViewAs, acfg, livePlans, PLANSV, revenue, flat,
@@ -337,11 +368,11 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
 
   return (
     <AdminContext.Provider value={adminCtx}>
-      <Shell user={user} nav={nav} page={page} setPage={setPage} onLogout={onLogout} brandTag={staffRoleLabel(user.role)} badgeCounts={{ notifications: notifBadge, messages: chatUnreadTotal }} settingsPageId="account">
+      <Shell user={user} nav={nav} page={page} setPage={goPage} onLogout={onLogout} brandTag={staffRoleLabel(user.role)} badgeCounts={{ notifications: notifBadge, messages: chatUnreadTotal }} settingsPageId="account">
         <PushEnableBanner toast={toast} />
         {page === "overview" && <Overview />}
         {page === "notifications" && (
-          <NotificationsPage user={user} isAdmin={isAdmin} isMobile={isMobile} toast={toast} setNotifBadge={setNotifBadge} setSelClient={setSelClient} setPage={setPage} />
+          <NotificationsPage user={user} isAdmin={isAdmin} isMobile={isMobile} toast={toast} setNotifBadge={setNotifBadge} setSelClient={setSelClient} setPage={goPage} />
         )}
         {page === "meetings" && <ScheduledMeetings />}
         {page === "messages" && (
