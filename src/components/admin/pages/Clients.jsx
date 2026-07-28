@@ -14,7 +14,8 @@ function daysTone(colorKey) {
 }
 
 export function Clients() {
-  const { isMobile, clients, staff, listings, isStaffMgr, setModal, setSelClient, setPage } = useAdmin();
+  const { isMobile, clients, staff, listings, isStaffMgr, setModal, setSelClient, setPage, PLANSV } = useAdmin();
+  const plans = PLANSV || PLANS;
 
   const [search, setSearch] = useState("");
   const [planF, setPlanF] = useState("all");
@@ -93,7 +94,7 @@ export function Clients() {
     { key: "phone", label: "Phone" },
     { key: "city", label: "City" },
     { key: "state", label: "State" },
-    { key: "plan", label: "Plan", get: (c) => (c.plan ? PLANS[c.plan]?.name : "None") },
+    { key: "plan", label: "Plan", get: (c) => (c.plan ? plans[c.plan]?.name || PLANS[c.plan]?.name : "None") },
     { key: "status", label: "Status", get: (c) => c.status || "active" },
     { key: "napScore", label: "NAP %" },
     { label: "Live Listings", get: (c) => (listings[c.id] || []).filter((l) => l.status === "live").length },
@@ -135,7 +136,7 @@ export function Clients() {
         setSearch={setSearch}
         placeholder="🔍  Search by business, name, email, city…"
         filters={[
-          { value: planF, set: setPlanF, options: [{ value: "all", label: "All plans" }, ...Object.entries(PLANS).map(([id, p]) => ({ value: id, label: p.name }))] },
+          { value: planF, set: setPlanF, options: [{ value: "all", label: "All plans" }, ...Object.entries(plans).map(([id, p]) => ({ value: id, label: p.name }))] },
           {
             value: statusF,
             set: setStatusF,
@@ -244,7 +245,7 @@ export function Clients() {
                         <div style={{ fontSize: 9.5, color: T.faint, fontWeight: 700, letterSpacing: ".5px" }}>FLAGS</div>
                       </div>
                     )}
-                    <Badge type="submitted" label={c.plan ? `$${PLANS[c.plan].price}/mo` : "No plan"} />
+                    <Badge type="submitted" label={c.plan ? `$${(plans[c.plan] || PLANS[c.plan])?.price ?? "?"}/mo` : "No plan"} />
                     <span style={{ color: T.brand, fontWeight: 800 }}>→</span>
                   </div>
                 </div>
