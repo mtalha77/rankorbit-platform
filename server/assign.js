@@ -281,18 +281,23 @@ const SUPER_ADMIN_INAPP_TYPES = new Set([
 /**
  * Meeting ops fan-out: peer (BDM/manager) + all managers + all super admins.
  * In-app + web push + email (when email !== false).
+ * Use opsTitle/opsBody for manager/SA copies ("assigned to BDM"); title/body stay peer-facing ("moved to you").
  */
 export async function notifyMeetingOps(admin, {
   clientId,
   type,
   title,
   body,
+  opsTitle = null,
+  opsBody = null,
   meta,
   agentId = null,
   email: sendEmail = true,
 }) {
   if (!admin || !title) return { notified: false };
   const exclude = new Set();
+  const staffTitle = opsTitle || title;
+  const staffBody = opsBody || body;
 
   if (agentId) {
     const peer = await notifyBdm(admin, {
@@ -321,11 +326,11 @@ export async function notifyMeetingOps(admin, {
           userId: m.id,
           clientId: clientId || null,
           type: type || "call_booked",
-          title,
-          body,
+          title: staffTitle,
+          body: staffBody,
           meta: { ...(meta || {}), audience: "manager" },
         });
-        await maybePush(admin, m.id, { type: type || "call_booked", title, body, meta });
+        await maybePush(admin, m.id, { type: type || "call_booked", title: staffTitle, body: staffBody, meta });
         exclude.add(m.id);
         if (sendEmail !== false) {
           const em = deliveryEmail(m);
@@ -343,8 +348,8 @@ export async function notifyMeetingOps(admin, {
     await notifySuperAdminsInApp(admin, {
       clientId,
       type: type || "call_booked",
-      title,
-      body,
+      title: staffTitle,
+      body: staffBody,
       meta,
     });
   } catch (e) {
@@ -366,7 +371,7 @@ export async function notifyMeetingOps(admin, {
       console.warn("notifyMeetingOps SA emails:", e.message);
     }
     if (staffEmails.size) {
-      await sendNotifyEmails([...staffEmails], title, body, {
+      await sendNotifyEmails([...staffEmails], staffTitle, staffBody, {
         ctaUrl: `${appBaseUrl()}/admin`,
         ctaLabel: "Open admin",
       });

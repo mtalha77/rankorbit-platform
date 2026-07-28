@@ -144,16 +144,25 @@ export default async function handler(req, res) {
             }
 
             const needsZoom = m.status === "confirmed" && !m.meetingUrl;
+            const bdmLabel = staff.name || staff.email || "BDM";
             await notifyMeetingOps(admin, {
               agentId: staff.id,
               clientId,
               type: "meeting_transferred",
+              // Peer (BDM) copy
               title: needsZoom
                 ? "Meeting transferred — add Zoom link"
                 : "Meeting transferred to you",
               body: needsZoom
                 ? `${business}'s ${m.status} meeting on ${when} is now yours. Please add a Zoom / join link.`
                 : `${business}'s ${m.status} meeting on ${when} was moved to you by ${byWhom}.`,
+              // Manager / super admin copy (not "moved to you")
+              opsTitle: needsZoom
+                ? "Meeting transferred — Zoom link needed"
+                : "Meeting transferred to BDM",
+              opsBody: needsZoom
+                ? `${business}'s ${m.status} meeting on ${when} was assigned to ${bdmLabel} by ${byWhom}. They need to add a Zoom / join link.`
+                : `${business}'s ${m.status} meeting on ${when} was assigned to ${bdmLabel} by ${byWhom}.`,
               meta: {
                 bookingId: m.id,
                 slotDate: m.slotDate,
@@ -162,6 +171,8 @@ export default async function handler(req, res) {
                 meetingUrl: m.meetingUrl || null,
                 needsZoom: !!needsZoom,
                 transferredBy: auth.profile.id,
+                transferredTo: staff.id,
+                transferredToName: bdmLabel,
               },
             });
 
