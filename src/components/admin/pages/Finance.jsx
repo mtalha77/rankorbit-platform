@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { T, FONT_D } from "../../../lib/theme";
-import { PLANS } from "../../../lib/constants";
+import { PLANS, offeredPlanFilterOptions } from "../../../lib/constants";
 import { Card, Badge, ListToolbar, PageHead, StatCard, Empty } from "../../atoms";
 import { useAdmin } from "../AdminContext";
 
@@ -58,7 +58,7 @@ export function Finance() {
       <ListToolbar search={search} setSearch={setSearch} placeholder="🔍  Search business, email…"
         filters={[
           {value:statusF,set:setStatusF,options:[{value:"all",label:"All statuses"},{value:"active",label:"Active"},{value:"cancelling",label:"Cancelling"},{value:"cancelled",label:"Cancelled"},{value:"paused",label:"Paused"},{value:"no plan",label:"No plan"}]},
-          {value:planF,set:setPlanF,options:[{value:"all",label:"All plans"},...Object.entries(PLANS).map(([id,p])=>({value:id,label:p.name}))]},
+          {value:planF,set:setPlanF,options:[{value:"all",label:"All plans"},...offeredPlanFilterOptions()]},
         ]}
         rows={filtered} cols={cols} exportName="naporbit-finance" exportTitle="Finance Lifecycle"/>
       <Card style={{overflowX:"auto"}}>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { T, FONT_D } from "../../../lib/theme";
-import { PLANS } from "../../../lib/constants";
+import { PLANS, offeredPlanFilterOptions } from "../../../lib/constants";
 import { api } from "../../../lib/api";
 import { Badge, Card, Btn, Empty, ListToolbar, PageHead, Modal } from "../../atoms";
 import { UserAvatar } from "../../AccountSettings";
@@ -245,7 +245,7 @@ export function Broadcast() {
             setSearch={setSearch}
             placeholder="🔍  Search clients…"
             filters={[
-              { value: planF, set: setPlanF, options: [{ value: "all", label: "All plans" }, ...Object.entries(PLANS).map(([id, p]) => ({ value: id, label: p.name }))] },
+              { value: planF, set: setPlanF, options: [{ value: "all", label: "All plans" }, ...offeredPlanFilterOptions()] },
               {
                 value: statusF,
                 set: setStatusF,

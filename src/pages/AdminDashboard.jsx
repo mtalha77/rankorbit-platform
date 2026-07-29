@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { T, FONT_B, SHADOW } from "../lib/theme";
 import { api } from "../lib/api";
-import { livePlanEntries, planPrice, plansWithPrices } from "../lib/constants";
+import { livePlanEntries, planPrice, offeredPlansWithPrices } from "../lib/constants";
 import { todayFull, uid, isBdmRole, isAgentRole, staffRoleLabel } from "../lib/helpers";
 import { adminLocationFromPath, adminPathForPage } from "../lib/dashboardRoutes";
 import { Confirm } from "../components/atoms";
@@ -154,7 +154,7 @@ export default function AdminDashboard({ user, data, reload, onLogout, onUserUpd
   }, [page, canViewFinance]); // eslint-disable-line react-hooks/exhaustive-deps
   const acfg = settings?.config || {};
   const livePlans = livePlanEntries(acfg);
-  const PLANSV = plansWithPrices(acfg);
+  const PLANSV = offeredPlansWithPrices(acfg);
   const revenue = clients.reduce((s, c) => s + (c.plan ? planPrice(c.plan, acfg) : 0), 0);
   // Agent/BDM: only listings for assigned clients (same scope as Clients / All Listings).
   const allFlat = Object.values(listings).flat();

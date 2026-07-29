@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { T, FONT_D } from "../../../lib/theme";
-import { PLANS, normalizePlanId } from "../../../lib/constants";
+import { PLANS, normalizePlanId, offeredPlanFilterOptions } from "../../../lib/constants";
 import { clientDaysMetrics, urgencyDaysColor } from "../../../lib/helpers";
 import { Badge, Card, Btn, Empty, ListToolbar, PageHead } from "../../atoms";
 import { clientPaymentBadge } from "../adminUtils";
@@ -136,7 +136,7 @@ export function Clients() {
         setSearch={setSearch}
         placeholder="🔍  Search by business, name, email, city…"
         filters={[
-          { value: planF, set: setPlanF, options: [{ value: "all", label: "All plans" }, ...Object.entries(plans).map(([id, p]) => ({ value: id, label: p.name }))] },
+          { value: planF, set: setPlanF, options: [{ value: "all", label: "All plans" }, ...offeredPlanFilterOptions()] },
           {
             value: statusF,
             set: setStatusF,

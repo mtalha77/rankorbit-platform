@@ -6,7 +6,7 @@ import { Badge, Card, Btn, Empty, SectionTitle } from "../../atoms";
 import ChatThread from "../../ChatThread";
 import { useAdmin } from "../AdminContext";
 import { clientPaymentBadge } from "../adminUtils";
-import { isProPlan } from "../../../lib/constants";
+import { isProPlan, PLANS, normalizePlanId } from "../../../lib/constants";
 
 export function ClientDetail() {
   const { selClient, clients, staff, listings, gmb, analytics, activity, isMobile, isStaffMgr, isAdmin, isAgent, isBdm, user, canImpersonate, setViewAs, setPage, setSelClient, setModal, setConfirm, R, audit, toast, addActivity, PLANSV, reload } = useAdmin();
@@ -102,7 +102,10 @@ export function ClientDetail() {
         <button onClick={()=>{setPage("clients");setSelClient(null);}} style={{background:T.surface,border:`1px solid ${T.line}`,borderRadius:10,padding:"7px 14px",color:T.sub,fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:FONT_B}}>← Clients</button>
         <div style={{fontFamily:FONT_D,fontSize:isMobile?17:21,fontWeight:800}}>{c.businessName||c.name}</div>
         <Badge type={c.status==="suspended"?"suspended":"active"}/>
-        {c.plan&&PLANSV?.[c.plan]&&<Badge type="submitted" label={`${PLANSV[c.plan].name} $${PLANSV[c.plan].price}/mo`}/>}
+        {c.plan&&(PLANSV?.[normalizePlanId(c.plan)]||PLANS[normalizePlanId(c.plan)])&&(()=>{
+          const p=PLANSV?.[normalizePlanId(c.plan)]||PLANS[normalizePlanId(c.plan)];
+          return <Badge type="submitted" label={`${p.name} $${p.price}/mo`}/>;
+        })()}
         {(()=>{const b=clientPaymentBadge(c);return b?<Badge type={b.type} label={b.label}/>:null;})()}
       </div>
       {(canEdit||can("gmb")||can("nap")||can("logEdit")||can("listings")||isStaffMgr||isBdm)&&(
