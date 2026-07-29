@@ -12,7 +12,8 @@ export function normalizePlanId(id) {
   return id;
 }
 
-export const PLAN_IDS = ["essentials", "growth", "pro", "test-plan"];
+/** Plans that can be purchased or switched to. test-plan is retired (existing subs still map via price id). */
+export const PLAN_IDS = ["essentials", "growth", "pro"];
 const PLAN_RANK = { "test-plan": 0, essentials: 1, growth: 2, pro: 3 };
 
 export function isValidPlanId(id) {

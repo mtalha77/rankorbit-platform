@@ -461,6 +461,7 @@ const PLAN_LABELS = {
   growth: "Growth Plan",
   pro: "Pro Plan",
   gmb: "Pro Plan", // legacy id
+  "test-plan": "Test Plan", // retired — label only for existing subscribers
 };
 
 export function planLabel(planId) {

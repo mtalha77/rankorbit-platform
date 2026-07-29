@@ -85,13 +85,20 @@ export const plansWithPrices=(cfg={})=>Object.fromEntries(
 
 // Which plans are publicly live. Super-admin toggles these in the control panel.
 // Missing/undefined flag = live by default. A plan set to false is hidden everywhere client-facing.
-export const planLive=(id,cfg={})=>{const nid=normalizePlanId(id);const m={essentials:"livePlanEssentials",growth:"livePlanGrowth",pro:"livePlanGmb","test-plan":"livePlanTestPlan"};const v=cfg[m[nid]];return v===undefined||v===null||v===true||v==="true";};
+export const planLive=(id,cfg={})=>{
+  const nid=normalizePlanId(id);
+  // Retired $1 Stripe test plan — never offer for new checkout / switch / landing.
+  if(nid==="test-plan")return false;
+  const m={essentials:"livePlanEssentials",growth:"livePlanGrowth",pro:"livePlanGmb"};
+  const v=cfg[m[nid]];
+  return v===undefined||v===null||v===true||v==="true";
+};
 export const livePlanEntries=(cfg={})=>Object.entries(plansWithPrices(cfg)).filter(([id])=>planLive(id,cfg));
 
 /** Which plan shows the “Most Popular” badge. Super-admin sets this in Control Panel. */
 export const popularPlanId=(cfg={})=>{
   const id=normalizePlanId(cfg.popularPlan);
-  if(id&&PLANS[id])return id;
+  if(id&&PLANS[id]&&planLive(id,cfg))return id;
   return"growth";
 };
 
