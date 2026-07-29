@@ -70,14 +70,23 @@ function invoiceLooksPaid(inv) {
  * In-app + email "Payment received" for a paid invoice.
  * Deduped in notifyClient by meta.invoiceId (checkout + invoice.paid safe).
  */
-async function notifyClientInvoicePaid(admin, invoice, profileId, source = "stripe") {
-  if (!admin || !profileId || !invoiceLooksPaid(invoice)) {
+async function notifyClientInvoicePaid(admin, invoice, profileId, source = "stripe", opts = {}) {
+  const { force = false, amountCents = null } = opts;
+  if (!admin || !profileId || !invoice?.id) {
     return { notified: false, reason: "not_paid_or_missing" };
   }
-  const amount =
-    typeof invoice.amount_paid === "number"
-      ? `$${(invoice.amount_paid / 100).toFixed(2)}`
-      : "your invoice";
+  if (!force && !invoiceLooksPaid(invoice)) {
+    return { notified: false, reason: "not_paid_or_missing" };
+  }
+  const cents =
+    typeof amountCents === "number"
+      ? amountCents
+      : typeof invoice.amount_paid === "number" && invoice.amount_paid > 0
+        ? invoice.amount_paid
+        : typeof invoice.amount_due === "number"
+          ? invoice.amount_due
+          : null;
+  const amount = cents != null ? `$${(cents / 100).toFixed(2)}` : "your invoice";
   const invUrl = invoice.hosted_invoice_url || invoice.invoice_pdf || null;
   return notifyClient(admin, {
     userId: profileId,
@@ -100,7 +109,7 @@ async function notifyClientInvoicePaid(admin, invoice, profileId, source = "stri
  * Managers + super admins: in-app + emails when a client first subscribes.
  * Uses the same notifyStaffRoute path as plan-change (control-panel recipients),
  * plus per-manager/SA in-app and emailManagersAndSuperAdmins.
- * Dedupes on recent staff rows for this clientId.
+ * Dedupes only on STAFF rows (meta.audience) — never the client's own plan_subscribed.
  */
 async function notifyStaffNewSubscription(admin, { clientId, planId, source = "checkout" }) {
   if (!admin || !clientId) return { notified: false, reason: "no_client" };
@@ -109,12 +118,16 @@ async function notifyStaffNewSubscription(admin, { clientId, planId, source = "c
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data: prior } = await admin
       .from("notifications")
-      .select("id")
+      .select("id,meta")
       .eq("clientId", clientId)
       .in("type", ["needs_bdm", "plan_subscribed"])
       .gte("createdAt", since)
-      .limit(1);
-    if (prior?.length) {
+      .limit(40);
+    // Client notifyClient(plan_subscribed) also sets clientId — must not block staff fan-out.
+    const staffHit = (prior || []).some(
+      (n) => n?.meta?.audience === "manager" || n?.meta?.audience === "super_admin"
+    );
+    if (staffHit) {
       return { notified: true, skipped: "already_staff_purchase" };
     }
   } catch (e) {
@@ -416,35 +429,7 @@ export default async function handler(req, res) {
             }
             if (inv?.id) await upsertInvoice(admin, inv, profileId);
             else if (customerId) await syncInvoicesForCustomer(stripe, admin, customerId, profileId);
-            try {
-              await notifyClient(admin, {
-                userId: profileId,
-                clientId: profileId,
-                type: "plan_subscribed",
-                title: "Subscription active",
-                body: `Your ${planLabel(planId)} is active. Thank you for subscribing — your dashboard is ready.\n\n${onboardingHelpLine()}`,
-                meta: { planId: planId || null },
-              });
-            } catch (e) {
-              console.warn("notify client after checkout:", e.message);
-            }
-            // Invoice receipt: covers the common race where invoice.paid fired before profile was linked.
-            try {
-              if (invoiceLooksPaid(inv)) {
-                await notifyClientInvoicePaid(admin, inv, profileId, "checkout");
-              } else if (session.payment_status === "paid" && customerId) {
-                // Last resort: pull newest paid invoice for this customer.
-                const list = await stripe.invoices.list({ customer: customerId, status: "paid", limit: 1 });
-                const paidInv = list.data?.[0] || null;
-                if (paidInv) {
-                  await upsertInvoice(admin, paidInv, profileId);
-                  await notifyClientInvoicePaid(admin, paidInv, profileId, "checkout_list");
-                }
-              }
-            } catch (e) {
-              console.warn("notify invoice after checkout:", e.message);
-            }
-            // Managers + SA (in-app + same email route as plan-change).
+            // Staff FIRST (before client plan_subscribed) — avoids any dedupe confusion.
             try {
               await notifyStaffNewSubscription(admin, {
                 clientId: profileId,
@@ -478,6 +463,53 @@ export default async function handler(req, res) {
               }
             } catch (e) {
               console.warn("staff notify after checkout:", e.message);
+            }
+            try {
+              await notifyClient(admin, {
+                userId: profileId,
+                clientId: profileId,
+                type: "plan_subscribed",
+                title: "Subscription active",
+                body: `Your ${planLabel(planId)} is active. Thank you for subscribing — your dashboard is ready.\n\n${onboardingHelpLine()}`,
+                meta: { planId: planId || null },
+              });
+            } catch (e) {
+              console.warn("notify client after checkout:", e.message);
+            }
+            // Invoice receipt — force when Checkout already marked payment_status=paid
+            // (latest_invoice status can still be open for a few seconds).
+            try {
+              const sessionPaid = session.payment_status === "paid";
+              const sessionCents =
+                typeof session.amount_total === "number" ? session.amount_total : null;
+              if (inv?.id && (invoiceLooksPaid(inv) || sessionPaid)) {
+                await notifyClientInvoicePaid(admin, inv, profileId, "checkout", {
+                  force: sessionPaid && !invoiceLooksPaid(inv),
+                  amountCents:
+                    typeof inv.amount_paid === "number" && inv.amount_paid > 0
+                      ? inv.amount_paid
+                      : sessionCents,
+                });
+              } else if (sessionPaid && customerId) {
+                const list = await stripe.invoices.list({
+                  customer: customerId,
+                  limit: 3,
+                });
+                const paidInv =
+                  (list.data || []).find((x) => invoiceLooksPaid(x)) || list.data?.[0] || null;
+                if (paidInv?.id) {
+                  await upsertInvoice(admin, paidInv, profileId);
+                  await notifyClientInvoicePaid(admin, paidInv, profileId, "checkout_list", {
+                    force: true,
+                    amountCents:
+                      typeof paidInv.amount_paid === "number" && paidInv.amount_paid > 0
+                        ? paidInv.amount_paid
+                        : sessionCents,
+                  });
+                }
+              }
+            } catch (e) {
+              console.warn("notify invoice after checkout:", e.message);
             }
           } else if (userId) {
             // syncSubscription missed profile — still alert staff so subscribe can't go silent.
