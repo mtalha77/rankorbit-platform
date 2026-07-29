@@ -585,7 +585,18 @@ export async function notifyClient(admin, {
   }
 
   // One Payment received email per Stripe invoice id (checkout + invoice.paid can both fire).
+  // Atomic claim first — soft SELECT can race when two webhooks hit the same second.
   if (type === "invoice_paid" && meta?.invoiceId) {
+    const claimId = `inv_paid_${String(meta.invoiceId).slice(0, 180)}`;
+    const { error: claimErr } = await admin.from("stripe_events").insert({
+      id: claimId,
+      type: "invoice_paid_notify",
+    });
+    const claimedDup =
+      claimErr && (claimErr.code === "23505" || /duplicate|unique/i.test(claimErr.message || ""));
+    if (claimErr && !claimedDup) {
+      console.warn("invoice_paid claim:", claimErr.message);
+    }
     const { data: priorInv } = await admin
       .from("notifications")
       .select("id,meta")
@@ -594,8 +605,8 @@ export async function notifyClient(admin, {
       .order("createdAt", { ascending: false })
       .limit(40);
     const hit = (priorInv || []).find((n) => n?.meta?.invoiceId === meta.invoiceId);
-    if (hit) {
-      return { notified: true, skipped: "already_invoice_paid", notificationId: hit.id };
+    if (hit || claimedDup) {
+      return { notified: true, skipped: "already_invoice_paid", notificationId: hit?.id || null };
     }
   }
 
@@ -675,7 +686,11 @@ export async function notifyClient(admin, {
     ctaLabel: isStaff ? "Open admin" : "Open dashboard",
   });
 
-  if (emailResult?.sent && row?.id && (type === "welcome" || type === "plan_subscribed" || emailRetryOnly)) {
+  if (
+    emailResult?.sent &&
+    row?.id &&
+    (type === "welcome" || type === "plan_subscribed" || type === "invoice_paid" || emailRetryOnly)
+  ) {
     try {
       const nextMeta = {
         ...(row.meta && typeof row.meta === "object" ? row.meta : {}),
