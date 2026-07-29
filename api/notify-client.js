@@ -133,6 +133,8 @@ export default async function handler(req, res) {
       body: finalBody,
       email: sendEmail,
       inApp: sendInApp,
+      // Client login lifecycle must not re-fire "Subscription active" when webhook already created the row.
+      allowEmailRetry: isStaff,
       meta: {
         ...(meta && typeof meta === "object" ? meta : {}),
         source: isStaff ? "staff" : "self",

@@ -50,6 +50,175 @@ async function findProfileId(admin, { userId, customerId, email }) {
   return null;
 }
 
+/** True when Stripe invoice is (or was) successfully charged. */
+function invoiceLooksPaid(inv) {
+  if (!inv?.id) return false;
+  if (inv.status === "paid" || inv.paid === true) return true;
+  if (
+    typeof inv.amount_paid === "number" &&
+    inv.amount_paid > 0 &&
+    inv.status !== "void" &&
+    inv.status !== "uncollectible" &&
+    inv.status !== "draft"
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * In-app + email "Payment received" for a paid invoice.
+ * Deduped in notifyClient by meta.invoiceId (checkout + invoice.paid safe).
+ */
+async function notifyClientInvoicePaid(admin, invoice, profileId, source = "stripe") {
+  if (!admin || !profileId || !invoiceLooksPaid(invoice)) {
+    return { notified: false, reason: "not_paid_or_missing" };
+  }
+  const amount =
+    typeof invoice.amount_paid === "number"
+      ? `$${(invoice.amount_paid / 100).toFixed(2)}`
+      : "your invoice";
+  const invUrl = invoice.hosted_invoice_url || invoice.invoice_pdf || null;
+  return notifyClient(admin, {
+    userId: profileId,
+    clientId: profileId,
+    type: "invoice_paid",
+    title: "Payment received",
+    body: invUrl
+      ? `Thanks — we received ${amount}. Open Billing anytime for the receipt, or use View invoice from your notifications.`
+      : `Thanks — we received ${amount}. You can view the invoice from Billing anytime.`,
+    meta: {
+      invoiceId: invoice.id,
+      hostedInvoiceUrl: invUrl,
+      source,
+      billingReason: invoice.billing_reason || null,
+    },
+  });
+}
+
+/**
+ * Managers + super admins: in-app + emails when a client first subscribes.
+ * Uses the same notifyStaffRoute path as plan-change (control-panel recipients),
+ * plus per-manager/SA in-app and emailManagersAndSuperAdmins.
+ * Dedupes on recent staff rows for this clientId.
+ */
+async function notifyStaffNewSubscription(admin, { clientId, planId, source = "checkout" }) {
+  if (!admin || !clientId) return { notified: false, reason: "no_client" };
+
+  try {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: prior } = await admin
+      .from("notifications")
+      .select("id")
+      .eq("clientId", clientId)
+      .in("type", ["needs_bdm", "plan_subscribed"])
+      .gte("createdAt", since)
+      .limit(1);
+    if (prior?.length) {
+      return { notified: true, skipped: "already_staff_purchase" };
+    }
+  } catch (e) {
+    console.warn("notifyStaffNewSubscription dedupe:", e.message);
+  }
+
+  const { data: buyer } = await admin
+    .from("profiles")
+    .select("id,email,name,businessName,plan,assignedBdmId")
+    .eq("id", clientId)
+    .maybeSingle();
+  const who = buyer?.businessName || buyer?.name || buyer?.email || "A client";
+  const planName = planLabel(planId || buyer?.plan);
+  const purchasePayload = {
+    clientId,
+    type: buyer?.assignedBdmId ? "plan_subscribed" : "needs_bdm",
+    title: buyer?.assignedBdmId
+      ? `New subscription · ${planName}`
+      : "Assign a BDM — new plan purchase",
+    body: buyer?.assignedBdmId
+      ? `${who} purchased ${planName}.`
+      : `${who} purchased ${planName}. Assign a BDM from the client page.`,
+    meta: {
+      planId: planId || buyer?.plan || null,
+      source,
+    },
+  };
+
+  await notifyManagersInApp(admin, purchasePayload);
+  await notifySuperAdminsInApp(admin, purchasePayload);
+
+  // Same inbox path as plan-change emails (Event notifications / route onboard).
+  try {
+    await notifyStaffRoute(admin, {
+      kind: "onboard",
+      title: `New subscription · ${planName}`,
+      body: `${who} purchased ${planName}.`,
+    });
+  } catch (e) {
+    console.warn("notifyStaffRoute onboard:", e.message);
+  }
+
+  try {
+    await emailManagersAndSuperAdmins(admin, {
+      routeKey: "routeOnboard",
+      title: `New subscription · ${planName}`,
+      body: `${who} purchased ${planName}.`,
+    });
+  } catch (e) {
+    console.warn("emailManagersAndSuperAdmins purchase:", e.message);
+  }
+
+  return { notified: true, planName, who };
+}
+
+/** Resolve client for invoice webhooks — includes Stripe customer fallback (race-safe). */
+async function findProfileIdForInvoice(admin, stripe, invoice) {
+  const customerId =
+    typeof invoice.customer === "string" ? invoice.customer : invoice.customer?.id || null;
+  let metaUser =
+    invoice.subscription_details?.metadata?.supabase_user_id || invoice.metadata?.supabase_user_id || null;
+  let email = invoice.customer_email || null;
+
+  if (!metaUser && invoice.subscription) {
+    try {
+      const subId =
+        typeof invoice.subscription === "string" ? invoice.subscription : invoice.subscription?.id;
+      if (subId) {
+        const sub = await stripe.subscriptions.retrieve(subId);
+        metaUser = sub.metadata?.supabase_user_id || metaUser;
+        email = email || sub.metadata?.email || null;
+      }
+    } catch {
+      /* optional */
+    }
+  }
+
+  let profileId = await findProfileId(admin, { userId: metaUser, customerId, email });
+  if (profileId) return profileId;
+
+  // invoice.paid often arrives before checkout writes stripeCustomerId — resolve via Stripe customer.
+  if (customerId && stripe) {
+    try {
+      const cust = await stripe.customers.retrieve(customerId);
+      if (cust && !cust.deleted) {
+        const fromMeta = cust.metadata?.supabase_user_id || null;
+        const fromEmail = cust.email || email || null;
+        profileId = await findProfileId(admin, {
+          userId: fromMeta,
+          customerId,
+          email: fromEmail,
+        });
+        if (profileId && customerId) {
+          // Link for next webhooks so lookups are instant.
+          await admin.from("profiles").update({ stripeCustomerId: customerId }).eq("id", profileId);
+        }
+      }
+    } catch (e) {
+      console.warn("findProfileIdForInvoice customer:", e.message);
+    }
+  }
+  return profileId;
+}
+
 async function syncSubscription(admin, stripe, sub, hintPlan, { logActivity = false } = {}) {
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
   const metaUser = sub.metadata?.supabase_user_id;
@@ -237,6 +406,14 @@ export default async function handler(req, res) {
                 inv = null;
               }
             }
+            // Fresh retrieve — expanded copy at checkout is sometimes still open/unpaid.
+            if (inv?.id) {
+              try {
+                inv = await stripe.invoices.retrieve(inv.id);
+              } catch {
+                /* keep prior */
+              }
+            }
             if (inv?.id) await upsertInvoice(admin, inv, profileId);
             else if (customerId) await syncInvoicesForCustomer(stripe, admin, customerId, profileId);
             try {
@@ -251,38 +428,37 @@ export default async function handler(req, res) {
             } catch (e) {
               console.warn("notify client after checkout:", e.message);
             }
-            // Notify managers + super admins (in-app + email).
+            // Invoice receipt: covers the common race where invoice.paid fired before profile was linked.
             try {
-              const { data: buyer } = await admin
-                .from("profiles")
-                .select("id,email,name,businessName,plan,assignedBdmId")
-                .eq("id", profileId)
-                .maybeSingle();
-              const who = buyer?.businessName || buyer?.name || buyer?.email || "A client";
-              const planName = planLabel(planId || buyer?.plan);
-              const purchasePayload = {
+              if (invoiceLooksPaid(inv)) {
+                await notifyClientInvoicePaid(admin, inv, profileId, "checkout");
+              } else if (session.payment_status === "paid" && customerId) {
+                // Last resort: pull newest paid invoice for this customer.
+                const list = await stripe.invoices.list({ customer: customerId, status: "paid", limit: 1 });
+                const paidInv = list.data?.[0] || null;
+                if (paidInv) {
+                  await upsertInvoice(admin, paidInv, profileId);
+                  await notifyClientInvoicePaid(admin, paidInv, profileId, "checkout_list");
+                }
+              }
+            } catch (e) {
+              console.warn("notify invoice after checkout:", e.message);
+            }
+            // Managers + SA (in-app + same email route as plan-change).
+            try {
+              await notifyStaffNewSubscription(admin, {
                 clientId: profileId,
-                type: buyer?.assignedBdmId ? "plan_subscribed" : "needs_bdm",
-                title: buyer?.assignedBdmId
-                  ? `New subscription · ${planName}`
-                  : "Assign a BDM — new plan purchase",
-                body: buyer?.assignedBdmId
-                  ? `${who} purchased ${planName}.`
-                  : `${who} purchased ${planName}. Assign a BDM from the client page.`,
-                meta: {
-                  planId: planId || buyer?.plan || null,
-                  source: isLandingPayfirst ? "landing_payfirst" : "checkout",
-                },
-              };
-              await notifyManagersInApp(admin, purchasePayload);
-              await notifySuperAdminsInApp(admin, purchasePayload);
-              // Always email SA + managers on purchase (no toggle gate).
-              await emailManagersAndSuperAdmins(admin, {
-                routeKey: "routeOnboard",
-                title: `New subscription · ${planName}`,
-                body: `${who} purchased ${planName}.`,
+                planId,
+                source: isLandingPayfirst ? "landing_payfirst" : "checkout",
               });
               if (isLandingPayfirst) {
+                const { data: buyer } = await admin
+                  .from("profiles")
+                  .select("businessName,name,email,plan")
+                  .eq("id", profileId)
+                  .maybeSingle();
+                const who = buyer?.businessName || buyer?.name || buyer?.email || "A client";
+                const planName = planLabel(planId || buyer?.plan);
                 const title = "Client details ready — payment complete";
                 const body = `${who} completed landing checkout and paid for ${planName}.`;
                 await notifyManagersInApp(admin, {
@@ -303,15 +479,37 @@ export default async function handler(req, res) {
             } catch (e) {
               console.warn("staff notify after checkout:", e.message);
             }
+          } else if (userId) {
+            // syncSubscription missed profile — still alert staff so subscribe can't go silent.
+            try {
+              await notifyStaffNewSubscription(admin, {
+                clientId: userId,
+                planId,
+                source: isLandingPayfirst ? "landing_payfirst" : "checkout_nolink",
+              });
+            } catch (e) {
+              console.warn("staff notify checkout fallback:", e.message);
+            }
           }
         }
         break;
       }
       case "customer.subscription.created":
       case "customer.subscription.updated": {
-        // Profile sync only — assign/notify/activity stay on checkout to avoid duplicates.
+        // Sync profile; on *created*, also staff-notify if checkout alert was missed (deduped 24h).
         const sub = event.data.object;
-        await syncSubscription(admin, stripe, sub, sub.metadata?.plan_id);
+        const syncedId = await syncSubscription(admin, stripe, sub, sub.metadata?.plan_id);
+        if (event.type === "customer.subscription.created" && syncedId) {
+          try {
+            await notifyStaffNewSubscription(admin, {
+              clientId: syncedId,
+              planId: sub.metadata?.plan_id || null,
+              source: "subscription.created",
+            });
+          } catch (e) {
+            console.warn("staff notify subscription.created:", e.message);
+          }
+        }
         break;
       }
       case "customer.subscription.deleted": {
@@ -408,8 +606,8 @@ export default async function handler(req, res) {
       case "invoice.payment_failed":
       case "invoice.finalized": {
         let invoice = event.data.object;
-        // Fresh retrieve so PDF / hosted URLs are present (some event payloads omit them).
-        if (invoice?.id && (!invoice.invoice_pdf || !invoice.hosted_invoice_url)) {
+        // Fresh retrieve so PDF / hosted URLs + paid status are present.
+        if (invoice?.id) {
           try {
             invoice = await stripe.invoices.retrieve(invoice.id);
           } catch {
@@ -417,24 +615,7 @@ export default async function handler(req, res) {
           }
         }
         const customerId = typeof invoice.customer === "string" ? invoice.customer : invoice.customer?.id;
-        let metaUser =
-          invoice.subscription_details?.metadata?.supabase_user_id || invoice.metadata?.supabase_user_id;
-        if (!metaUser && invoice.subscription) {
-          try {
-            const subId =
-              typeof invoice.subscription === "string" ? invoice.subscription : invoice.subscription?.id;
-            if (subId) {
-              const sub = await stripe.subscriptions.retrieve(subId);
-              metaUser = sub.metadata?.supabase_user_id;
-            }
-          } catch {
-            /* optional */
-          }
-        }
-        const profileId = await findProfileId(admin, {
-          userId: metaUser,
-          customerId,
-        });
+        const profileId = await findProfileIdForInvoice(admin, stripe, invoice);
         if (profileId) {
           await upsertInvoice(admin, invoice, profileId);
           if (event.type === "invoice.payment_failed") {
@@ -497,20 +678,8 @@ export default async function handler(req, res) {
               .from("profiles")
               .update({ paymentFailedAt: null, paymentGraceEndsAt: null })
               .eq("id", profileId);
-            const amount =
-              typeof invoice.amount_paid === "number"
-                ? `$${(invoice.amount_paid / 100).toFixed(2)}`
-                : "your invoice";
-            const invUrl = invoice.hosted_invoice_url || invoice.invoice_pdf || null;
             try {
-              await notifyClient(admin, {
-                userId: profileId,
-                clientId: profileId,
-                type: "invoice_paid",
-                title: "Payment received",
-                body: `Thanks — we received ${amount}. You can view the invoice from Billing anytime.`,
-                meta: { invoiceId: invoice.id || null, hostedInvoiceUrl: invUrl },
-              });
+              await notifyClientInvoicePaid(admin, invoice, profileId, "invoice.paid");
             } catch (e) {
               console.warn("notify invoice_paid:", e.message);
             }

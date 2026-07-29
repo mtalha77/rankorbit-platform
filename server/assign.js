@@ -564,13 +564,39 @@ export async function emailManagersAndSuperAdmins(
  * Email goes to verified notifyEmail if set, else login email.
  * Pass email: false for in-app only (e.g. chat messages).
  */
-export async function notifyClient(admin, { userId, clientId, type, title, body, meta, email: sendEmail = true, inApp = true }) {
+export async function notifyClient(admin, {
+  userId,
+  clientId,
+  type,
+  title,
+  body,
+  meta,
+  email: sendEmail = true,
+  inApp = true,
+  /** When false, do not re-send email if welcome/plan_subscribed row already exists (stops login spam). */
+  allowEmailRetry = true,
+}) {
   if (!userId) return { notified: false };
   // Defaults unchanged for welcome / payment / listing callers (both channels on).
   const wantInApp = inApp !== false;
   const wantEmail = sendEmail !== false;
   if (!wantInApp && !wantEmail) {
     return { notified: false, emailResult: { sent: false, reason: "no_channels" } };
+  }
+
+  // One Payment received email per Stripe invoice id (checkout + invoice.paid can both fire).
+  if (type === "invoice_paid" && meta?.invoiceId) {
+    const { data: priorInv } = await admin
+      .from("notifications")
+      .select("id,meta")
+      .eq("userId", userId)
+      .eq("type", "invoice_paid")
+      .order("createdAt", { ascending: false })
+      .limit(40);
+    const hit = (priorInv || []).find((n) => n?.meta?.invoiceId === meta.invoiceId);
+    if (hit) {
+      return { notified: true, skipped: "already_invoice_paid", notificationId: hit.id };
+    }
   }
 
   // Welcome + first subscription: one in-app row per client. If email never succeeded, retry Resend.
@@ -585,7 +611,7 @@ export async function notifyClient(admin, { userId, clientId, type, title, body,
       .limit(1)
       .maybeSingle();
     if (existing) {
-      if (existing.meta?.emailSent === true) {
+      if (existing.meta?.emailSent === true || !allowEmailRetry) {
         return { notified: true, skipped: `already_${type}`, notificationId: existing.id };
       }
       // In-app already created (maybe prior Resend fail) — retry email only.
