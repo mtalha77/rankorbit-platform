@@ -76,6 +76,7 @@ export default async function handler(req, res) {
       clientId: profile.id,
       planId: profile.plan,
       source: "confirm_purchase",
+      subscriptionId: profile.stripeSubscriptionId || null,
     });
   } catch (e) {
     console.warn("confirm-purchase staff:", e.message);

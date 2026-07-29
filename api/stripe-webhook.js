@@ -307,6 +307,7 @@ export default async function handler(req, res) {
                 clientId: profileId,
                 planId,
                 source: isLandingPayfirst ? "landing_payfirst" : "checkout",
+                subscriptionId: subId || null,
               });
               if (isLandingPayfirst) {
                 const { data: buyer } = await admin
@@ -390,6 +391,7 @@ export default async function handler(req, res) {
                 clientId: userId,
                 planId,
                 source: isLandingPayfirst ? "landing_payfirst" : "checkout_nolink",
+                subscriptionId: subId || null,
               });
             } catch (e) {
               console.warn("staff notify checkout fallback:", e.message);
@@ -409,6 +411,7 @@ export default async function handler(req, res) {
               clientId: syncedId,
               planId: sub.metadata?.plan_id || null,
               source: "subscription.created",
+              subscriptionId: sub.id || null,
             });
           } catch (e) {
             console.warn("staff notify subscription.created:", e.message);

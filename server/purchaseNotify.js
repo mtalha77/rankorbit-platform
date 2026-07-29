@@ -67,11 +67,36 @@ export async function notifyClientInvoicePaid(admin, invoice, profileId, source 
 
 /**
  * Managers + super admins: in-app + emails on first subscribe.
- * Dedupes only STAFF rows (meta.audience) — never the client's own plan_subscribed.
+ * Dedupes only STAFF rows — never the client's own plan_subscribed.
+ * Uses stripe_events claim so checkout + subscription.created + confirm-purchase
+ * cannot race into duplicate "Assign a BDM" rows for the same purchase.
  */
-export async function notifyStaffNewSubscription(admin, { clientId, planId, source = "checkout" }) {
+export async function notifyStaffNewSubscription(admin, { clientId, planId, source = "checkout", subscriptionId = null }) {
   if (!admin || !clientId) return { notified: false, reason: "no_client" };
 
+  // One shared key for checkout + subscription.created + confirm-purchase (same day).
+  // Day bucket allows a later re-subscribe to notify again.
+  const day = new Date().toISOString().slice(0, 10);
+  const claimId = `staff_purchase_${clientId}_${day}`;
+
+  try {
+    const { error: claimErr } = await admin.from("stripe_events").insert({
+      id: claimId,
+      type: "staff_purchase_notify",
+    });
+    const claimedDup =
+      claimErr && (claimErr.code === "23505" || /duplicate|unique/i.test(claimErr.message || ""));
+    if (claimedDup) {
+      return { notified: true, skipped: "already_staff_purchase" };
+    }
+    if (claimErr) {
+      console.warn("notifyStaffNewSubscription claim:", claimErr.message);
+    }
+  } catch (e) {
+    console.warn("notifyStaffNewSubscription claim:", e.message);
+  }
+
+  // Soft backup (covers claim table missing / non-unique errors).
   try {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data: prior } = await admin
@@ -110,6 +135,8 @@ export async function notifyStaffNewSubscription(admin, { clientId, planId, sour
     meta: {
       planId: planId || buyer?.plan || null,
       source,
+      ...(subscriptionId ? { subscriptionId } : {}),
+      claimId,
     },
   };
 
