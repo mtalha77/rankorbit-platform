@@ -107,7 +107,7 @@ export function IconGlobe({ size }) {
   );
 }
 
-/** Notification bell (public/notification-bell-svgrepo-com.svg) — filled */
+/** Notification bell — filled */
 export function IconBell({ size }) {
   return (
     <Svg size={size} viewBox="0 0 612 612">
@@ -123,7 +123,7 @@ export function IconBell({ size }) {
   );
 }
 
-/** Broadcast tower (public/broadcast-tower-svgrepo-com.svg) */
+/** Broadcast tower */
 export function IconBroadcast({ size }) {
   return (
     <Svg size={size} viewBox="0 -0.5 25 25">
@@ -147,7 +147,7 @@ export function IconBroadcast({ size }) {
   );
 }
 
-/** Listings checklist (public/listing-mark-svgrepo-com.svg) — mono for nav tint */
+/** Listings checklist — mono for nav tint */
 export function IconListing({ size }) {
   return (
     <Svg size={size} viewBox="0 0 512 512">
