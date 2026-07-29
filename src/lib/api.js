@@ -1086,6 +1086,23 @@ export const api={
     const{error}=await supa.auth.updateUser({password});
     return error?{error:error.message}:{ok:true};
   },
+  /** Landing pay-first set-password (?lpw=) — no Auth session required. */
+  async completeLandingPassword({token,password}={}){
+    const issues=passwordIssues(password);
+    if(issues.length)return{error:"Password needs "+issues.join(", ")+"."};
+    try{
+      const r=await fetch("/api/complete-landing-password",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({token:String(token||"").trim(),password}),
+      });
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not update password"};
+      return{ok:true};
+    }catch(e){
+      return{error:e.message||"Network error"};
+    }
+  },
   /** Upload profile photo to Storage (or data-URL fallback locally). Returns {url} or {error}. */
   async uploadAvatar(blobOrFile,userId){
     if(!blobOrFile)return{error:"No image selected"};

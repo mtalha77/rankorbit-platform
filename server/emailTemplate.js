@@ -181,6 +181,10 @@ export function authEmailCopy(emailActionType, { token } = {}) {
   // Never send Auth invite mail (Dashboard invite / inviteUserByEmail / generateLink hook).
   // Staff invites: create-staff.js → Resend only.
   if (type === "invite") return null;
+  // App uses password login only — magic links confuse users (often Site URL → localhost).
+  if (type === "magiclink") return null;
+  // Landing set-password uses custom ?lpw= Resend links (not Auth recovery) — do not skip
+  // recovery here or Forgot password breaks for landing clients.
   const map = {
     signup: {
       subject: "Confirm your email address",

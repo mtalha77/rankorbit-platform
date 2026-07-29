@@ -1,6 +1,6 @@
-// ─── SET NEW PASSWORD (after email recovery link) ────────────────────────────
+// ─── SET NEW PASSWORD (after email recovery link or landing ?lpw= token) ─────
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { T, FONT_D, FONT_B, SHADOW_LG } from "../lib/theme";
 import { api } from "../lib/api";
 import { passwordIssues, passwordScore } from "../lib/helpers";
@@ -15,14 +15,18 @@ export const isPasswordRecovery=()=>{try{return sessionStorage.getItem(RECOVERY_
 
 export default function ResetPassword({hasSession,onDone}){
   const nav=useNavigate();
+  const[searchParams]=useSearchParams();
+  const lpwRaw=String(searchParams.get("lpw")||"").trim();
+  const landingToken=lpwRaw.length>=32?lpwRaw:"";
   const[password,setPassword]=useState("");
   const[confirm,setConfirm]=useState("");
   const[fieldErrors,setFieldErrors]=useState({});
   const[error,setError]=useState("");
   const[busy,setBusy]=useState(false);
-  const[ready,setReady]=useState(false);
+  const[ready,setReady]=useState(!!landingToken);
 
   useEffect(()=>{
+    if(landingToken){setReady(true);return;}
     // Wait briefly for Supabase to exchange the recovery hash into a session.
     let n=0;
     const tick=()=>{
@@ -31,7 +35,7 @@ export default function ResetPassword({hasSession,onDone}){
       else setReady(true);
     };
     tick();
-  },[hasSession]);
+  },[hasSession,landingToken]);
 
   const submit=async()=>{
     const fe={};
@@ -45,11 +49,17 @@ export default function ResetPassword({hasSession,onDone}){
     setFieldErrors(fe);
     if(Object.keys(fe).length){setError("");return;}
     setBusy(true);
-    const r=await api.updatePassword(password);
+    const r=landingToken
+      ? await api.completeLandingPassword({token:landingToken,password})
+      : await api.updatePassword(password);
     setBusy(false);
     if(r.error){setError(r.error);return;}
     clearPasswordRecovery();
     try{sessionStorage.setItem("ro_pw_updated","1");}catch{}
+    if(landingToken){
+      nav("/login",{replace:true});
+      return;
+    }
     // Wait for sign-out before leaving — otherwise a brief session still looks
     // logged-in and /login redirects to /dashboard (flash), then lands on login.
     try{
@@ -71,7 +81,7 @@ export default function ResetPassword({hasSession,onDone}){
     </div>);
   }
 
-  if(!hasSession&&!isPasswordRecovery()){
+  if(!landingToken&&!hasSession&&!isPasswordRecovery()){
     return(<div style={{minHeight:"100vh",background:T.bg,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT_B,padding:16}}>
       <Card style={{padding:28,maxWidth:420,width:"100%",boxShadow:SHADOW_LG}}>
         <div style={{fontFamily:FONT_D,fontSize:18,fontWeight:800,marginBottom:8}}>Link expired or invalid</div>

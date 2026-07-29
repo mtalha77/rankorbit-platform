@@ -2,6 +2,7 @@
  * Landing pay-first helpers: validate form fields, pack Stripe metadata,
  * provision client after checkout.session.completed (source=landing_payfirst only).
  */
+import { randomBytes } from "node:crypto";
 import { sendNotifyEmails } from "./assign.js";
 import { appBaseUrl, onboardingHelpLine } from "./emailTemplate.js";
 import {
@@ -11,6 +12,69 @@ import {
 } from "./billing.js";
 
 const META_MAX = 450;
+
+function authErrDetail(err) {
+  if (!err) return "(no error)";
+  const parts = [
+    err.message,
+    err.code,
+    err.status,
+    err.statusCode,
+    typeof err === "string" ? err : null,
+  ].filter(Boolean);
+  try {
+    const raw = JSON.stringify(err, Object.getOwnPropertyNames(err));
+    if (raw && raw !== "{}") parts.push(raw);
+  } catch {
+    /* ignore */
+  }
+  return parts.join(" | ") || String(err);
+}
+
+/** Random password for Auth createUser (never emailed; client sets real password via Resend link). */
+function tempAuthPassword() {
+  return randomBytes(32).toString("base64url");
+}
+
+/** Find Auth user id by email without generateLink (generateLink can fire Auth emails). */
+async function findAuthUserIdByEmail(admin, email) {
+  const target = String(email || "").trim().toLowerCase();
+  if (!target) return null;
+  for (let page = 1; page <= 25; page++) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
+    if (error) {
+      console.warn("listUsers:", error.message);
+      return null;
+    }
+    const users = data?.users || [];
+    const hit = users.find((u) => String(u.email || "").trim().toLowerCase() === target);
+    if (hit?.id) return hit.id;
+    if (users.length < 200) return null;
+  }
+  return null;
+}
+
+async function tagLandingAuthUser(admin, authId, name, { ensurePassword = false } = {}) {
+  if (!authId) return;
+  try {
+    const { data: u } = await admin.auth.admin.getUserById(authId);
+    const prev = u?.user?.user_metadata || {};
+    const patch = {
+      email_confirm: true,
+      user_metadata: {
+        ...prev,
+        name: name || prev.name,
+        role: prev.role || "client",
+        source: "landing_payfirst",
+      },
+    };
+    // Only for invited/passwordless Auth rows — do not overwrite a real password.
+    if (ensurePassword) patch.password = tempAuthPassword();
+    await admin.auth.admin.updateUserById(authId, patch);
+  } catch (e) {
+    console.warn("landing_payfirst tag auth user:", e.message || authErrDetail(e));
+  }
+}
 
 function clip(v, n = META_MAX) {
   const s = String(v ?? "").trim();
@@ -153,39 +217,37 @@ export async function provisionLandingPayfirstClient(admin, session) {
   }
 
   if (!profileId) {
+    // Password + confirmed email → Auth must not send invite/magiclink; we email set-password via Resend only.
+    const tempPassword = tempAuthPassword();
     const { data: createdUser, error: createErr } = await admin.auth.admin.createUser({
       email,
+      password: tempPassword,
       email_confirm: true,
       user_metadata: { name: profilePatch.name, role: "client", source: "landing_payfirst" },
     });
     if (createErr) {
-      const msg = createErr.message || "";
-      if (/already|registered|exists/i.test(msg)) {
-        const { data: byEmail } = await admin
-          .from("profiles")
-          .select("id,role,name")
-          .eq("email", email)
-          .maybeSingle();
-        if (byEmail?.id) {
-          profileId = byEmail.id;
-          profile = byEmail;
-        } else {
-          // Auth user exists without profile — recover id via generateLink (no mail sent by us here).
-          const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
-            type: "recovery",
-            email,
-            options: { redirectTo: `${appBaseUrl()}/reset-password` },
-          });
-          if (linkErr || !linkData?.user?.id) {
-            console.error("landing_payfirst resolve existing user:", linkErr?.message || msg);
-            return { profileId: null, created: false };
-          }
-          profileId = linkData.user.id;
-          created = true; // still need profile + set-password mail
-        }
+      const msg = authErrDetail(createErr);
+      console.warn("landing_payfirst createUser failed:", msg);
+      // Always try resolve by email — AuthError message is often empty ("{}") even for duplicates.
+      const { data: byEmail } = await admin
+        .from("profiles")
+        .select("id,role,name")
+        .eq("email", email)
+        .maybeSingle();
+      if (byEmail?.id) {
+        // Existing client profile — do not rewrite Auth password/metadata.
+        profileId = byEmail.id;
+        profile = byEmail;
       } else {
-        console.error("landing_payfirst createUser:", msg);
-        return { profileId: null, created: false };
+        const authId = await findAuthUserIdByEmail(admin, email);
+        if (!authId) {
+          console.error("landing_payfirst could not create or find auth user:", msg);
+          return { profileId: null, created: false };
+        }
+        profileId = authId;
+        created = true; // still need profile + set-password mail
+        // Prior invite/passwordless users: give a temp password so Auth stops invite mails.
+        await tagLandingAuthUser(admin, authId, profilePatch.name, { ensurePassword: true });
       }
     } else {
       profileId = createdUser.user.id;
@@ -212,17 +274,43 @@ export async function provisionLandingPayfirstClient(admin, session) {
   return { profileId, created, email };
 }
 
-export async function sendLandingSetPasswordEmail(admin, email, name) {
-  const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
-    type: "recovery",
-    email,
-    options: {
-      redirectTo: `${appBaseUrl()}/reset-password`,
-    },
+/**
+ * Branded Resend set-password mail. Never calls Auth generateLink (that can trigger
+ * Supabase "You've been invited" / recovery mail from mail.app.supabase.io).
+ * Does not overwrite passwords for users who already signed in.
+ */
+export async function sendLandingSetPasswordEmail(admin, email, name, { force = false } = {}) {
+  const authId = await findAuthUserIdByEmail(admin, email);
+  if (!authId) throw new Error("Auth user not found for set-password email");
+
+  let user = null;
+  try {
+    const { data } = await admin.auth.admin.getUserById(authId);
+    user = data?.user || null;
+  } catch (e) {
+    console.warn("landing_payfirst getUserById:", e.message);
+  }
+
+  // Returning client already has a password — do not email a reset or rotate Auth password.
+  if (!force && user?.last_sign_in_at) {
+    return { sent: false, skipped: true, reason: "existing_user" };
+  }
+
+  // Invite-only Auth rows (never signed in): temp password stops Auth invite mails.
+  if (user?.invited_at && !user?.last_sign_in_at) {
+    await tagLandingAuthUser(admin, authId, name, { ensurePassword: true });
+  }
+
+  const token = randomBytes(32).toString("hex");
+  const expiresAt = Date.now() + 48 * 3600 * 1000;
+  const rowId = `lpw_${token}`;
+  const { error: insErr } = await admin.from("stripe_events").insert({
+    id: rowId,
+    type: `landing_password:${authId}:${expiresAt}`,
   });
-  if (linkErr) throw new Error(linkErr.message || "Could not create set-password link");
-  const actionLink = linkData?.properties?.action_link;
-  if (!actionLink) throw new Error("Set-password link missing");
+  if (insErr) throw new Error(insErr.message || "Could not create set-password token");
+
+  const actionLink = `${appBaseUrl()}/reset-password?lpw=${encodeURIComponent(token)}`;
 
   const who = name || "there";
   const result = await sendNotifyEmails(
@@ -233,6 +321,7 @@ export async function sendLandingSetPasswordEmail(admin, email, name) {
   );
   if (!result.sent) {
     console.warn("landing_payfirst email not sent:", result.reason);
+    await admin.from("stripe_events").delete().eq("id", rowId);
   }
   return { ...result, actionLink };
 }
@@ -253,7 +342,7 @@ export async function sendLandingSetPasswordEmailOnce(admin, sessionId, email, n
       console.warn("landing_pw dedupe insert:", insErr.message);
     }
   }
-  return sendLandingSetPasswordEmail(admin, email, name);
+  return sendLandingSetPasswordEmail(admin, email, name, { force });
 }
 
 /**

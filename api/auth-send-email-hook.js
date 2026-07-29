@@ -84,8 +84,8 @@ export default async function handler(req, res) {
     const action = emailData.email_action_type || "";
     const role = user.user_metadata?.role || user.app_metadata?.role || "";
 
-    const copy = authEmailCopy(action, { token: emailData.token });
-    // Intentionally skip (all invites, unknown types) — return 200 so Auth does not retry.
+    const copy = authEmailCopy(action, { token: emailData.token, user });
+    // Intentionally skip (invite / magiclink / landing recovery / unknown) — 200 so Auth does not retry.
     if (!copy) {
       console.info("[auth-email-hook] skipped", action, "role=", role || "(none)", "to=", user.email);
       res.statusCode = 200;
