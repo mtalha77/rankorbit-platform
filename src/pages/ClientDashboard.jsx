@@ -209,7 +209,23 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
         try {
           sessionStorage.removeItem("ro_pending_plan");
         } catch {}
-        reload();
+        // Webhook can lag — force staff + invoice notify from the browser return path.
+        (async () => {
+          for (let i = 0; i < 4; i++) {
+            try {
+              const r = await api.confirmPurchaseNotify();
+              if (r?.ok && r.skipped !== "no_plan_yet") break;
+            } catch {
+              /* retry */
+            }
+            await new Promise((resolve) => setTimeout(resolve, 1500 * (i + 1)));
+          }
+          try {
+            await reload();
+          } catch {
+            /* ignore */
+          }
+        })();
       } else if (billingFlag === "cancel") {
         setPage("billing", { replace: true });
         toast("Checkout canceled — pick a plan whenever you're ready", "info");

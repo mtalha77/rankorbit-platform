@@ -391,13 +391,8 @@ export const api={
       if(!user)return;
       const{data:prof}=await supa.from("profiles").select("plan,role").eq("id",user.id).maybeSingle();
       if(!prof||prof.role!=="client"||!prof.plan)return;
-      const token=await this._accessToken();
-      if(!token)return;
-      await fetch("/api/notify-client",{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({token,type:"plan_subscribed"}),
-      });
+      // Full purchase fan-out backup (staff + invoice + plan) — deduped server-side.
+      await this.confirmPurchaseNotify();
     }catch{/* plan notify is best-effort */}
   },
   /** Register → welcome; first plan → plan_subscribed. Safe to call often. */
@@ -702,6 +697,20 @@ export const api={
       const r=await fetch("/api/sync-my-billing",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token})});
       const j=await r.json().catch(()=>({}));
       if(!r.ok)return{error:j.error||"Could not sync billing"};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
+  /**
+   * After Checkout return: staff (SA/manager) + client invoice notify backup
+   * when Stripe webhooks were late/missed. Safe to call multiple times (deduped).
+   */
+  async confirmPurchaseNotify(){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/confirm-purchase-notify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Could not confirm purchase notifications"};
       return{ok:true,...j};
     }catch(e){return{error:e.message||"Network error"};}
   },
