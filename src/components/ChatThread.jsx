@@ -50,6 +50,7 @@ function ChatThreadInner({
   toast,
   onUnreadChange,
   onOpenCall,
+  onBack,
   compact = false,
   fill = false,
   readOnly = false,
@@ -316,13 +317,41 @@ function ChatThreadInner({
           borderBottom: `1px solid ${T.line}`,
           background: T.surface2,
           flexShrink: 0,
+          display: onBack ? "flex" : undefined,
+          alignItems: onBack ? "flex-start" : undefined,
+          gap: onBack ? 10 : undefined,
         }}
       >
-        <div style={{ fontSize: 11, fontWeight: 800, color: T.faint, letterSpacing: ".6px" }}>
-          {support && !isStaffVariant ? "SUPPORT CHAT" : "CHAT"}
-        </div>
-        <div style={{ fontFamily: FONT_D, fontSize: 16, fontWeight: 800, marginTop: 2 }}>
-          {headerName}
+        {typeof onBack === "function" && (
+          <button
+            type="button"
+            onClick={onBack}
+            aria-label="Back to conversations"
+            style={{
+              flexShrink: 0,
+              marginTop: 2,
+              background: T.surface,
+              border: `1px solid ${T.line}`,
+              borderRadius: 10,
+              padding: "6px 10px",
+              color: T.sub,
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: FONT_B,
+              lineHeight: 1,
+            }}
+          >
+            ←
+          </button>
+        )}
+        <div style={{ minWidth: 0, flex: onBack ? 1 : undefined }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: T.faint, letterSpacing: ".6px" }}>
+            {support && !isStaffVariant ? "SUPPORT CHAT" : "CHAT"}
+          </div>
+          <div style={{ fontFamily: FONT_D, fontSize: 16, fontWeight: 800, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {headerName}
+          </div>
         </div>
       </div>
 

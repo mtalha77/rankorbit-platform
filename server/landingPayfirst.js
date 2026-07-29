@@ -20,6 +20,8 @@ function authErrDetail(err) {
     err.code,
     err.status,
     err.statusCode,
+    err.name,
+    err.cause?.message || err.cause?.code,
     typeof err === "string" ? err : null,
   ].filter(Boolean);
   try {
@@ -29,6 +31,41 @@ function authErrDetail(err) {
     /* ignore */
   }
   return parts.join(" | ") || String(err);
+}
+
+function isRetryableAuthErr(err) {
+  if (!err) return false;
+  const name = String(err.name || "");
+  const msg = String(err.message || "");
+  const status = err.status || err.statusCode;
+  return (
+    name === "AuthRetryableFetchError" ||
+    status === 500 ||
+    status === 502 ||
+    status === 503 ||
+    status === 504 ||
+    /fetch failed|network|ECONNRESET|ETIMEDOUT|ENOTFOUND|socket/i.test(msg)
+  );
+}
+
+async function sleep(ms) {
+  await new Promise((r) => setTimeout(r, ms));
+}
+
+/** createUser with short retries for AuthRetryableFetchError / transient 5xx. */
+async function createAuthUserWithRetry(admin, attrs, { attempts = 3 } = {}) {
+  let last = { data: null, error: null };
+  for (let i = 0; i < attempts; i++) {
+    last = await admin.auth.admin.createUser(attrs);
+    if (!last.error) return last;
+    if (!isRetryableAuthErr(last.error) || i === attempts - 1) return last;
+    console.warn(
+      `landing_payfirst createUser retry ${i + 1}/${attempts - 1}:`,
+      authErrDetail(last.error)
+    );
+    await sleep(400 * (i + 1));
+  }
+  return last;
 }
 
 /** Random password for Auth createUser (never emailed; client sets real password via Resend link). */
@@ -219,7 +256,7 @@ export async function provisionLandingPayfirstClient(admin, session) {
   if (!profileId) {
     // Password + confirmed email → Auth must not send invite/magiclink; we email set-password via Resend only.
     const tempPassword = tempAuthPassword();
-    const { data: createdUser, error: createErr } = await admin.auth.admin.createUser({
+    const { data: createdUser, error: createErr } = await createAuthUserWithRetry(admin, {
       email,
       password: tempPassword,
       email_confirm: true,

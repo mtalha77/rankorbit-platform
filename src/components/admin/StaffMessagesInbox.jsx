@@ -14,11 +14,18 @@ export function StaffMessagesInbox({user,clients,selClient,setSelClient,setChatU
   const[loading,setLoading]=useState(true);
   // active = { kind:"client"|"staff", id }
   const[active,setActive]=useState(!teamOnly&&selClient?{kind:"client",id:selClient}:null);
+  // Mobile: list-first; open chat as a separate full-pane view after tap (or deep-link via selClient).
+  const[mobileChatOpen,setMobileChatOpen]=useState(()=>Boolean(!teamOnly&&selClient));
 
   const syncTotal=(cT,sT)=>{
     const cu=teamOnly||quietClientUnread?0:(cT||[]).reduce((s,t)=>s+(t.unread||0),0);
     const su=(sT||[]).reduce((s,t)=>s+(t.unread||0),0);
     setChatUnreadTotal(cu+su);
+  };
+
+  const openThread=(next)=>{
+    setActive(next);
+    if(isMobile)setMobileChatOpen(true);
   };
 
   useEffect(()=>{
@@ -39,9 +46,16 @@ export function StaffMessagesInbox({user,clients,selClient,setSelClient,setChatU
       setStaffThreads(sT);
       syncTotal(cT,sT);
       if(!active){
-        if(!teamOnly&&selClient&&cT.some(t=>t.clientId===selClient))setActive({kind:"client",id:selClient});
-        else if(sT[0])setActive({kind:"staff",id:sT[0].staffId});
-        else if(!teamOnly&&cT[0])setActive({kind:"client",id:cT[0].clientId});
+        // Deep-link from client detail — open that thread (including mobile chat pane).
+        if(!teamOnly&&selClient&&cT.some(t=>t.clientId===selClient)){
+          setActive({kind:"client",id:selClient});
+          if(isMobile)setMobileChatOpen(true);
+        }
+        // Desktop only: auto-select first conversation so the right pane isn't empty.
+        else if(!isMobile){
+          if(sT[0])setActive({kind:"staff",id:sT[0].staffId});
+          else if(!teamOnly&&cT[0])setActive({kind:"client",id:cT[0].clientId});
+        }
       }
     })();
     return()=>{cancelled=true;};
@@ -73,6 +87,10 @@ export function StaffMessagesInbox({user,clients,selClient,setSelClient,setChatU
       ?"Team chat only — message managers, BDMs, agents, and admins"
       :"Chat with teammates and your assigned clients";
 
+  const showList=!isMobile||!mobileChatOpen;
+  const showChat=!isMobile||mobileChatOpen;
+  const backToList=()=>setMobileChatOpen(false);
+
   return(
   <div style={{
     height:isMobile?"calc(100dvh - 140px)":"calc(100vh - 100px)",
@@ -83,73 +101,89 @@ export function StaffMessagesInbox({user,clients,selClient,setSelClient,setChatU
     margin:isMobile?"0 0 -24px":"0 0 -40px",
     boxSizing:"border-box",
   }}>
-    <div style={{flexShrink:0}}>
-      <PageHead isMobile={isMobile} title="Messages" sub={pageSub}/>
-    </div>
-    <div style={{flex:1,minHeight:0,marginTop:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"280px 1fr",gap:16,alignItems:"stretch"}}>
-      <Card style={{padding:0,overflow:"auto",height:"100%",minHeight:0}}>
-        {loading?(<div style={{padding:24,textAlign:"center",color:T.faint,fontSize:13}}>Loading…</div>):(
-          <div>
-            {staffThreads.length>0&&<SectionLabel>{teamTitle}</SectionLabel>}
-            {staffThreads.length===0&&(
-              <div style={{padding:24}}><Empty icon="💬" title="No teammates yet" sub="When other team members are added, you can message them here."/></div>
-            )}
-            {staffThreads.map(t=>(
-              <ThreadRow key={`s_${t.staffId}`}
-                label={`${t.name}`}
-                sub={t.lastMessage?.body||roleLabel(t.role)}
-                when={t.lastMessage?.createdAt}
-                unread={t.unread}
-                activeSel={active?.kind==="staff"&&active.id===t.staffId}
-                onClick={()=>setActive({kind:"staff",id:t.staffId})}/>
-            ))}
-            {!teamOnly&&(<>
-              <SectionLabel>{isAdmin?"All clients":"Clients"}</SectionLabel>
-              {clientThreads.length===0?(
-                <div style={{padding:24}}><Empty icon="💬" title="No client chats yet" sub={isAdmin?"When clients message their BDM or support, threads appear here.":"When a client messages you, it appears here."}/></div>
-              ):clientThreads.map(t=>(
-                <ThreadRow key={`c_${t.clientId}`}
-                  label={t.clientName}
-                  sub={t.lastMessage?.body}
+    {showList&&(
+      <div style={{flexShrink:0}}>
+        <PageHead isMobile={isMobile} title="Messages" sub={pageSub}/>
+      </div>
+    )}
+    <div style={{
+      flex:1,
+      minHeight:0,
+      marginTop:showList?28:0,
+      display:"grid",
+      gridTemplateColumns:isMobile?"1fr":"280px 1fr",
+      gap:16,
+      alignItems:"stretch",
+    }}>
+      {showList&&(
+        <Card style={{padding:0,overflow:"auto",height:"100%",minHeight:0}}>
+          {loading?(<div style={{padding:24,textAlign:"center",color:T.faint,fontSize:13}}>Loading…</div>):(
+            <div>
+              {staffThreads.length>0&&<SectionLabel>{teamTitle}</SectionLabel>}
+              {staffThreads.length===0&&(
+                <div style={{padding:24}}><Empty icon="💬" title="No teammates yet" sub="When other team members are added, you can message them here."/></div>
+              )}
+              {staffThreads.map(t=>(
+                <ThreadRow key={`s_${t.staffId}`}
+                  label={`${t.name}`}
+                  sub={t.lastMessage?.body||roleLabel(t.role)}
                   when={t.lastMessage?.createdAt}
                   unread={t.unread}
-                  activeSel={active?.kind==="client"&&active.id===t.clientId}
-                  onClick={()=>{setActive({kind:"client",id:t.clientId});setSelClient(t.clientId);}}/>
+                  activeSel={active?.kind==="staff"&&active.id===t.staffId}
+                  onClick={()=>openThread({kind:"staff",id:t.staffId})}/>
               ))}
-            </>)}
-          </div>
-        )}
-      </Card>
-      <div style={{height:"100%",minHeight:0,overflow:"hidden"}}>
-        {active?.kind==="staff"?(
-          <ChatThread
-            key={`staff_${active.id}`}
-            variant="staff"
-            staffId={active.id}
-            myId={user.id}
-            peerLabel={staffPeer?`${staffPeer.name} · ${roleLabel(staffPeer.role)}`:"Teammate"}
-            toast={toast}
-            fill
-            onUnreadChange={(n)=>{
-              if(n===0)setStaffThreads(prev=>{const next=prev.map(t=>t.staffId===active.id?{...t,unread:0}:t);syncTotal(clientThreads,next);return next;});
-            }}
-          />
-        ):active?.kind==="client"&&!teamOnly?(
-          <ChatThread
-            key={`client_${active.id}`}
-            clientId={active.id}
-            myId={user.id}
-            peerLabel={clientPeer?.businessName||clientPeer?.name||"Client"}
-            toast={toast}
-            fill
-            onUnreadChange={(n)=>{
-              if(n===0)setClientThreads(prev=>{const next=prev.map(t=>t.clientId===active.id?{...t,unread:0}:t);syncTotal(next,staffThreads);return next;});
-            }}
-          />
-        ):(
-          <Card style={{height:"100%"}}><Empty icon="💬" title="Select a conversation" sub={teamOnly?"Pick a teammate on the left.":"Pick a teammate or client on the left."}/></Card>
-        )}
-      </div>
+              {!teamOnly&&(<>
+                <SectionLabel>{isAdmin?"All clients":"Clients"}</SectionLabel>
+                {clientThreads.length===0?(
+                  <div style={{padding:24}}><Empty icon="💬" title="No client chats yet" sub={isAdmin?"When clients message their BDM or support, threads appear here.":"When a client messages you, it appears here."}/></div>
+                ):clientThreads.map(t=>(
+                  <ThreadRow key={`c_${t.clientId}`}
+                    label={t.clientName}
+                    sub={t.lastMessage?.body}
+                    when={t.lastMessage?.createdAt}
+                    unread={t.unread}
+                    activeSel={active?.kind==="client"&&active.id===t.clientId}
+                    onClick={()=>{openThread({kind:"client",id:t.clientId});setSelClient(t.clientId);}}/>
+                ))}
+              </>)}
+            </div>
+          )}
+        </Card>
+      )}
+      {showChat&&(
+        <div style={{height:"100%",minHeight:0,overflow:"hidden"}}>
+          {active?.kind==="staff"?(
+            <ChatThread
+              key={`staff_${active.id}`}
+              variant="staff"
+              staffId={active.id}
+              myId={user.id}
+              peerLabel={staffPeer?`${staffPeer.name} · ${roleLabel(staffPeer.role)}`:"Teammate"}
+              toast={toast}
+              fill
+              onBack={isMobile?backToList:undefined}
+              onUnreadChange={(n)=>{
+                if(n===0)setStaffThreads(prev=>{const next=prev.map(t=>t.staffId===active.id?{...t,unread:0}:t);syncTotal(clientThreads,next);return next;});
+              }}
+            />
+          ):active?.kind==="client"&&!teamOnly?(
+            <ChatThread
+              key={`client_${active.id}`}
+              clientId={active.id}
+              myId={user.id}
+              peerLabel={clientPeer?.businessName||clientPeer?.name||"Client"}
+              toast={toast}
+              fill
+              onBack={isMobile?backToList:undefined}
+              onUnreadChange={(n)=>{
+                if(n===0)setClientThreads(prev=>{const next=prev.map(t=>t.clientId===active.id?{...t,unread:0}:t);syncTotal(next,staffThreads);return next;});
+              }}
+            />
+          ):(
+            <Card style={{height:"100%"}}><Empty icon="💬" title="Select a conversation" sub={teamOnly?"Pick a teammate on the left.":"Pick a teammate or client on the left."}/></Card>
+          )}
+        </div>
+      )}
     </div>
   </div>);
 }
