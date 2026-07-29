@@ -572,6 +572,16 @@ export const api={
       return{ok:true,...j};
     }catch(e){return{error:e.message||"Network error"};}
   },
+  async pushTest(){
+    const token=await this._accessToken();
+    if(!token)return{error:"Not signed in"};
+    try{
+      const r=await fetch("/api/push-test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)return{error:j.error||"Test push failed",...j};
+      return{ok:true,...j};
+    }catch(e){return{error:e.message||"Network error"};}
+  },
   /**
    * Light own-profile read for the BDM connect panel (poll target).
    * Falls back to assignedBdmId alone when bdm-connect-request.sql hasn't been run.

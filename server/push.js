@@ -16,26 +16,29 @@ function uid(prefix = "ps") {
   }
 }
 
+function envTrim(name) {
+  return String(process.env[name] || "").trim();
+}
+
 export function vapidConfigured() {
   return !!(
-    process.env.VAPID_PRIVATE_KEY &&
-    process.env.VAPID_SUBJECT &&
-    (process.env.VITE_VAPID_PUBLIC_KEY || process.env.VAPID_PUBLIC_KEY)
+    envTrim("VAPID_PRIVATE_KEY") &&
+    envTrim("VAPID_SUBJECT") &&
+    (envTrim("VITE_VAPID_PUBLIC_KEY") || envTrim("VAPID_PUBLIC_KEY"))
   );
 }
 
 export function vapidPublicKey() {
-  return process.env.VITE_VAPID_PUBLIC_KEY || process.env.VAPID_PUBLIC_KEY || "";
+  return envTrim("VITE_VAPID_PUBLIC_KEY") || envTrim("VAPID_PUBLIC_KEY");
 }
 
 function ensureVapid() {
   if (vapidReady) return true;
   if (!vapidConfigured()) return false;
-  webpush.setVapidDetails(
-    process.env.VAPID_SUBJECT,
-    vapidPublicKey(),
-    process.env.VAPID_PRIVATE_KEY
-  );
+  const subject = envTrim("VAPID_SUBJECT");
+  const pub = vapidPublicKey();
+  const priv = envTrim("VAPID_PRIVATE_KEY");
+  webpush.setVapidDetails(subject, pub, priv);
   vapidReady = true;
   return true;
 }
@@ -167,12 +170,19 @@ export async function sendPushToUser(admin, userId, { title, body, type, url } =
       sent++;
     } catch (e) {
       const code = e?.statusCode || e?.status;
-      // Gone / unauthorized / bad key → drop stale desktop/mobile endpoints
+      // Gone → drop. 401/403 often means VAPID public/private mismatch (or revoked sub).
       if (code === 404 || code === 410 || code === 401 || code === 403) {
         try {
           await admin.from("push_subscriptions").delete().eq("id", row.id);
         } catch { /* ignore */ }
-        console.warn("web-push dropped stale sub:", code, row.endpoint?.slice(0, 48));
+        console.warn(
+          "web-push dropped sub:",
+          code,
+          code === 401 || code === 403
+            ? "(check VAPID public/private pair match; user must Enable again)"
+            : "stale",
+          row.endpoint?.slice(0, 48)
+        );
       } else {
         console.warn("web-push send:", code, e?.message || e);
       }

@@ -18,11 +18,8 @@ export function vapidPublicKeyFromEnv() {
 }
 
 export async function resolveVapidPublicKey() {
-  const fromEnv = vapidPublicKeyFromEnv();
-  if (fromEnv) {
-    cachedPublicKey = fromEnv;
-    return fromEnv;
-  }
+  // Prefer the server key so subscribe always matches VAPID_PRIVATE_KEY used to send.
+  // Baked VITE_ key alone can diverge after a Vercel env rotate → 401/403 and silent drops.
   if (cachedPublicKey && Date.now() - cachedPublicKeyAt < 5 * 60 * 1000) {
     return cachedPublicKey;
   }
@@ -35,7 +32,13 @@ export async function resolveVapidPublicKey() {
       cachedPublicKeyAt = Date.now();
       return key;
     }
-  } catch { /* ignore */ }
+  } catch { /* fall through to build-time env */ }
+  const fromEnv = vapidPublicKeyFromEnv();
+  if (fromEnv) {
+    cachedPublicKey = fromEnv;
+    cachedPublicKeyAt = Date.now();
+    return fromEnv;
+  }
   return "";
 }
 

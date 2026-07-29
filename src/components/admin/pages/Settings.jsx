@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { T, FONT_B } from "../../../lib/theme";
 import { api } from "../../../lib/api";
 import { PLANS, planListPrice, planPrice, formatMoney } from "../../../lib/constants";
@@ -36,33 +36,66 @@ function buildConfig(settings) {
   };
 }
 
+const NUM_KEYS = [
+  "priceEssentials",
+  "priceGrowth",
+  "priceGmb",
+  "priceTestPlan",
+  "discountEssentials",
+  "discountGrowth",
+  "discountGmb",
+  "discountTestPlan",
+];
+
+/** Normalize for dirty compare + save (inputs often keep numbers as strings). */
+function normalizeConfig(cfg) {
+  const out = { ...cfg };
+  for (const k of NUM_KEYS) {
+    const n = Number(out[k]);
+    out[k] = Number.isFinite(n) ? n : 0;
+  }
+  return out;
+}
+
+function configDirty(current, saved) {
+  return JSON.stringify(normalizeConfig(current)) !== JSON.stringify(normalizeConfig(saved));
+}
+
+function configSig(cfg) {
+  return JSON.stringify(normalizeConfig(cfg));
+}
+
 export function Settings() {
   const { isMobile, settings, R, audit } = useAdmin();
   // Control-panel config: notification emails, report recipients, prices, toggles. UI-editable, DB-stored.
   const [c, setC] = useState(() => buildConfig(settings));
-  // Keep form in sync after reload / when DB values change.
+  const baselineSig = useRef(configSig(buildConfig(settings)));
+  const savedConfig = buildConfig(settings);
+  const dirty = configDirty(c, savedConfig);
+  // Sync from DB after save/reload — don't wipe in-progress edits.
   useEffect(() => {
-    setC(buildConfig(settings));
+    const next = buildConfig(settings);
+    const nextSig = configSig(next);
+    setC((prev) => {
+      if (configSig(prev) === baselineSig.current) {
+        baselineSig.current = nextSig;
+        return next;
+      }
+      baselineSig.current = nextSig;
+      return prev;
+    });
   }, [settings]);
   const setCfg = (k, v) => setC((x) => ({ ...x, [k]: v }));
   const saveConfig = async (detail) => {
-    const config = {
-      ...c,
-      priceEssentials: Number(c.priceEssentials),
-      priceGrowth: Number(c.priceGrowth),
-      priceGmb: Number(c.priceGmb),
-      priceTestPlan: Number(c.priceTestPlan),
-      discountEssentials: Number(c.discountEssentials),
-      discountGrowth: Number(c.discountGrowth),
-      discountGmb: Number(c.discountGmb),
-      discountTestPlan: Number(c.discountTestPlan),
-    };
+    if (!configDirty(c, buildConfig(settings))) return;
+    const config = normalizeConfig(c);
     const saved = await api.saveSettings({
       ...settings,
       stripe: settings?.stripe || {},
       config,
     });
     if (!saved) throw new Error("Control panel did not save to the database");
+    baselineSig.current = configSig(config);
     await audit("settings.update", { targetType: "settings", detail });
   };
     const Toggle=({label,k,sub})=>(
@@ -165,7 +198,14 @@ export function Settings() {
           <Toggle label="Send monthly finance report" k="monthlyReport" sub="Signups, revenue, cancellations to report recipients"/>
           <Toggle label="Allow public client signups" k="allowSignups" sub="Turn off to hide signup CTAs. Never use Supabase Dashboard → Invite — Auth invite mail is blocked by the Send Email hook when enabled. Clients must sign up themselves; staff invites go from Team → Invite only (Resend)."/>
         </div>
-        <Btn style={{marginTop:16}} onClick={()=>R(()=>saveConfig("control panel"),"Control panel saved")}>Save Control Panel</Btn>
+        <Btn
+          style={{marginTop:16}}
+          disabled={!dirty}
+          title={dirty ? "Save changes" : "No changes to save"}
+          onClick={() => R(() => saveConfig("control panel"), "Control panel saved")}
+        >
+          Save Control Panel
+        </Btn>
       </Card>
 
       {/* Notifications & Email Routing — hidden until routing is fully wired */}

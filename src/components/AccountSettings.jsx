@@ -506,7 +506,7 @@ export default function AccountSettings({
                   const r = await disablePush((endpoint) => api.pushUnsubscribe(endpoint));
                   setPushBusy(false);
                   if (r.error) {
-                    toast?.(r.error, "err");
+                    toast?.(r.error, "error");
                     return;
                   }
                   setPushOn(false);
@@ -523,14 +523,32 @@ export default function AccountSettings({
                   const r = await enablePush((subscription) => api.pushSubscribe(subscription));
                   setPushBusy(false);
                   if (r.error) {
-                    toast?.(r.error, "err");
+                    toast?.(r.error, "error");
                     return;
                   }
                   setPushOn(true);
-                  toast?.("Browser notifications enabled", "ok");
+                  toast?.("Browser notifications enabled");
                 }}
               >
                 {pushBusy ? "Enabling…" : "Enable on this device"}
+              </Btn>
+            )}
+            {pushOn && (
+              <Btn
+                variant="ghost"
+                disabled={pushBusy || readOnly}
+                onClick={async () => {
+                  setPushBusy(true);
+                  const r = await api.pushTest();
+                  setPushBusy(false);
+                  if (r.error) {
+                    toast?.(r.error, "error");
+                    return;
+                  }
+                  toast?.("Test notification sent — check your OS/browser alerts");
+                }}
+              >
+                {pushBusy ? "Sending…" : "Send test"}
               </Btn>
             )}
           </div>

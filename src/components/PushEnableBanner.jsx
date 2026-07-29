@@ -84,10 +84,10 @@ export default function PushEnableBanner({ toast, enabled = true, onVisibilityCh
             const r = await enablePush((subscription) => api.pushSubscribe(subscription));
             setBusy(false);
             if (r.error) {
-              toast?.(r.error, "err");
+              toast?.(r.error, "error");
               return;
             }
-            toast?.("Notifications enabled", "ok");
+            toast?.("Notifications enabled");
             setShow(false);
           }}
         >
