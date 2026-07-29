@@ -86,6 +86,33 @@ export function ClientCallPage({user,isMobile,toast,reload,onOpenMessages,readOn
     })();
     return()=>{cancelled=true;};
   },[user.id,user.assignedBdmId,user.plan]);
+
+  // Soft refresh bookings/slots without toggling the loading screen (avoids flicker mid-book).
+  useEffect(()=>{
+    let cancelled=false;
+    const soft=async()=>{
+      if(cancelled||busy)return;
+      if(typeof document!=="undefined"&&document.visibilityState==="hidden")return;
+      try{
+        const r=await api.getMyBdm();
+        if(cancelled)return;
+        setBdm(r.agent||null);
+        setSupportPeer(!!r.support||!!r.needsBdm);
+        setBookings(r.bookings||[]);
+        setTakenSlots(Array.isArray(r.takenSlots)?r.takenSlots:[]);
+        setQuota(r.quota||null);
+      }catch{/* ignore */}
+    };
+    const t=setInterval(soft,20000);
+    const onVis=()=>{if(document.visibilityState==="visible")soft();};
+    document.addEventListener("visibilitychange",onVis);
+    return()=>{
+      cancelled=true;
+      clearInterval(t);
+      document.removeEventListener("visibilitychange",onVis);
+    };
+  },[user.id,user.assignedBdmId,user.plan,busy]);
+
   const upcomingBookings=bookings.filter(b=>!isBookingPast(b.slotDate,b.slotTime));
   const activeBooking=upcomingBookings.find(b=>b.status==="confirmed")||upcomingBookings.find(b=>b.status==="pending")||null;
   const showCalendar=!loadingCall&&(showScheduler||!activeBooking);

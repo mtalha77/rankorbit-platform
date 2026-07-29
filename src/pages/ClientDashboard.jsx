@@ -359,6 +359,45 @@ export default function ClientDashboard({ user: userProp, data, reload, onLogout
     };
   }, [userId, impersonating, messagingAllowed]);
 
+  // Soft-live data for Home / Listings / Billing / GMB / Call / Settings.
+  // Same pattern as admin: in-flight guard, skip when tab hidden, never wipe on error.
+  useEffect(() => {
+    if (!userId || !reload) return;
+    let cancelled = false;
+    let inFlight = false;
+    const softReload = async () => {
+      if (cancelled || inFlight) return;
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      // Don't clobber Settings / form drafts while the user is typing.
+      const ae = typeof document !== "undefined" ? document.activeElement : null;
+      const tag = ae?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || ae?.isContentEditable) return;
+      inFlight = true;
+      try {
+        await reload();
+        // Billing invoices live outside loadAll — refresh cheaply from DB (no Stripe sync).
+        if (pageRef.current === "billing" && !impersonating) {
+          const rows = await api.listInvoices(userId);
+          if (!cancelled && Array.isArray(rows)) setInvoices(rows);
+        }
+      } catch {
+        /* ignore soft-refresh errors */
+      } finally {
+        inFlight = false;
+      }
+    };
+    const t = setInterval(softReload, 20000);
+    const onVis = () => {
+      if (document.visibilityState === "visible") softReload();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [userId, impersonating, reload]);
+
   // Guidance onboarding banner — confirm via bookings API (source of truth).
   useEffect(() => {
     if (impersonating || !userId || !user?.plan) {
