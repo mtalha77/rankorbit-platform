@@ -1,6 +1,7 @@
 // ─── SHELL (nav + layout) ────────────────────────────────────────────────────
 import { useState } from "react";
 import { T, FONT_B, SHADOW_LG } from "../lib/theme";
+import { SUPPORT_EMAIL } from "../lib/legal";
 import { useWindowSize } from "../hooks";
 import { UserAvatar } from "./AccountSettings";
 import { NavIcon, hasNavIcon } from "./navIcons";
@@ -226,8 +227,8 @@ export default function Shell({
             <div style={{ marginTop: 10, textAlign: "center", fontSize: 11.5, color: T.faint, lineHeight: 1.5 }}>
               <div style={{ marginBottom: 6 }}>
                 Support:{" "}
-                <a href="mailto:sales@naporbit.com" style={{ color: T.brand, fontWeight: 700, textDecoration: "none" }}>
-                  sales@naporbit.com
+                <a href={`mailto:${SUPPORT_EMAIL}`} style={{ color: T.brand, fontWeight: 700, textDecoration: "none" }}>
+                  {SUPPORT_EMAIL}
                 </a>
               </div>
               <span onClick={openLegal} style={{ cursor: "pointer", textDecoration: "underline", color: T.sub }}>

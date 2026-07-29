@@ -4,6 +4,7 @@ import { api } from "../../../lib/api";
 import { openExternalFile } from "../../../lib/export";
 import { PLANS, popularPlanId, orderPlansPopularCenter, isPlanDowngrade, planListPrice, planDiscountPct, formatMoney, normalizePlanId } from "../../../lib/constants";
 import { paymentGraceState } from "../../../lib/helpers";
+import { SUPPORT_EMAIL } from "../../../lib/legal";
 import { Badge, Card, Btn, PageHead, SectionTitle, Modal } from "../../atoms";
 import { ProfileGate } from "../ProfileGate";
 import { useClient } from "../ClientContext";
@@ -284,7 +285,7 @@ export function Billing() {
                     <div style={{ fontSize: 11.5, color: T.faint, marginTop: 8, lineHeight: 1.5 }}>Renews automatically. Cancel before your renewal date to avoid the next charge, you keep access until the period ends.</div>
                     <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 10, background: T.surface2, border: `1px solid ${T.line}`, fontSize: 12, color: T.sub, lineHeight: 1.5, fontWeight: 600 }}>
                       Prefer help or a billing question first? Contact{" "}
-                      <a href="mailto:sales@naporbit.com" style={{ color: T.brand, fontWeight: 800 }}>sales@naporbit.com</a>
+                      <a href={`mailto:${SUPPORT_EMAIL}`} style={{ color: T.brand, fontWeight: 800 }}>{SUPPORT_EMAIL}</a>
                       {" "}or use Messages / Book a Call — easier than a bank dispute.
                     </div>
                     <button

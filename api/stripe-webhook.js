@@ -27,6 +27,7 @@ import {
 } from "../server/purchaseNotify.js";
 import { onboardingHelpLine } from "../server/emailTemplate.js";
 import { fulfillLandingCheckoutSession } from "../server/landingPayfirst.js";
+import { SUPPORT_EMAIL } from "../server/legal.js";
 
 export const config = { api: { bodyParser: false } };
 
@@ -496,7 +497,7 @@ export default async function handler(req, res) {
               clientId: profileId,
               type: "renewal_reminder",
               title: "Upcoming renewal",
-              body: `Reminder: your NAP Orbit subscription will renew for ${amount} on ${when}. Manage or cancel anytime under Plan & Billing. Questions: sales@naporbit.com.`,
+              body: `Reminder: your NAP Orbit subscription will renew for ${amount} on ${when}. Manage or cancel anytime under Plan & Billing. Questions: ${SUPPORT_EMAIL}.`,
               meta: { invoiceId: invoice.id || null, amountDue: invoice.amount_due ?? null },
             });
           } catch (e) {

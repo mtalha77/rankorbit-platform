@@ -7,8 +7,8 @@ import { useAdmin } from "../AdminContext";
 
 function buildConfig(settings) {
   return {
-    notifyEmail: "sales@naporbit.com",
-    reportEmails: "sales@naporbit.com, onboarding@naporbit.com",
+    notifyEmail: "naporbit@gmail.com",
+    reportEmails: "naporbit@gmail.com",
     priceEssentials: PLANS.essentials.price,
     priceGrowth: PLANS.growth.price,
     priceGmb: PLANS.pro.price,
@@ -112,8 +112,8 @@ export function Settings() {
         <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16}}>
           <div>
             <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:10}}>NOTIFICATION EMAILS</div>
-            <Input label="Event notifications to" value={c.notifyEmail} onChange={v=>setCfg("notifyEmail",v)} placeholder="sales@naporbit.com"/>
-            <Input label="Monthly report recipients (comma-separated)" value={c.reportEmails} onChange={v=>setCfg("reportEmails",v)} placeholder="sales@naporbit.com, onboarding@naporbit.com"/>
+            <Input label="Event notifications to" value={c.notifyEmail} onChange={v=>setCfg("notifyEmail",v)} placeholder="naporbit@gmail.com"/>
+            <Input label="Monthly report recipients (comma-separated)" value={c.reportEmails} onChange={v=>setCfg("reportEmails",v)} placeholder="naporbit@gmail.com"/>
           </div>
           <div>
             <div style={{fontSize:11,fontWeight:800,color:T.faint,letterSpacing:".6px",marginBottom:10}}>PLAN PRICES ($ / month)</div>
