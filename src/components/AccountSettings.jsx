@@ -533,24 +533,6 @@ export default function AccountSettings({
                 {pushBusy ? "Enabling…" : "Enable on this device"}
               </Btn>
             )}
-            {pushOn && (
-              <Btn
-                variant="ghost"
-                disabled={pushBusy || readOnly}
-                onClick={async () => {
-                  setPushBusy(true);
-                  const r = await api.pushTest();
-                  setPushBusy(false);
-                  if (r.error) {
-                    toast?.(r.error, "error");
-                    return;
-                  }
-                  toast?.("Test notification sent — check your OS/browser alerts");
-                }}
-              >
-                {pushBusy ? "Sending…" : "Send test"}
-              </Btn>
-            )}
           </div>
         </Card>
       )}
