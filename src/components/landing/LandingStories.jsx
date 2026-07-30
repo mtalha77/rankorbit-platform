@@ -48,7 +48,7 @@ const SIDE_REVIEWS = [
   },
   {
     quote: "Our Google listing had the wrong address for years. NAP Orbit corrected it across every directory.",
-    name: "Elena R.",
+    name: "Emily R.",
     meta: "HVAC · San Antonio, Texas",
     letter: "E",
     badge: "NAP FIXED",
@@ -66,9 +66,9 @@ const SIDE_REVIEWS = [
   },
   {
     quote: "Someone changed our hours overnight. NAP Orbit flagged it and reverted it before we lost bookings.",
-    name: "Priya K.",
+    name: "Rachel K.",
     meta: "Salon · Atlanta, Georgia",
-    letter: "P",
+    letter: "R",
     badge: "EDIT PROTECTED",
     badgeTone: "violet",
     accent: T.brand,
@@ -93,9 +93,9 @@ const SIDE_REVIEWS = [
   },
   {
     quote: "Apple Maps finally matched Google. Customers stopped arguing about which address was right.",
-    name: "Omar H.",
+    name: "Brian H.",
     meta: "Electrician · Chicago, Illinois",
-    letter: "O",
+    letter: "B",
     badge: "SYNCED",
     badgeTone: "green",
     accent: T.green,

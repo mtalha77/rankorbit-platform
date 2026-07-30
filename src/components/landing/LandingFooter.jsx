@@ -20,36 +20,37 @@ export function LandingFooter({ isMobile, isTab, user, nav, goDash, goLogin, goS
         borderRadius:"50%",border:`1px solid ${T.line}`,pointerEvents:"none",
       }}/>
 
-      {/* Full-bleed brand wordmark — no side padding */}
+      {/* Brand wordmark — width:auto so text keeps natural size; maxWidth prevents clipping */}
       <div
         aria-hidden="true"
         style={{
           width:"100%",
+          display:"flex",
+          justifyContent:"center",
           marginBottom:isMobile?28:isTab?36:44,
-          padding:0,
-          lineHeight:0,
+          padding:isMobile?"0 16px":isTab?"0 20px":"0 24px",
+          boxSizing:"border-box",
         }}
       >
-        <svg
-          viewBox="0 0 1100 130"
-          width="100%"
-          preserveAspectRatio="xMidYMid meet"
-          style={{display:"block",width:"100%",height:"auto",userSelect:"none",maxHeight:isMobile?88:isTab?120:150}}
+        <div
+          style={{
+            width:"auto",
+            maxWidth:"100%",
+            fontFamily:"Syne, Sora, sans-serif",
+            fontWeight:800,
+            fontSize:isMobile?"clamp(22px, 8.5vw, 40px)":isTab?"clamp(40px, 7vw, 72px)":"clamp(64px, 7vw, 108px)",
+            letterSpacing:"-0.02em",
+            color:T.brand,
+            opacity:0.28,
+            whiteSpace:"nowrap",
+            lineHeight:1.1,
+            textAlign:"center",
+            overflow:"hidden",
+            userSelect:"none",
+          }}
         >
-          <text
-            x="550"
-            y="98"
-            textAnchor="middle"
-            fontFamily="Syne, Sora, sans-serif"
-            fontWeight="800"
-            fontSize="108"
-            letterSpacing="1"
-            fill={T.brand}
-            fillOpacity="0.28"
-          >
-            NAP.RankOrbit
-          </text>
-        </svg>
+          NAP.RankOrbit
+        </div>
       </div>
 
       <div style={{
