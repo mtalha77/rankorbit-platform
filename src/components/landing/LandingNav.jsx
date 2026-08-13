@@ -7,7 +7,8 @@ export function LandingNav({ isMobile, navSolid, user, isStaff = false, avatarLe
     <div style={{position:"fixed",top:0,left:0,right:0,zIndex:100,background:navSolid?"rgba(255,255,255,.86)":"transparent",backdropFilter:navSolid?"blur(12px)":"none",borderBottom:navSolid?`1px solid ${T.line}`:"1px solid transparent",transition:"background .22s ease,border-color .22s ease,backdrop-filter .22s ease"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:isMobile?"13px 8px":"15px 8px",maxWidth:1400,margin:"0 auto",width:"100%",boxSizing:"border-box"}}>
         <div style={{display:"flex",alignItems:"center",gap:11}}>
-          <img src="/nap-orbit-logo-nav.png" alt="NAP Orbit" width={140} height={30} style={{height:isMobile?26:30,width:"auto",display:"block"}}/>
+          {/* Artwork is black; flip it to white while the nav sits over the dark hero. */}
+          <img src="/nap-orbit-logo-nav.png" alt="NAP Orbit" width={140} height={30} style={{height:isMobile?26:30,width:"auto",display:"block",filter:navSolid?"none":"brightness(0) invert(1) drop-shadow(0 1px 10px rgba(0,0,0,.35))",transition:"filter .22s ease"}}/>
         </div>
         <div style={{display:"flex",gap:isMobile?8:14,alignItems:"center"}}>
           {user?(<>

@@ -2,15 +2,16 @@ import { FONT_D } from "../../lib/theme";
 import CssIoButton from "../CssIoButton";
 import CtaFillButton from "../CtaFillButton";
 import { Reveal } from "../Reveal";
-import { DashboardPreview } from "./DashboardPreview";
+import { HeroScene } from "./HeroScene";
 
 export function LandingHero({ isMobile, isTab, user, goDash, goSignup }) {
   return (
-    <div style={{position:"relative",overflow:"hidden",backgroundImage:'image-set(url("/hero-bg.webp") type("image/webp"), url("/hero-bg.png") type("image/png"))',backgroundSize:"cover",backgroundPosition:"center 35%"}}>
+    <div style={{position:"relative",overflow:"hidden",background:"#080a1e"}}>
+      <HeroScene />
       {/* Light black shade so headline / CTAs stay readable */}
       <div aria-hidden="true" style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(15,15,28,.42) 0%,rgba(15,15,28,.55) 55%,rgba(15,15,28,.62) 100%)"}}/>
       <div style={{position:"relative",maxWidth:1400,margin:"0 auto",padding:isMobile?"96px 8px 40px":"132px 8px 64px",textAlign:"left",width:"100%",boxSizing:"border-box"}}>
-        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"0.85fr 1.15fr",gap:isMobile?36:40,alignItems:"center"}}>
+        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"minmax(0,0.62fr) minmax(0,1.38fr)",gap:isMobile?36:40,alignItems:"center"}}>
           <div>
             <Reveal delay={80}>
               <h1 style={{fontFamily:FONT_D,fontSize:isMobile?36:isTab?48:58,fontWeight:800,lineHeight:1.06,letterSpacing:isMobile?"-1.5px":"-2.2px",margin:"0 0 18px",maxWidth:560,color:"#fff",textShadow:"0 2px 24px rgba(0,0,0,.25)"}}>
@@ -31,10 +32,8 @@ export function LandingHero({ isMobile, isTab, user, goDash, goSignup }) {
             </Reveal>
           </div>
 
-          {/* Full dashboard preview — same as dashboard tour section */}
-          <Reveal delay={280}>
-            <DashboardPreview isMobile={isMobile} chartId="heroDashChartFill" />
-          </Reveal>
+          {/* Kept empty on purpose — the animated map scene shows through here. */}
+          <div aria-hidden="true" style={{minHeight:isMobile?260:440}}/>
         </div>
       </div>
     </div>
