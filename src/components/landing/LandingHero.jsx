@@ -7,9 +7,10 @@ import { HeroScene } from "./HeroScene";
 export function LandingHero({ isMobile, isTab, user, goDash, goSignup }) {
   return (
     <div style={{position:"relative",overflow:"hidden",background:"#080a1e"}}>
-      <HeroScene />
-      {/* Light black shade so headline / CTAs stay readable */}
-      <div aria-hidden="true" style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(15,15,28,.42) 0%,rgba(15,15,28,.55) 55%,rgba(15,15,28,.62) 100%)"}}/>
+      <HeroScene isMobile={isMobile} />
+      {/* Shade only where the copy sits, so the artwork is never dimmed: bottom-up
+          on mobile (copy below the art), left-to-right on desktop (copy beside it). */}
+      <div aria-hidden="true" style={{position:"absolute",inset:0,background:isMobile?"linear-gradient(180deg,rgba(15,15,28,0) 0%,rgba(15,15,28,.12) 32%,rgba(15,15,28,.48) 58%,rgba(15,15,28,.62) 100%)":"linear-gradient(90deg,rgba(15,15,28,.62) 0%,rgba(15,15,28,.46) 30%,rgba(15,15,28,.16) 50%,rgba(15,15,28,0) 66%)"}}/>
       <div style={{position:"relative",maxWidth:1400,margin:"0 auto",padding:isMobile?"96px 8px 40px":"132px 8px 64px",textAlign:"left",width:"100%",boxSizing:"border-box"}}>
         <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"minmax(0,0.62fr) minmax(0,1.38fr)",gap:isMobile?36:40,alignItems:"center"}}>
           <div>
@@ -32,8 +33,9 @@ export function LandingHero({ isMobile, isTab, user, goDash, goSignup }) {
             </Reveal>
           </div>
 
-          {/* Kept empty on purpose — the animated map scene shows through here. */}
-          <div aria-hidden="true" style={{minHeight:isMobile?260:440}}/>
+          {/* Kept empty on purpose — the animated map scene shows through here.
+              On mobile it leads, so the art sits above the copy. */}
+          <div aria-hidden="true" style={{minHeight:isMobile?300:440,order:isMobile?-1:0}}/>
         </div>
       </div>
     </div>

@@ -1,6 +1,7 @@
 // Code-drawn hero backdrop: isometric city map, the business at the centre, and
 // verified listing pins wired back to it. Replaces the old hero-bg raster so the
 // scene stays crisp at any resolution and can animate.
+import { useEffect, useRef } from "react";
 
 const VW = 1024;
 const VH = 533;
@@ -11,6 +12,11 @@ const CY = 250;
 // arcs and pins stay in step with each other.
 const SCENE_SCALE = 0.87;
 const SCENE_DROP = 34;
+
+// Parallax: how far each layer drifts against the cursor, in viewBox units.
+const SWAY_X = 20;
+const SWAY_Y = 12;
+const DEPTH = { map: 0.3, links: 0.85, biz: 0.6 };
 
 const STEP = 52;
 
@@ -272,9 +278,92 @@ function Storefront() {
   );
 }
 
-export function HeroScene() {
+export function HeroScene({ isMobile = false }) {
+  const rootRef = useRef(null);
+  const mapRef = useRef(null);
+  const linksRef = useRef(null);
+  const bizRef = useRef(null);
+  const spotRef = useRef(null);
+  const spotGlowRef = useRef(null);
+
+  // Cursor parallax + spotlight. Everything is eased in a rAF loop and written
+  // straight to the DOM, so moving the mouse never triggers a React render.
+  useEffect(() => {
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+
+    const aim = { x: 0, y: 0, sx: CX, sy: CY, lit: 0 };
+    const now = { x: 0, y: 0, sx: CX, sy: CY, lit: 0 };
+    let raf = 0;
+
+    const onMove = (e) => {
+      const el = rootRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      const nx = (e.clientX - r.left) / r.width;
+      const ny = (e.clientY - r.top) / r.height;
+      const inside = nx >= 0 && nx <= 1 && ny >= 0 && ny <= 1;
+      aim.lit = inside ? 1 : 0;
+      if (!inside) {
+        aim.x = 0;
+        aim.y = 0;
+        return;
+      }
+      aim.x = nx * 2 - 1;
+      aim.y = ny * 2 - 1;
+      aim.sx = nx * VW;
+      aim.sy = ny * VH;
+    };
+
+    const onLeave = () => {
+      aim.x = 0;
+      aim.y = 0;
+      aim.lit = 0;
+    };
+
+    const shift = (ref, depth) => {
+      if (!ref.current) return;
+      const dx = (-now.x * SWAY_X * depth).toFixed(2);
+      const dy = (-now.y * SWAY_Y * depth).toFixed(2);
+      ref.current.setAttribute("transform", `translate(${dx} ${dy})`);
+    };
+
+    const tick = () => {
+      now.x += (aim.x - now.x) * 0.06;
+      now.y += (aim.y - now.y) * 0.06;
+      now.sx += (aim.sx - now.sx) * 0.11;
+      now.sy += (aim.sy - now.sy) * 0.11;
+      now.lit += (aim.lit - now.lit) * 0.05;
+
+      shift(mapRef, DEPTH.map);
+      shift(linksRef, DEPTH.links);
+      shift(bizRef, DEPTH.biz);
+
+      if (spotRef.current) {
+        spotRef.current.setAttribute("cx", now.sx.toFixed(1));
+        spotRef.current.setAttribute("cy", now.sy.toFixed(1));
+        spotRef.current.setAttribute("r", (170 * now.lit).toFixed(1));
+      }
+      if (spotGlowRef.current) {
+        spotGlowRef.current.setAttribute("cx", now.sx.toFixed(1));
+        spotGlowRef.current.setAttribute("cy", now.sy.toFixed(1));
+        spotGlowRef.current.setAttribute("opacity", now.lit.toFixed(3));
+      }
+      raf = requestAnimationFrame(tick);
+    };
+
+    raf = requestAnimationFrame(tick);
+    window.addEventListener("pointermove", onMove, { passive: true });
+    window.addEventListener("pointerleave", onLeave);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerleave", onLeave);
+    };
+  }, []);
+
   return (
-    <div aria-hidden="true" style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" }}>
+    <div ref={rootRef} aria-hidden="true" style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" }}>
       <style>{`
         @keyframes hsFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
         @keyframes hsFlow{to{stroke-dashoffset:-160}}
@@ -348,6 +437,13 @@ export function HeroScene() {
             <stop offset=".3" stopColor="#05071A" stopOpacity=".4" />
             <stop offset=".6" stopColor="#05071A" stopOpacity="0" />
           </linearGradient>
+          {/* On mobile the copy sits under the art, so the shade runs bottom-up. */}
+          <linearGradient id="hsVignetteM" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#05071A" stopOpacity="0" />
+            <stop offset=".36" stopColor="#05071A" stopOpacity=".12" />
+            <stop offset=".62" stopColor="#05071A" stopOpacity=".72" />
+            <stop offset="1" stopColor="#05071A" stopOpacity=".95" />
+          </linearGradient>
           <filter id="hsBlur" x="-60%" y="-60%" width="220%" height="220%">
             <feGaussianBlur stdDeviation="16" />
           </filter>
@@ -357,6 +453,19 @@ export function HeroScene() {
           <filter id="hsLine" x="-30%" y="-30%" width="160%" height="160%">
             <feGaussianBlur stdDeviation="2.2" />
           </filter>
+          <radialGradient id="hsSpotFade" cx="50%" cy="50%" r="50%">
+            <stop offset="0" stopColor="#fff" />
+            <stop offset=".45" stopColor="#fff" stopOpacity=".72" />
+            <stop offset="1" stopColor="#fff" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id="hsSpotGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0" stopColor="#8DA0FF" stopOpacity=".42" />
+            <stop offset=".45" stopColor="#5A46E0" stopOpacity=".16" />
+            <stop offset="1" stopColor="#5A46E0" stopOpacity="0" />
+          </radialGradient>
+          <mask id="hsSpot">
+            <circle ref={spotRef} cx={CX} cy={CY} r="0" fill="url(#hsSpotFade)" />
+          </mask>
           <clipPath id="hsSlabTop">
             <polygon points={`${P(-62, -62)} ${P(62, -62)} ${P(62, 62)} ${P(-62, 62)}`} />
           </clipPath>
@@ -368,8 +477,17 @@ export function HeroScene() {
         <rect width={VW} height={VH} fill="url(#hsSky)" />
         <rect width={VW} height={VH} fill="url(#hsAmbient)" />
 
-        <g transform={`translate(${CX} ${CY + SCENE_DROP}) scale(${SCENE_SCALE}) translate(${-CX} ${-CY})`}>
-          {/* Isometric street grid */}
+        <g
+          transform={
+            isMobile
+              ? // Narrow viewports crop hard, so recentre the scene in the visible
+                // window and sit it above the copy instead of behind it.
+                `translate(${VW / 2} 178) scale(.5) translate(${-CX} ${-CY})`
+              : `translate(${CX} ${CY + SCENE_DROP}) scale(${SCENE_SCALE}) translate(${-CX} ${-CY})`
+          }
+        >
+          {/* Isometric street grid — furthest layer, drifts least */}
+          <g ref={mapRef}>
           <g mask="url(#hsMapMask)">
             <g transform={`translate(${CX - 20} ${CY + 50}) scale(1 .52) rotate(45)`}>
               {BLOCKS.map((b, i) => (
@@ -412,7 +530,30 @@ export function HeroScene() {
             </g>
           </g>
 
-          {/* Connection arcs */}
+          {/* Streets light up inside a soft spotlight that trails the cursor */}
+          <g mask="url(#hsMapMask)">
+            <g mask="url(#hsSpot)">
+              <g transform={`translate(${CX - 20} ${CY + 50}) scale(1 .52) rotate(45)`}>
+                {GRID.map((l, i) => (
+                  <line
+                    key={i}
+                    x1={l.a[0]}
+                    y1={l.a[1]}
+                    x2={l.a[2]}
+                    y2={l.a[3]}
+                    stroke={l.major ? "#9DFBE6" : "#BCC9FF"}
+                    strokeOpacity={l.major ? 0.85 : 0.45}
+                    strokeWidth={l.major ? 2.8 : 1.3}
+                  />
+                ))}
+              </g>
+            </g>
+          </g>
+          <ellipse ref={spotGlowRef} cx={CX} cy={CY} rx="200" ry="130" fill="url(#hsSpotGlow)" opacity="0" />
+          </g>
+
+          {/* Arcs and pins — nearest layer, drifts most */}
+          <g ref={linksRef}>
           <g fill="none" strokeLinecap="round">
             {PINS.map((p, i) => {
               const dPath = arcPath(p.x, p.y);
@@ -443,7 +584,13 @@ export function HeroScene() {
             })}
           </g>
 
+          {PINS.map((p, i) => (
+            <Pin key={i} {...p} />
+          ))}
+          </g>
+
           {/* ── The business ─────────────────────────────────────────────── */}
+          <g ref={bizRef}>
           <ellipse className="hsGlow" cx={CX} cy={CY + 16} rx="150" ry="72" fill="#5A46E0" opacity=".5" filter="url(#hsBlur)" />
 
           <g transform={`translate(${CX} ${CY})`}>
@@ -526,14 +673,11 @@ export function HeroScene() {
             <circle cx="0" cy="-28" r="11.5" fill="none" stroke="#3CF0B4" strokeWidth="1.4" strokeOpacity=".85" />
             <path d="M-5.4-28.4l3.6 3.7 7.3-7.6" fill="none" stroke="#3CF0B4" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
           </g>
-
-          {PINS.map((p, i) => (
-            <Pin key={i} {...p} />
-          ))}
+          </g>
         </g>
 
-        {/* Vignette so the headline side stays dark */}
-        <rect width={VW} height={VH} fill="url(#hsVignette)" />
+        {/* Vignette so the headline stays readable */}
+        <rect width={VW} height={VH} fill={isMobile ? "url(#hsVignetteM)" : "url(#hsVignette)"} />
       </svg>
     </div>
   );
